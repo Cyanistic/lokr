@@ -9,6 +9,8 @@ use axum::{
 };
 use serde::Serialize;
 use tracing::{error, warn};
+use utoipa::ToSchema;
+use validator::Validate;
 
 /// Error that wraps `anyhow::Error`.
 /// Useful to provide more fine grained error handling in our application.
@@ -17,6 +19,7 @@ pub enum AppError {
     JsonRejection(JsonRejection),
     SqlxError(sqlx::Error),
     SerdeError(sonic_rs::Error),
+    ValidationError(Vec<AppValidationError>),
     AuthError(anyhow::Error),
     UserError((StatusCode, Box<str>)),
     Generic(anyhow::Error),
@@ -24,7 +27,7 @@ pub enum AppError {
 
 /// A JSON response for errors that includes the error type and message
 /// Used in both WebSockets and HTTP responses to notify the client of errors
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Debug, Clone, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ErrorResponse {
     error_type: String,
@@ -36,6 +39,7 @@ impl AppError {
     pub fn r#type(&self) -> String {
         match self {
             AppError::JsonRejection(_) => "JsonRejection".to_owned(),
+            AppError::ValidationError(_) => "ValidationError".to_owned(),
             AppError::SerdeError(_) => "SerdeError".to_owned(),
             AppError::AuthError(_) => "AuthError".to_owned(),
             AppError::SqlxError(_) => "SqlxError".to_owned(),
@@ -51,6 +55,7 @@ impl Display for AppError {
         match self {
             AppError::JsonRejection(rejection) => write!(f, "{}", rejection.body_text()),
             AppError::SerdeError(e) => write!(f, "{}", e),
+            AppError::ValidationError(e) => write!(f, "{}", sonic_rs::to_string(&e).unwrap()),
             AppError::AuthError(e) => write!(f, "{}", e),
             AppError::SqlxError(e) => write!(f, "{}", e),
             AppError::Generic(err) => write!(f, "{}", err),
@@ -66,6 +71,7 @@ impl IntoResponse for AppError {
         match self {
             AppError::JsonRejection(_)
             | AppError::AuthError(_)
+            | AppError::ValidationError(_)
             | AppError::SerdeError(_)
             | AppError::UserError(_) => warn!("{}", self),
             AppError::SqlxError(_) | AppError::Generic(_) => error!("{}", self),
@@ -73,6 +79,9 @@ impl IntoResponse for AppError {
         let (status, message) = match &self {
             AppError::JsonRejection(rejection) => (rejection.status(), rejection.body_text()),
             AppError::SerdeError(e) => (StatusCode::BAD_REQUEST, e.to_string()),
+            AppError::ValidationError(e) => {
+                (StatusCode::BAD_REQUEST, sonic_rs::to_string(&e).unwrap())
+            }
             AppError::AuthError(e) => (StatusCode::UNAUTHORIZED, e.to_string()),
             AppError::UserError((code, e)) => (*code, e.to_string()),
             AppError::SqlxError(_) | AppError::Generic(_) => (
@@ -114,5 +123,41 @@ where
         } else {
             return Self::Generic(err);
         }
+    }
+}
+
+/// A more descriptive error message for validation errors
+#[derive(Serialize, Debug)]
+pub struct AppValidationError {
+    field: String,
+    message: String,
+}
+
+/// An error type for validation errors
+/// This is useful because we can return a JSON response with the error type and message
+/// to provide the client with a clearer error message than what the default `validator`
+/// crate provides.
+pub trait AppValidate {
+    fn app_validate(&self) -> Result<(), AppError>;
+}
+
+impl<T: Validate> AppValidate for T {
+    fn app_validate(&self) -> Result<(), AppError> {
+        // If validation fails, return a JSON response with the error type and message
+        if let Err(err) = self.validate() {
+            // Iterater over the field errors and map them to `AppValidationError`
+            let errors: Vec<AppValidationError> = err
+                .field_errors()
+                .iter()
+                .flat_map(|(field, errors)| {
+                    errors.iter().map(move |error| AppValidationError {
+                        field: field.to_string(),
+                        message: error.code.to_string(),
+                    })
+                })
+                .collect();
+            return Err(AppError::ValidationError(errors));
+        }
+        Ok(())
     }
 }

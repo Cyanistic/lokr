@@ -23,6 +23,7 @@ anyhow = "1.0.95"
 argon2 = "0.5.3"
 axum = "0.8.1"
 dirs = "6.0"
+password-auth = "1.0.0"
 regex = "1.11.1"
 serde = "1.0.217"
 serde_json = "1.0.135"
@@ -35,3 +36,4 @@ url = "2.5.4"
 utoipa = { version = "5.3.1", features = ["axum_extras"] }
 utoipa-axum = "0.1.4"
 utoipa-swagger-ui = { version = "8.1.1", features = ["axum"] }
+validator = { version = "0.19.0", features = ["derive"] }

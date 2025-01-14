@@ -1,5 +1,6 @@
 use anyhow::Result;
 use regex::Regex;
+use state::AppState;
 use std::{net::SocketAddr, str::FromStr};
 use tower_http::cors::{self, AllowOrigin, CorsLayer};
 use users::create_user;
@@ -20,6 +21,7 @@ use sqlx::{
 };
 
 pub mod error;
+pub mod state;
 pub mod users;
 pub mod utils;
 
@@ -52,6 +54,7 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
     let (api_router, open_api): (Router, OpenApi) = OpenApiRouter::new()
         .routes(routes!(users::create_user))
         .layer(cors)
+        .with_state(AppState::new(pool.clone()))
         .split_for_parts();
 
     let app = Router::new()
