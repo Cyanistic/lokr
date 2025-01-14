@@ -1,13 +1,32 @@
 [package]
+authors = ["Cyanism <github@cyan.slmail.me>"]
 name = "lokr-api"
+homepage = "https://github.com/Cyanistic/lokr"
+license = "AGPL-3.0-or-later"
 version = "0.1.0"
 edition = "2021"
 
+[profile.release]
+opt-level = "s"
+debug = false
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+incremental = false
+
+[profile.dev.package.sqlx-macros]
+opt-level = 3
+
 [dependencies]
+anyhow = "1.0.95"
 argon2 = "0.5.3"
 axum = "0.8.1"
+dirs = "6.0"
 serde = "1.0.217"
 serde_json = "1.0.135"
-sqlx = "0.8.3"
+sonic-rs = "0.3.17"
+sqlx = { version = "0.8.3", features = ["sqlite", "macros", "chrono", "runtime-tokio"] }
 tokio = { version = "1.43.0", features = ["full"] }
+url = "2.5.4"
 utoipa = { version = "5.3.1", features = ["axum_extras"] }
