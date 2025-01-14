@@ -1,5 +1,5 @@
 use anyhow::Result;
-use std::str::FromStr;
+use std::{net::SocketAddr, str::FromStr};
 
 use axum::Router;
 use sqlx::{
@@ -11,12 +11,26 @@ pub mod utils;
 
 pub const PKG_NAME: &str = env!("CARGO_PKG_NAME");
 
-pub async fn start_server() {
+/// Start up the HTTP server and listen for incoming requests
+/// on port 6969.
+pub async fn start_server(pool: SqlitePool) -> Result<()> {
     let app = Router::new();
 
-    // run our app with hyper, listening globally on port 3000
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    // run our app with hyper, listening globally on port 6969
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:6969").await.unwrap();
+
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .with_graceful_shutdown(async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("Failed to install CTRL+C signal handler");
+    })
+    .await?;
+    pool.close().await;
+    Ok(())
 }
 
 /// Initialize the database by creating the database file and running the migrations.
