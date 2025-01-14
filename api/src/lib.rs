@@ -2,13 +2,16 @@ use anyhow::Result;
 use regex::Regex;
 use std::{net::SocketAddr, str::FromStr};
 use tower_http::cors::{self, AllowOrigin, CorsLayer};
+use users::create_user;
+use utoipa::openapi::OpenApi;
+use utoipa_axum::{router::OpenApiRouter, routes};
+use utoipa_swagger_ui::SwaggerUi;
 
 use axum::{
     http::{
         header::{ACCEPT, AUTHORIZATION, CONTENT_ENCODING, CONTENT_LENGTH, CONTENT_TYPE},
         HeaderValue,
     },
-    routing::get,
     Router,
 };
 use sqlx::{
@@ -16,6 +19,8 @@ use sqlx::{
     SqlitePool,
 };
 
+pub mod error;
+pub mod users;
 pub mod utils;
 
 pub const PKG_NAME: &str = env!("CARGO_PKG_NAME");
@@ -44,11 +49,14 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
             ACCEPT,
         ]);
 
-    let api = Router::new()
-        .route("/", get(|| async { "Hello, world!" }))
-        .layer(cors);
+    let (api_router, open_api): (Router, OpenApi) = OpenApiRouter::new()
+        .routes(routes!(users::create_user))
+        .layer(cors)
+        .split_for_parts();
 
-    let app = Router::new().nest("/api", api);
+    let app = Router::new()
+        .nest("/api", api_router)
+        .merge(SwaggerUi::new("/docs").url("/api/openapi.json", open_api));
 
     // run our app with hyper, listening globally on port 6969
     let listener = tokio::net::TcpListener::bind("0.0.0.0:6969").await.unwrap();
