@@ -1,5 +1,6 @@
 use std::ops::ControlFlow;
 
+use argon2::password_hash::{rand_core::OsRng, PasswordHasher, SaltString};
 use axum::{
     extract::State,
     http::StatusCode,
@@ -7,21 +8,32 @@ use axum::{
     Json,
 };
 use serde::Deserialize;
-use sqlx::SqlitePool;
 use utoipa::ToSchema;
 use validator::{Validate, ValidationError};
 
-use crate::error::{AppError, AppValidate, ErrorResponse};
+use crate::{
+    error::{AppError, AppValidate, ErrorResponse},
+    state::AppState,
+};
 
+/// A struct representing a new user to be created
 #[derive(Deserialize, ToSchema, Validate)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateUser {
+    /// The name of the user to create
     #[validate(length(min = 3, max = 20), custom(function = "validate_username"))]
     username: Box<str>,
+    /// The new user's password
     #[validate(length(min = 8, max = 64), custom(function = "validate_password"))]
     password: Box<str>,
     #[validate(email)]
     email: Option<String>,
+    /// The initialization vector for the user's private key
+    iv: String,
+    /// The user's public key
+    public_key: String,
+    /// The user's private key encrypted using their password
+    encrypted_private_key: String,
 }
 
 /// Verify that the username only contains alphanumeric characters and underscores
@@ -66,14 +78,14 @@ fn validate_password(password: &str) -> Result<(), ValidationError> {
 
 #[utoipa::path(post, path = "/register", request_body(content = CreateUser, description = "User to register"), responses((status = OK, description = "User successfully created", body = String), (status = CONFLICT, description = "Username or email already in use", body = ErrorResponse)))]
 pub async fn create_user(
-    State(pool): State<SqlitePool>,
+    State(state): State<AppState>,
     Json(new_user): Json<CreateUser>,
 ) -> Result<Response, AppError> {
     // New user has a valid email, username, and password
     new_user.app_validate()?;
 
     if sqlx::query!("SELECT * FROM user WHERE username = ?", new_user.username)
-        .fetch_optional(&pool)
+        .fetch_optional(&state.pool)
         .await?
         .is_some()
     {
@@ -84,7 +96,7 @@ pub async fn create_user(
     }
     if let Some(email) = &new_user.email {
         if sqlx::query!("SELECT * FROM user WHERE email = ?", email)
-            .fetch_optional(&pool)
+            .fetch_optional(&state.pool)
             .await?
             .is_some()
         {
@@ -94,14 +106,28 @@ pub async fn create_user(
             )));
         }
     }
-    let password_hash = password_auth::generate_hash(new_user.password.as_bytes());
+
+    let salt = SaltString::generate(&mut OsRng);
+    let salt_string = salt.to_string();
+
+    let password_hash = state
+        .argon2
+        .hash_password(new_user.password.as_bytes(), &salt)
+        .map_err(|_| {
+            AppError::UserError((StatusCode::BAD_REQUEST, "Unable to hash password".into()))
+        })?
+        .to_string();
     sqlx::query!(
-        "INSERT INTO user (username, password_hash, email) VALUES (?, ?, ?)",
+        "INSERT INTO user (username, password_hash, email, salt, iv, encrypted_private_key, public_key) VALUES (?, ?, ?, ?, ?, ?, ?)",
         new_user.username,
         password_hash,
-        new_user.email
+        new_user.email,
+        salt_string,
+        new_user.iv,
+        new_user.encrypted_private_key,
+        new_user.public_key
     )
-    .execute(&pool)
+    .execute(&state.pool)
     .await?;
-    Ok((StatusCode::OK, "User successfully created!").into_response())
+    Ok((StatusCode::CREATED, "User successfully created!").into_response())
 }

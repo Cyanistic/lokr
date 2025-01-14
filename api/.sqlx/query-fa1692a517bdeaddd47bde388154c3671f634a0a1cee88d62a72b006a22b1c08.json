@@ -24,13 +24,33 @@
         "type_info": "Text"
       },
       {
-        "name": "created_at",
+        "name": "public_key",
         "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "encrypted_private_key",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "iv",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "salt",
+        "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 8,
         "type_info": "Datetime"
       },
       {
         "name": "modified_at",
-        "ordinal": 5,
+        "ordinal": 9,
         "type_info": "Datetime"
       }
     ],
@@ -41,6 +61,10 @@
       false,
       false,
       true,
+      false,
+      false,
+      false,
+      false,
       false,
       false,
       false

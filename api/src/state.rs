@@ -1,14 +1,21 @@
+use std::sync::Arc;
+
+use argon2::Argon2;
 use axum::extract::FromRef;
 use sqlx::SqlitePool;
 
 #[derive(Clone, Debug)]
-pub(crate) struct AppState {
-    pool: SqlitePool,
+pub struct AppState {
+    pub pool: SqlitePool,
+    pub argon2: Arc<Argon2<'static>>,
 }
 
 impl AppState {
     pub fn new(pool: SqlitePool) -> Self {
-        Self { pool }
+        Self {
+            pool,
+            argon2: Argon2::default().into(),
+        }
     }
 }
 

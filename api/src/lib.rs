@@ -3,7 +3,6 @@ use regex::Regex;
 use state::AppState;
 use std::{net::SocketAddr, str::FromStr};
 use tower_http::cors::{self, AllowOrigin, CorsLayer};
-use users::create_user;
 use utoipa::openapi::OpenApi;
 use utoipa_axum::{router::OpenApiRouter, routes};
 use utoipa_swagger_ui::SwaggerUi;

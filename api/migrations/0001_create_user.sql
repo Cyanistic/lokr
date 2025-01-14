@@ -3,6 +3,10 @@ CREATE TABLE user (
 	username TEXT NOT NULL,
 	email TEXT,
 	password_hash TEXT NOT NULL,
+	public_key TEXT NOT NULL,
+	encrypted_private_key TEXT NOT NULL,
+	iv TEXT NOT NULL,
+	salt TEXT NOT NULL,
 	created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	modified_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
