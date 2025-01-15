@@ -1,0 +1,32 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT iv, public_key, encrypted_private_key FROM user WHERE username = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "iv",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "public_key",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "encrypted_private_key",
+        "ordinal": 2,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "02593ba8e0677f263521ad40149712d91f4f04d51501b71d387e098e9356083f"
+}

@@ -10,7 +10,7 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use uuid::Uuid;
 use validator::{Validate, ValidationError};
@@ -45,11 +45,21 @@ pub struct CreateUser {
 
 /// A struct representing a user logging in
 #[derive(Deserialize, ToSchema, Validate)]
+#[serde(rename_all = "camelCase")]
 pub struct LoginUser {
     #[validate(length(min = 3, max = 20), custom(function = "validate_username"))]
     username: Box<str>,
     #[validate(length(min = 8, max = 64), custom(function = "validate_password"))]
     password: Box<str>,
+}
+
+/// A successful login response
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct LoginResponse {
+    iv: String,
+    public_key: String,
+    encrypted_private_key: String,
 }
 
 /// Verify that the username only contains alphanumeric characters and underscores
@@ -148,7 +158,7 @@ pub async fn create_user(
     Ok((StatusCode::CREATED, "User successfully created!").into_response())
 }
 
-#[utoipa::path(post, path = "/api/login", description = "Authenticate a user with the backend", request_body(content = LoginUser, description = "User to authenticate"), responses((status = OK, description = "User successfully authenticated", body = String, headers(("Set-Cookie" = String, description = "`session` cookie containing the authenticated user's session id"))), (status = UNAUTHORIZED, description = "Invalid username or password", body = ErrorResponse)))]
+#[utoipa::path(post, path = "/api/login", description = "Authenticate a user with the backend", request_body(content = LoginUser, description = "User to authenticate"), responses((status = OK, description = "User successfully authenticated", body = LoginResponse, headers(("Set-Cookie" = String, description = "`session` cookie containing the authenticated user's session id"))), (status = UNAUTHORIZED, description = "Invalid username or password", body = ErrorResponse)))]
 pub async fn authenticate_user(
     State(state): State<AppState>,
     Json(user): Json<LoginUser>,
@@ -191,10 +201,18 @@ pub async fn authenticate_user(
     )
     .fetch_one(&state.pool)
     .await?;
+
+    let login_body = sqlx::query_as!(
+        LoginResponse,
+        "SELECT iv, public_key, encrypted_private_key FROM user WHERE username = ?",
+        user.username
+    )
+    .fetch_one(&state.pool)
+    .await?;
     Ok((
         StatusCode::OK,
         [(SET_COOKIE, format!("session={uuid}; HttpOnly"))],
-        "User successfully authenticated!",
+        Json(login_body),
     )
         .into_response())
 }
