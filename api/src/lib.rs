@@ -3,7 +3,7 @@ use regex::Regex;
 use state::AppState;
 use std::{net::SocketAddr, str::FromStr};
 use tower_http::cors::{self, AllowOrigin, CorsLayer};
-use utoipa::openapi::OpenApi;
+use utoipa::{Modify, OpenApi};
 use utoipa_axum::{router::OpenApiRouter, routes};
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -25,6 +25,15 @@ pub mod users;
 pub mod utils;
 
 pub const PKG_NAME: &str = env!("CARGO_PKG_NAME");
+
+#[derive(OpenApi)]
+#[openapi(
+        paths(users::create_user, users::authenticate_user),
+        tags(
+            (name = "users", description = "User related operations"),
+        )
+    )]
+struct ApiDoc;
 
 /// Start up the HTTP server and listen for incoming requests
 /// on port 6969.
@@ -50,15 +59,16 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
             ACCEPT,
         ]);
 
-    let (api_router, open_api): (Router, OpenApi) = OpenApiRouter::new()
+    let (api_router, open_api): (Router, _) = OpenApiRouter::with_openapi(ApiDoc::openapi())
         .routes(routes!(users::create_user))
+        .routes(routes!(users::authenticate_user))
         .layer(cors)
         .with_state(AppState::new(pool.clone()))
         .split_for_parts();
 
     let app = Router::new()
-        .nest("/api", api_router)
-        .merge(SwaggerUi::new("/docs").url("/api/openapi.json", open_api));
+        .merge(api_router)
+        .merge(SwaggerUi::new("/docs").url("/api-docs/openapi.json", open_api));
 
     // run our app with hyper, listening globally on port 6969
     let listener = tokio::net::TcpListener::bind("0.0.0.0:6969").await.unwrap();
