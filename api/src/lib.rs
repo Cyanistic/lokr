@@ -1,15 +1,24 @@
 use anyhow::Result;
 use regex::Regex;
 use state::AppState;
-use std::{net::SocketAddr, str::FromStr};
-use tower_http::cors::{self, AllowOrigin, CorsLayer};
+use std::{net::SocketAddr, str::FromStr, sync::Arc, time::Duration};
+use tower::ServiceBuilder;
+use tower_governor::governor::GovernorConfigBuilder;
+use tower_governor::GovernorLayer;
+use tower_http::{
+    cors::{self, AllowOrigin, CorsLayer},
+    timeout::TimeoutLayer,
+    trace::{DefaultMakeSpan, DefaultOnRequest, DefaultOnResponse, TraceLayer},
+    LatencyUnit, ServiceBuilderExt,
+};
+use tracing::Level;
 use utoipa::OpenApi;
 use utoipa_axum::{router::OpenApiRouter, routes};
 use utoipa_swagger_ui::SwaggerUi;
 
 use axum::{
     http::{
-        header::{ACCEPT, AUTHORIZATION, CONTENT_ENCODING, CONTENT_LENGTH, CONTENT_TYPE},
+        header::{ACCEPT, AUTHORIZATION, CONTENT_ENCODING, CONTENT_LENGTH, CONTENT_TYPE, COOKIE},
         HeaderValue,
     },
     Router,
@@ -60,6 +69,61 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
             ACCEPT,
         ]);
 
+    let sensitive_headers: Arc<[_]> = [AUTHORIZATION, COOKIE].into();
+
+    // Rate limit the number of requests a given IP can make within a time period
+    // In this case, the time period is 500ms and the burst size is 20 requests.
+    // This means that a given IP can make up to 20 requests at once before
+    // needing to wait for 500ms before sending another request. They can make
+    // and extra request for every 500ms they go without sending a request
+    // until a maximum of 20 requests are reached.
+    let ip_governor_config = Arc::new(unsafe {
+        GovernorConfigBuilder::default()
+            .const_period(Duration::from_millis(500))
+            .burst_size(20)
+            .finish()
+            .unwrap_unchecked()
+    });
+
+    let middleware = ServiceBuilder::new()
+        // Mark the `Authorization` and `Cookie` headers as sensitive so it doesn't show in logs
+        .sensitive_request_headers(sensitive_headers.clone())
+        // Add high level tracing/logging to all requests
+        .layer(
+            TraceLayer::new_for_http()
+                .make_span_with(
+                    DefaultMakeSpan::new()
+                        .level(Level::TRACE)
+                        .include_headers(true),
+                )
+                .on_request(DefaultOnRequest::new().level(Level::TRACE))
+                .on_response(
+                    DefaultOnResponse::new()
+                        .level(Level::TRACE)
+                        .include_headers(true)
+                        .latency_unit(LatencyUnit::Micros),
+                ),
+        )
+        .sensitive_response_headers(sensitive_headers)
+        // GovernorLayer is a rate limiter that limits the number of requests a user can make
+        // within a given time period. This is used to prevent abuse/attacks on the server.
+        // This is safe to use because the it is only none if the period or burst size is 0.
+        // Neither of which are the case here.
+        // Set a timeout
+        .layer(TimeoutLayer::new(Duration::from_secs(15)))
+        // Compress responses
+        .compression()
+        .layer(GovernorLayer {
+            config: ip_governor_config,
+        })
+        // Set a `Content-Type` if there isn't one already.
+        .insert_response_header_if_not_present(
+            CONTENT_TYPE,
+            HeaderValue::from_static("application/octet-stream"),
+        );
+
+    // Setup the router along with the OpenApi documentation router
+    // for easy docs generation.
     let (api_router, open_api): (Router, _) = OpenApiRouter::with_openapi(ApiDoc::openapi())
         .routes(routes!(users::create_user))
         .routes(routes!(users::authenticate_user))
@@ -70,7 +134,8 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
 
     let app = Router::new()
         .merge(api_router)
-        .merge(SwaggerUi::new("/docs").url("/api-docs/openapi.json", open_api));
+        .merge(SwaggerUi::new("/docs").url("/api-docs/openapi.json", open_api))
+        .layer(middleware);
 
     // run our app with hyper, listening globally on port 6969
     let listener = tokio::net::TcpListener::bind("0.0.0.0:6969").await.unwrap();
