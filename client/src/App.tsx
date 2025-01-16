@@ -11,10 +11,8 @@ function App() {
       <div className='header'>
         <a href="#home">Home</a>
         <a href="#about">About Lokr</a>
-        <a href="#download">Downloads</a>
-        <div>
-          <a href="#profile">Profile</a>
-        </div>
+        <a href="#downloads">Downloads</a>
+        <a href="#login">Log In</a>
       </div>
       <div className='main'>
         <div>
