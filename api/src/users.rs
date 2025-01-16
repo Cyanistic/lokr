@@ -227,17 +227,17 @@ pub struct CheckUsage {
     email: Option<String>,
 }
 
-#[utoipa::path(get, path = "/api/check", description = "Check if a username or email (or both at once) is already in use", params(CheckUsage), responses((status = OK, description = "No conflicts found", body = String), (status = CONFLICT, description = "Username or email already in use", body = ErrorResponse), (status = BAD_REQUEST, description = "Invalid username or email", body = ErrorResponse)))]
+#[utoipa::path(get, path = "/api/check", description = "Check if a username or email (or both at once) is already in use", params(CheckUsage), responses((status = OK, description = "No conflicts found", body = String), (status = CONFLICT, description = "Username or email already in use", body = [ErrorResponse]), (status = BAD_REQUEST, description = "Invalid username or email", body = ErrorResponse)))]
 #[debug_handler]
 pub async fn check_usage(
     State(state): State<AppState>,
     user: Option<SessionAuth>,
     Query(params): Query<CheckUsage>,
 ) -> Result<Response, AppError> {
+    params.app_validate()?;
+    let mut errors: Vec<ErrorResponse> = Vec::new();
     // Only check for conflicts in the username if the user explicitly
     // provides one in the query
-    params.app_validate()?;
-    let mut errors: Vec<&'static str> = Vec::new();
     if let Some(username) = params.username {
         // If the user is authenticated, check if the provided username
         // is just a different case of their own username and automatically
@@ -250,7 +250,10 @@ pub async fn check_usage(
                 .await?
                 .is_some()
         {
-            errors.push("Username already in use");
+            errors.push(ErrorResponse {
+                message: "Username already in use".into(),
+                error_type: "Username".into(),
+            });
         }
     }
     // Same thing here again, but slightly modified for emails
@@ -264,15 +267,17 @@ pub async fn check_usage(
                 .await?
                 .is_some()
         {
-            errors.push("Email already in use");
+            errors.push(ErrorResponse {
+                message: "Email already in use".into(),
+                error_type: "Email".into(),
+            });
         }
     }
+    // If no errors were found, return a 200 OK response
     if errors.is_empty() {
         Ok((StatusCode::OK, "No conflicts found").into_response())
     } else {
-        Err(AppError::UserError((
-            StatusCode::CONFLICT,
-            errors.join("\n").into(),
-        )))
+        // Otherwise, return a 409 CONFLICT response with the errors
+        Ok((StatusCode::CONFLICT, Json(errors)).into_response())
     }
 }

@@ -30,8 +30,8 @@ pub enum AppError {
 #[derive(Serialize, Debug, Clone, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ErrorResponse {
-    error_type: String,
-    message: String,
+    pub error_type: String,
+    pub message: String,
 }
 
 impl AppError {
