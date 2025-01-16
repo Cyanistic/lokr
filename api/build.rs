@@ -24,7 +24,7 @@ const PROTOCOL: &str = "sqlite://";
 // generate the necessary structs
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    if !env::var("BUILD_ENABLED").map(|v| v == "1").unwrap_or(false) {
+    if env::var("BUILD_ENABLED").map(|v| v == "1").unwrap_or(false) {
         return Ok(());
     }
 

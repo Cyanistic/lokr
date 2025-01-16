@@ -7,7 +7,7 @@ use axum::{
 use crate::{error::AppError, state::AppState};
 
 pub struct User {
-    pub id: i64,
+    pub id: [u8; 16],
     pub username: Box<str>,
     pub email: Option<String>,
 }
@@ -38,9 +38,8 @@ where
             .split(';')
             .map(str::trim)
             .find_map(|x| x.strip_prefix("session="));
-        Ok(SessionAuth(
-            sqlx::query_as!(
-                User,
+        Ok(SessionAuth({
+            let user = sqlx::query!(
                 r#"
             SELECT user.id, username, email
             FROM user
@@ -52,8 +51,13 @@ where
             )
             .fetch_optional(&state.pool)
             .await?
-            .ok_or_else(|| AppError::AuthError(anyhow!("Invalid session")))?,
-        ))
+            .ok_or_else(|| AppError::AuthError(anyhow!("Invalid session")))?;
+            User {
+                id: user.id.try_into().unwrap(),
+                username: user.username.into(),
+                email: user.email,
+            }
+        }))
     }
 }
 
@@ -89,9 +93,8 @@ where
             Some(k) => k,
             None => return Ok(None),
         };
-        Ok(Some(SessionAuth(
-            sqlx::query_as!(
-                User,
+        Ok(Some(SessionAuth({
+            let user = sqlx::query!(
                 r#"
             SELECT user.id, username, email
             FROM user
@@ -103,7 +106,12 @@ where
             )
             .fetch_optional(&state.pool)
             .await?
-            .ok_or_else(|| AppError::AuthError(anyhow!("Invalid session")))?,
-        )))
+            .ok_or_else(|| AppError::AuthError(anyhow!("Invalid session")))?;
+            User {
+                id: user.id.try_into().unwrap(),
+                username: user.username.into(),
+                email: user.email,
+            }
+        })))
     }
 }

@@ -145,8 +145,10 @@ pub async fn create_user(
             AppError::UserError((StatusCode::BAD_REQUEST, "Unable to hash password".into()))
         })?
         .to_string();
+    let uuid = Uuid::new_v4();
     sqlx::query!(
-        "INSERT INTO user (username, password_hash, email, salt, iv, encrypted_private_key, public_key) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO user (id, username, password_hash, email, salt, iv, encrypted_private_key, public_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        uuid,
         new_user.username,
         password_hash,
         new_user.email,
