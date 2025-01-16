@@ -8,26 +8,36 @@ function App() {
 
   return (
     <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
+      <div className='header'>
+        <a href="#home">Home</a>
+        <a href="#about">About Lokr</a>
+        <a href="#download">Downloads</a>
+        <div>
+          <a href="#profile">Profile</a>
+        </div>
       </div>
-      <h1>Lokr</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          Encrypted Files Shared {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
+      <div className='main'>
+        <div>
+          <a href="https://vite.dev" target="_blank">
+            <img src={viteLogo} className="logo" alt="Vite logo" />
+          </a>
+          <a href="https://react.dev" target="_blank">
+            <img src={reactLogo} className="logo react" alt="React logo" />
+          </a>
+        </div>
+        <h1>Lokr</h1>
+        <div className="card">
+          <button onClick={() => setCount((count) => count + 1)}>
+            Encrypted Files Shared {count}
+          </button>
+          <p>
+            Edit <code>src/App.tsx</code> and save to test HMR
+          </p>
+        </div>
+        <p className="read-the-docs">
+          Click on the Vite and React logos to learn more
         </p>
       </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
     </>
   )
 }
