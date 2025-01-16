@@ -3,7 +3,7 @@ use regex::Regex;
 use state::AppState;
 use std::{net::SocketAddr, str::FromStr};
 use tower_http::cors::{self, AllowOrigin, CorsLayer};
-use utoipa::{Modify, OpenApi};
+use utoipa::OpenApi;
 use utoipa_axum::{router::OpenApiRouter, routes};
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -29,7 +29,7 @@ pub const PKG_NAME: &str = env!("CARGO_PKG_NAME");
 
 #[derive(OpenApi)]
 #[openapi(
-        paths(users::create_user, users::authenticate_user),
+        paths(users::create_user, users::authenticate_user, users::check_usage),
         tags(
             (name = "users", description = "User related operations"),
         )
@@ -63,7 +63,7 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
     let (api_router, open_api): (Router, _) = OpenApiRouter::with_openapi(ApiDoc::openapi())
         .routes(routes!(users::create_user))
         .routes(routes!(users::authenticate_user))
-        .routes(routes!(users::test))
+        .routes(routes!(users::check_usage))
         .layer(cors)
         .with_state(AppState::new(pool.clone()))
         .split_for_parts();

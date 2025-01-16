@@ -5,19 +5,19 @@ use argon2::{
     PasswordHash, PasswordVerifier,
 };
 use axum::{
-    extract::State,
+    extract::{Query, State},
     http::{header::SET_COOKIE, StatusCode},
     response::{IntoResponse, Response},
     Json,
 };
 use axum_macros::debug_handler;
 use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
+use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 use validator::{Validate, ValidationError};
 
 use crate::{
-    auth::{SessionAuth, User},
+    auth::SessionAuth,
     error::{AppError, AppValidate, ErrorResponse},
     state::AppState,
 };
@@ -219,11 +219,60 @@ pub async fn authenticate_user(
         .into_response())
 }
 
-#[utoipa::path(get, path = "/api/test", description = "Test the user's session", responses((status = OK, description = "User is logged in", body = String), (status = UNAUTHORIZED, description = "User is not logged in", body = ErrorResponse)))]
+#[derive(Deserialize, Validate, IntoParams)]
+pub struct CheckUsage {
+    #[validate(length(min = 3, max = 20), custom(function = "validate_username"))]
+    username: Option<Box<str>>,
+    #[validate(email)]
+    email: Option<String>,
+}
+
+#[utoipa::path(get, path = "/api/check", description = "Check if a username or email (or both at once) is already in use", params(CheckUsage), responses((status = OK, description = "No conflicts found", body = String), (status = CONFLICT, description = "Username or email already in use", body = ErrorResponse), (status = BAD_REQUEST, description = "Invalid username or email", body = ErrorResponse)))]
 #[debug_handler]
-pub async fn test(
+pub async fn check_usage(
     State(state): State<AppState>,
-    SessionAuth(user): SessionAuth,
+    user: Option<SessionAuth>,
+    Query(params): Query<CheckUsage>,
 ) -> Result<Response, AppError> {
-    Ok((StatusCode::OK, "You are logged in!").into_response())
+    // Only check for conflicts in the username if the user explicitly
+    // provides one in the query
+    params.app_validate()?;
+    let mut errors: Vec<&'static str> = Vec::new();
+    if let Some(username) = params.username {
+        // If the user is authenticated, check if the provided username
+        // is just a different case of their own username and automatically
+        // approve it if it is
+        if !user
+            .as_ref()
+            .is_some_and(|user| user.0.username.eq_ignore_ascii_case(&username))
+            && sqlx::query!("SELECT id FROM user WHERE username = ?", username)
+                .fetch_optional(&state.pool)
+                .await?
+                .is_some()
+        {
+            errors.push("Username already in use");
+        }
+    }
+    // Same thing here again, but slightly modified for emails
+    if let Some(email) = params.email {
+        if !user
+            .as_ref()
+            .and_then(|user| user.0.email.as_ref())
+            .is_some_and(|user_email| user_email.eq_ignore_ascii_case(&email))
+            && sqlx::query!("SELECT id FROM user WHERE email = ?", email)
+                .fetch_optional(&state.pool)
+                .await?
+                .is_some()
+        {
+            errors.push("Email already in use");
+        }
+    }
+    if errors.is_empty() {
+        Ok((StatusCode::OK, "No conflicts found").into_response())
+    } else {
+        Err(AppError::UserError((
+            StatusCode::CONFLICT,
+            errors.join("\n").into(),
+        )))
+    }
 }

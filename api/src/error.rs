@@ -129,7 +129,9 @@ where
 /// A more descriptive error message for validation errors
 #[derive(Serialize, Debug)]
 pub struct AppValidationError {
+    /// The field that failed validation
     field: String,
+    /// A detailed error message
     message: String,
 }
 

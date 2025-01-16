@@ -1,7 +1,7 @@
 CREATE TABLE user (
 	id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-	username TEXT NOT NULL,
-	email TEXT,
+	username TEXT NOT NULL UNIQUE COLLATE NOCASE,
+	email TEXT UNIQUE COLLATE NOCASE,
 	password_hash TEXT NOT NULL,
 	public_key TEXT NOT NULL,
 	encrypted_private_key TEXT NOT NULL,
