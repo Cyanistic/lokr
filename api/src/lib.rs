@@ -19,6 +19,7 @@ use sqlx::{
     SqlitePool,
 };
 
+pub mod auth;
 pub mod error;
 pub mod state;
 pub mod users;
@@ -62,6 +63,7 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
     let (api_router, open_api): (Router, _) = OpenApiRouter::with_openapi(ApiDoc::openapi())
         .routes(routes!(users::create_user))
         .routes(routes!(users::authenticate_user))
+        .routes(routes!(users::test))
         .layer(cors)
         .with_state(AppState::new(pool.clone()))
         .split_for_parts();

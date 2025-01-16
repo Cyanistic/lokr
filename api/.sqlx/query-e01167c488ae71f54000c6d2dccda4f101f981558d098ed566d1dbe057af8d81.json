@@ -1,0 +1,32 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT user.id, username, email\n            FROM user\n            JOIN session ON user.id = session.user_id\n            WHERE session.id = ?\n            AND expires_at > CURRENT_TIMESTAMP\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "username",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "email",
+        "ordinal": 2,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "e01167c488ae71f54000c6d2dccda4f101f981558d098ed566d1dbe057af8d81"
+}

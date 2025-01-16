@@ -10,12 +10,14 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
+use axum_macros::debug_handler;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use uuid::Uuid;
 use validator::{Validate, ValidationError};
 
 use crate::{
+    auth::{SessionAuth, User},
     error::{AppError, AppValidate, ErrorResponse},
     state::AppState,
 };
@@ -215,4 +217,13 @@ pub async fn authenticate_user(
         Json(login_body),
     )
         .into_response())
+}
+
+#[utoipa::path(get, path = "/api/test", description = "Test the user's session", responses((status = OK, description = "User is logged in", body = String), (status = UNAUTHORIZED, description = "User is not logged in", body = ErrorResponse)))]
+#[debug_handler]
+pub async fn test(
+    State(state): State<AppState>,
+    SessionAuth(user): SessionAuth,
+) -> Result<Response, AppError> {
+    Ok((StatusCode::OK, "You are logged in!").into_response())
 }
