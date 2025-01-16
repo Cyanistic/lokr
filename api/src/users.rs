@@ -195,7 +195,7 @@ pub async fn authenticate_user(
                 "Invalid username or password".into(),
             ))
         })?;
-    let uuid = Uuid::new_v4().to_string();
+    let uuid = Uuid::new_v4();
     let expires_at = chrono::Utc::now() + chrono::Duration::hours(1);
     sqlx::query!(
         "INSERT INTO session (id, user_id, expires_at) VALUES (?, ?, ?) RETURNING id",

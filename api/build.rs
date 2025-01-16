@@ -24,9 +24,9 @@ const PROTOCOL: &str = "sqlite://";
 // generate the necessary structs
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    if env::var("BUILD_ENABLED").map(|v| v == "1").unwrap_or(false) {
-        return Ok(());
-    }
+    // if !env::var("BUILD_ENABLED").map(|v| v == "1").unwrap_or(false) {
+    //     return Ok(());
+    // }
 
     println!("cargo:rerun-if-changed=migrations");
     println!("cargo:rerun-if-changed=.env");
@@ -40,7 +40,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             db_file.split(PROTOCOL).collect::<Vec<&str>>()[1]
         };
         let path = PathBuf::from(path);
-        std::fs::remove_file(&path)?;
+        let _ = std::fs::remove_file(&path);
     }
 
     let pool: SqlitePool = SqlitePool::connect_lazy_with(

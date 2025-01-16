@@ -3,6 +3,7 @@ use axum::{
     extract::{FromRequestParts, OptionalFromRequestParts, State},
     http::{header::COOKIE, request::Parts},
 };
+use uuid::Uuid;
 
 use crate::{error::AppError, state::AppState};
 
@@ -33,11 +34,14 @@ where
             .headers
             .get(COOKIE)
             .ok_or_else(|| AppError::AuthError(anyhow!("No cookies provided")))?;
-        let session = cookies
-            .to_str()?
-            .split(';')
-            .map(str::trim)
-            .find_map(|x| x.strip_prefix("session="));
+        let session: Uuid = Uuid::try_parse(
+            cookies
+                .to_str()?
+                .split(';')
+                .map(str::trim)
+                .find_map(|x| x.strip_prefix("session="))
+                .ok_or_else(|| AppError::AuthError(anyhow!("No session cookie provided")))?,
+        )?;
         Ok(SessionAuth({
             let user = sqlx::query!(
                 r#"
@@ -84,15 +88,17 @@ where
             Some(k) => k,
             None => return Ok(None),
         };
-        let session = match cookies
-            .to_str()?
-            .split(';')
-            .map(str::trim)
-            .find_map(|x| x.strip_prefix("session="))
-        {
-            Some(k) => k,
-            None => return Ok(None),
-        };
+        let session: Uuid = Uuid::try_parse(
+            match cookies
+                .to_str()?
+                .split(';')
+                .map(str::trim)
+                .find_map(|x| x.strip_prefix("session="))
+            {
+                Some(k) => k,
+                None => return Ok(None),
+            },
+        )?;
         Ok(Some(SessionAuth({
             let user = sqlx::query!(
                 r#"
