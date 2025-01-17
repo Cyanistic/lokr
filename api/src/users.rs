@@ -222,6 +222,7 @@ pub async fn authenticate_user(
 }
 
 #[derive(Deserialize, Validate, IntoParams)]
+#[serde(rename_all = "camelCase")]
 pub struct CheckUsage {
     #[validate(length(min = 3, max = 20), custom(function = "validate_username"))]
     username: Option<Box<str>>,
@@ -282,4 +283,32 @@ pub async fn check_usage(
         // Otherwise, return a 409 CONFLICT response with the errors
         Ok((StatusCode::CONFLICT, Json(errors)).into_response())
     }
+}
+
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionUser {
+    username: Box<str>,
+    email: Option<String>,
+    iv: String,
+    public_key: String,
+    encrypted_private_key: String,
+}
+
+#[utoipa::path(get, path = "/api/profile", description = "Get the currently authenticated user", responses((status = OK, description = "User successfully retrieved", body = SessionUser), (status = UNAUTHORIZED, description = "No user is currently authenticated", body = ErrorResponse)))]
+pub async fn get_logged_in_user(
+    State(state): State<AppState>,
+    SessionAuth(user): SessionAuth,
+) -> Result<Response, AppError> {
+    let uuid = Uuid::from_bytes(user.id);
+    Ok(Json(
+        sqlx::query_as!(
+            SessionUser,
+            "SELECT username, email, iv, public_key, encrypted_private_key FROM user WHERE id = ?",
+            uuid
+        )
+        .fetch_one(&state.pool)
+        .await?,
+    )
+    .into_response())
 }

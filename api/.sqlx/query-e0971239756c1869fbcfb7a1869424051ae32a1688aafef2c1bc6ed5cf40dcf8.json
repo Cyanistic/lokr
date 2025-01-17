@@ -1,0 +1,44 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT username, email, iv, public_key, encrypted_private_key FROM user WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "username",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "email",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "iv",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "public_key",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "encrypted_private_key",
+        "ordinal": 4,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "e0971239756c1869fbcfb7a1869424051ae32a1688aafef2c1bc6ed5cf40dcf8"
+}

@@ -38,7 +38,7 @@ pub const PKG_NAME: &str = env!("CARGO_PKG_NAME");
 
 #[derive(OpenApi)]
 #[openapi(
-        paths(users::create_user, users::authenticate_user, users::check_usage),
+        paths(users::create_user, users::authenticate_user, users::check_usage, users::get_logged_in_user),
         tags(
             (name = "users", description = "User related operations"),
         )
