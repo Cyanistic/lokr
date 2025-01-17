@@ -8,11 +8,12 @@ use tower_governor::governor::GovernorConfigBuilder;
 use tower_governor::GovernorLayer;
 use tower_http::{
     cors::{self, AllowOrigin, CorsLayer},
+    services::{ServeDir, ServeFile},
     timeout::TimeoutLayer,
     trace::{DefaultMakeSpan, DefaultOnRequest, DefaultOnResponse, TraceLayer},
     LatencyUnit, ServiceBuilderExt,
 };
-use tracing::Level;
+use tracing::{info, Level};
 use url::Url;
 use utoipa::{OpenApi, ToSchema};
 use utoipa_axum::{router::OpenApiRouter, routes};
@@ -159,11 +160,22 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
     let app = Router::new()
         .merge(api_router)
         .merge(SwaggerUi::new("/docs").url("/api-docs/openapi.json", open_api))
+        // Serve the client files from the `../client/dist` directory
+        // We use a fallback `ServeDir` for this because we send all the requests to the same file and
+        // react-router handles the routing on the client side.
+        //
+        // We need the first fallback to serve all of the static files for the server and we need
+        // the second fallback to redirect all other requests to the index.html file for
+        // react-router.
+        .fallback_service(
+            ServeDir::new("../client/dist").fallback(ServeFile::new("../client/dist/index.html")),
+        )
         .layer(middleware);
 
     // run our app with hyper, listening globally on port 6969
     let listener = tokio::net::TcpListener::bind("0.0.0.0:6969").await.unwrap();
 
+    info!("Server listening on port 6969");
     axum::serve(
         listener,
         app.into_make_service_with_connect_info::<SocketAddr>(),
