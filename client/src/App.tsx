@@ -2,18 +2,27 @@ import { useState } from 'react'
 import reactLogo from './assets/react.svg'
 import viteLogo from '/vite.svg'
 import './App.css'
+import { BrowserRouter, Routes, Route, Link } from 'react-router-dom'
 
 function App() {
   const [count, setCount] = useState(0)
 
   return (
     <>
-      <div className='header'>
-        <a href="#home">Home</a>
-        <a href="#about">About Lokr</a>
-        <a href="#downloads">Downloads</a>
-        <a href="#login">Log In</a>
-      </div>
+    <BrowserRouter>
+
+      <Navigation/>
+
+      <Routes>
+      <Route path="/" element = {<Home />}/>
+      <Route path="/about" element = {<About />}/>
+      <Route path="/downloads" element = {<Downloads />}/>
+      <Route path="/login" element = {<Login />}/>
+      </Routes>
+
+    </BrowserRouter>
+
+
       <div className='main'>
         <div>
           <a href="https://vite.dev" target="_blank">
@@ -39,5 +48,63 @@ function App() {
     </>
   )
 }
+
+//Navigation Bar
+function Navigation(){
+  return(
+    <div className='header'>
+        <Link to="/">Home</Link>
+        <Link to="/about">About Lokr</Link>
+        <Link to="/downloads">Downloads</Link>
+        <Link to="/login">Log In</Link>
+      </div>
+  )
+}
+
+//Home Page
+function Home(){
+  return (
+    <div className = 'main'>
+      <h1>Home Page</h1>
+    </div>
+  )
+
+}
+
+//Login page
+function Login() {
+  return (
+    <div className = 'main'>
+      <h1>Log In Page</h1>
+      <p>Placeholder for the login page</p>
+    </div>
+  )
+
+}
+
+//About us page
+function About() {
+  return (
+    <div className = 'main'>
+      <h1>About Us Page</h1>
+      <p>Placeholder for the about us page</p>
+    </div>
+  )
+}
+
+//Downloads page
+function Downloads() {
+    return (
+      <div className = 'main'>
+        <h1>Download Page</h1>
+        <p>Placeholder for the Download page</p>
+      </div>
+    )
+  
+  }
+
+
+
+
 
 export default App
