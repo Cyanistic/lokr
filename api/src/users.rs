@@ -12,6 +12,7 @@ use axum::{
 };
 use axum_macros::debug_handler;
 use serde::{Deserialize, Serialize};
+use sqlx::{QueryBuilder, Sqlite};
 use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 use validator::{Validate, ValidationError};
@@ -311,4 +312,39 @@ pub async fn get_logged_in_user(
         .await?,
     )
     .into_response())
+}
+
+#[utoipa::path(
+    put,
+    path = "/api/profile",
+    description = "Update the currently authenticated user",
+    params(CheckUsage),
+    responses((status = OK, description = "User successfully updated", body = String), (status = BAD_REQUEST, description = "Invalid username or email", body = ErrorResponse))
+)]
+pub async fn update_user(
+    State(state): State<AppState>,
+    SessionAuth(user): SessionAuth,
+    Query(params): Query<CheckUsage>,
+) -> Result<Response, AppError> {
+    params.app_validate()?;
+    let mut builder: QueryBuilder<'_, Sqlite> = QueryBuilder::new("UPDATE user SET ");
+    let mut separated = false;
+    if let Some(username) = params.username {
+        builder.push("username = ");
+        builder.push_bind(username);
+        separated = true;
+    }
+    if let Some(email) = params.email {
+        // We only want to push a comma if we've already pushed a username
+        // so we add a variable to check if we have
+        if separated {
+            builder.push(", ");
+        }
+        builder.push("email = ");
+        builder.push_bind(email);
+    }
+    builder.push(" WHERE id = ");
+    builder.push_bind(Uuid::from_bytes(user.id));
+    builder.build().execute(&state.pool).await?;
+    Ok((StatusCode::OK, "User updated successfully").into_response())
 }

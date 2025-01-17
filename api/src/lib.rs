@@ -38,7 +38,7 @@ pub const PKG_NAME: &str = env!("CARGO_PKG_NAME");
 
 #[derive(OpenApi)]
 #[openapi(
-        paths(users::create_user, users::authenticate_user, users::check_usage, users::get_logged_in_user),
+        paths(users::create_user, users::authenticate_user, users::check_usage, users::get_logged_in_user, users::update_user),
         tags(
             (name = "users", description = "User related operations"),
         )
@@ -128,6 +128,8 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
         .routes(routes!(users::create_user))
         .routes(routes!(users::authenticate_user))
         .routes(routes!(users::check_usage))
+        .routes(routes!(users::get_logged_in_user))
+        .routes(routes!(users::update_user))
         .layer(cors)
         .with_state(AppState::new(pool.clone()))
         .split_for_parts();
