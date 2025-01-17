@@ -1,3 +1,6 @@
+#![allow(dead_code)]
+
+use anyhow::{anyhow, Result};
 use std::{
     env,
     fs::{read_to_string, File, OpenOptions},
@@ -11,6 +14,7 @@ use sqlx::{
     sqlite::{SqliteConnectOptions, SqliteJournalMode, SqliteSynchronous},
     SqlitePool,
 };
+use url::Url;
 
 #[cfg(windows)]
 const PROTOCOL: &str = "sqlite:///";
@@ -31,17 +35,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo:rerun-if-changed=migrations");
     println!("cargo:rerun-if-changed=.env");
 
-    update_db_url()?;
-    let db_file = var("DATABASE_URL")?;
-    if db_file.starts_with("sqlite") {
-        let path = if db_file.contains("file:") {
-            db_file.split("file:").collect::<Vec<&str>>()[1]
-        } else {
-            db_file.split(PROTOCOL).collect::<Vec<&str>>()[1]
-        };
-        let path = PathBuf::from(path);
-        let _ = std::fs::remove_file(&path);
-    }
+    let db_file = match var("DATABASE_URL") {
+        Ok(url) => url,
+        Err(_) => return Ok(()),
+    };
+
+    let db_path = PathBuf::from(if let Some(path) = db_file.strip_prefix("file:") {
+        path
+    } else if let Some(path) = db_file.strip_prefix("sqlite:") {
+        path
+    } else {
+        &db_file
+    });
+
+    let _ = std::fs::remove_file(&db_path);
 
     let pool: SqlitePool = SqlitePool::connect_lazy_with(
         SqliteConnectOptions::from_str(&db_file)?
@@ -57,25 +64,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn default_db_url() -> Result<String, String> {
+fn default_db_url() -> Result<String> {
     let data_dir = dirs::data_dir()
-        .ok_or("Could not find data directory!")?
+        .ok_or(anyhow!("Could not find data directory!"))?
         .join(env!("CARGO_PKG_NAME"));
     if !data_dir.exists() {
-        std::fs::create_dir_all(&data_dir).map_err(|e| e.to_string())?;
+        std::fs::create_dir_all(&data_dir)?;
     }
     let db_dir = data_dir.join("build.db");
     if !db_dir.exists() {
-        File::create(&db_dir).map_err(|e| e.to_string())?;
+        File::create(&db_dir)?;
     }
-    Ok(if cfg!(windows) {
-        format!(
-            "{PROTOCOL}{}",
-            db_dir.display().to_string().replace('\\', "/")
-        )
-    } else {
-        format!("{PROTOCOL}{}", db_dir.display())
-    })
+    Ok(Url::from_file_path(&db_dir)
+        .map_err(|_| anyhow!("Unable to convert file path into url"))?
+        .to_string())
 }
 
 fn update_db_url() -> Result<(), Box<dyn std::error::Error>> {

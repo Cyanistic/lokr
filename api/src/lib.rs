@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use regex::Regex;
 use serde::Serialize;
 use state::AppState;
@@ -13,6 +13,7 @@ use tower_http::{
     LatencyUnit, ServiceBuilderExt,
 };
 use tracing::Level;
+use url::Url;
 use utoipa::{OpenApi, ToSchema};
 use utoipa_axum::{router::OpenApiRouter, routes};
 use utoipa_swagger_ui::SwaggerUi;
@@ -25,6 +26,7 @@ use axum::{
     Router,
 };
 use sqlx::{
+    migrate::MigrateError,
     sqlite::{SqliteConnectOptions, SqliteJournalMode, SqliteSynchronous},
     SqlitePool,
 };
@@ -178,9 +180,9 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
 
 /// Initialize the database by creating the database file and running the migrations.
 /// Returns a connection pool to the database.
-pub async fn init_db(db_url: &str) -> Result<SqlitePool> {
+pub async fn init_db(db_url: &Url) -> Result<SqlitePool> {
     let pool: SqlitePool = SqlitePool::connect_lazy_with(
-        SqliteConnectOptions::from_str(db_url)?
+        SqliteConnectOptions::from_str(db_url.as_str())?
             .foreign_keys(true)
             .create_if_missing(true)
             .journal_mode(SqliteJournalMode::Wal)
@@ -189,6 +191,23 @@ pub async fn init_db(db_url: &str) -> Result<SqlitePool> {
             // at the cost of durability
             .synchronous(SqliteSynchronous::Normal),
     );
-    sqlx::migrate!("./migrations").run(&pool).await?;
+    // Check if there is a version mismatch between the migrations and the database
+    // If there is, delete the database file and run the migrations again
+    match sqlx::migrate!("./migrations").run(&pool).await {
+        Err(MigrateError::VersionMismatch(_)) => {
+            std::fs::remove_file(
+                db_url
+                    .to_file_path()
+                    .map_err(|_| anyhow!("Unable to convert db url to file path"))?,
+            )?;
+            // Pin the future so we can call it recursively within the same async function
+            // Will get a recursion error otherwise if we don't
+            Box::pin(init_db(db_url)).await?;
+        }
+        // We don't know how to deal with the other errors
+        // but we can't continue so just return early with them
+        Err(e) => return Err(e.into()),
+        _ => {}
+    }
     Ok(pool)
 }

@@ -15,7 +15,7 @@ async fn main() -> Result<()> {
         .init();
     let url = Url::from_file_path(data_dir().join("api.db"))
         .map_err(|_| anyhow!("Invalid database URL"))?;
-    let pool = init_db(url.as_str()).await?;
+    let pool = init_db(&url).await?;
     start_server(pool).await?;
     Ok(())
 }
