@@ -21,6 +21,7 @@ use crate::{
     auth::SessionAuth,
     error::{AppError, AppValidate, ErrorResponse},
     state::AppState,
+    success, SuccessResponse,
 };
 
 /// A struct representing a new user to be created
@@ -105,7 +106,7 @@ fn validate_password(password: &str) -> Result<(), ValidationError> {
     }
 }
 
-#[utoipa::path(post, path = "/api/register", description = "Register a new user to the database", request_body(content = CreateUser, description = "User to register"), responses((status = CREATED, description = "User successfully created", body = String), (status = CONFLICT, description = "Username or email already in use", body = ErrorResponse),(status = BAD_REQUEST, description = "Invalid username, email, or password", body = ErrorResponse)))]
+#[utoipa::path(post, path = "/api/register", description = "Register a new user to the database", request_body(content = CreateUser, description = "User to register"), responses((status = CREATED, description = "User successfully created", body = SuccessResponse), (status = CONFLICT, description = "Username or email already in use", body = ErrorResponse),(status = BAD_REQUEST, description = "Invalid username, email, or password", body = ErrorResponse)))]
 pub async fn create_user(
     State(state): State<AppState>,
     Json(new_user): Json<CreateUser>,
@@ -160,7 +161,7 @@ pub async fn create_user(
     )
     .execute(&state.pool)
     .await?;
-    Ok((StatusCode::CREATED, "User successfully created!").into_response())
+    Ok((StatusCode::CREATED, success!("User successfully created!")).into_response())
 }
 
 #[utoipa::path(post, path = "/api/login", description = "Authenticate a user with the backend", request_body(content = LoginUser, description = "User to authenticate"), responses((status = OK, description = "User successfully authenticated", body = LoginResponse, headers(("Set-Cookie" = String, description = "`session` cookie containing the authenticated user's session id"))), (status = UNAUTHORIZED, description = "Invalid username or password", body = ErrorResponse)))]
@@ -231,7 +232,7 @@ pub struct CheckUsage {
     email: Option<String>,
 }
 
-#[utoipa::path(get, path = "/api/check", description = "Check if a username or email (or both at once) is already in use", params(CheckUsage), responses((status = OK, description = "No conflicts found", body = String), (status = CONFLICT, description = "Username or email already in use", body = [ErrorResponse]), (status = BAD_REQUEST, description = "Invalid username or email", body = ErrorResponse)))]
+#[utoipa::path(get, path = "/api/check", description = "Check if a username or email (or both at once) is already in use", params(CheckUsage), responses((status = OK, description = "No conflicts found", body = SuccessResponse), (status = CONFLICT, description = "Username or email already in use", body = [ErrorResponse]), (status = BAD_REQUEST, description = "Invalid username or email", body = ErrorResponse)))]
 #[debug_handler]
 pub async fn check_usage(
     State(state): State<AppState>,
@@ -279,7 +280,7 @@ pub async fn check_usage(
     }
     // If no errors were found, return a 200 OK response
     if errors.is_empty() {
-        Ok((StatusCode::OK, "No conflicts found").into_response())
+        Ok((StatusCode::OK, success!("No conflicts found")).into_response())
     } else {
         // Otherwise, return a 409 CONFLICT response with the errors
         Ok((StatusCode::CONFLICT, Json(errors)).into_response())
@@ -319,7 +320,7 @@ pub async fn get_logged_in_user(
     path = "/api/profile",
     description = "Update the currently authenticated user",
     params(CheckUsage),
-    responses((status = OK, description = "User successfully updated", body = String), (status = BAD_REQUEST, description = "Invalid username or email", body = ErrorResponse))
+    responses((status = OK, description = "User successfully updated", body = SuccessResponse), (status = BAD_REQUEST, description = "Invalid username or email", body = ErrorResponse))
 )]
 pub async fn update_user(
     State(state): State<AppState>,
@@ -346,5 +347,5 @@ pub async fn update_user(
     builder.push(" WHERE id = ");
     builder.push_bind(Uuid::from_bytes(user.id));
     builder.build().execute(&state.pool).await?;
-    Ok((StatusCode::OK, "User updated successfully").into_response())
+    Ok((StatusCode::OK, success!("User updated successfully")).into_response())
 }

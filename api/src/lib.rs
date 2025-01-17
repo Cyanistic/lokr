@@ -1,5 +1,6 @@
 use anyhow::Result;
 use regex::Regex;
+use serde::Serialize;
 use state::AppState;
 use std::{net::SocketAddr, str::FromStr, sync::Arc, time::Duration};
 use tower::ServiceBuilder;
@@ -12,7 +13,7 @@ use tower_http::{
     LatencyUnit, ServiceBuilderExt,
 };
 use tracing::Level;
-use utoipa::OpenApi;
+use utoipa::{OpenApi, ToSchema};
 use utoipa_axum::{router::OpenApiRouter, routes};
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -44,6 +45,25 @@ pub const PKG_NAME: &str = env!("CARGO_PKG_NAME");
         )
     )]
 struct ApiDoc;
+
+#[derive(Serialize, ToSchema)]
+pub struct SuccessResponse {
+    pub message: String,
+}
+
+#[macro_export]
+macro_rules! success {
+    ($message:literal) => {{
+        ::axum::extract::Json($crate::SuccessResponse {
+            message: ($message).into(),
+        })
+    }};
+    ($message:expr) => {{
+        ::axum::extract::Json($crate::SuccessResponse {
+            message: ($message).into(),
+        })
+    }};
+}
 
 /// Start up the HTTP server and listen for incoming requests
 /// on port 6969.
