@@ -24,15 +24,15 @@ function App() {
 
 
       <div className='main'>
-        <div>
+        {/*<div>
           <a href="https://vite.dev" target="_blank">
             <img src={viteLogo} className="logo" alt="Vite logo" />
           </a>
           <a href="https://react.dev" target="_blank">
             <img src={reactLogo} className="logo react" alt="React logo" />
           </a>
-        </div>
-        <h1>Lokr</h1>
+        </div>*/}
+        {/*<h1>Lokr</h1>*/}
         <div className="card">
           <button onClick={() => setCount((count) => count + 1)}>
             Encrypted Files Shared {count}
@@ -65,7 +65,8 @@ function Navigation(){
 function Home(){
   return (
     <div className = 'main'>
-      <h1>Home Page</h1>
+      <h1>Lokr</h1>
+      <p>Encrypted File Sharing Website</p>
     </div>
   )
 
@@ -76,7 +77,12 @@ function Login() {
   return (
     <div className = 'main'>
       <h1>Log In Page</h1>
-      <p>Placeholder for the login page</p>
+      <p>Enter username and password:</p>
+      <div className='register_main'>
+        <input type="text" id='email_box' placeholder='Enter Your Email'/>
+        <input type="text" id='password_box' placeholder='Enter Password' />
+        <button id='login_button'> Register</button>
+      </div>
     </div>
   )
 

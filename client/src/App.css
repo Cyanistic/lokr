@@ -73,3 +73,15 @@
 .main {
   margin-top: 10rem;
 }
+
+.register_main {
+  /*width: 20rem;*/
+  height: 10rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  flex-direction: column;
+  padding: 0 2rem;
+  gap: 1rem;
+}
