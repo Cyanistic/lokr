@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE user SET totp_enabled = ? WHERE id = ? RETURNING totp_secret",
+  "describe": {
+    "columns": [
+      {
+        "name": "totp_secret",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "e9dcc8e2823f45c12e64c1a074c8fb6e74b64c664df78fe56d992edb7ecf708e"
+}

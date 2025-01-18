@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT totp_secret FROM user WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "totp_secret",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "b337f181e1341cb35aabc71094779826dee4c000d5800a9af2eca448ba274eb8"
+}

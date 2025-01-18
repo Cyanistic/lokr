@@ -42,7 +42,7 @@ pub const PKG_NAME: &str = env!("CARGO_PKG_NAME");
 
 #[derive(OpenApi)]
 #[openapi(
-        paths(users::create_user, users::authenticate_user, users::check_usage, users::get_logged_in_user, users::update_user),
+        paths(users::create_user, users::authenticate_user, users::check_usage, users::get_logged_in_user, users::update_user, users::update_totp),
         tags(
             (name = "users", description = "User related operations"),
         )
@@ -56,11 +56,6 @@ pub struct SuccessResponse {
 
 #[macro_export]
 macro_rules! success {
-    ($message:literal) => {{
-        ::axum::extract::Json($crate::SuccessResponse {
-            message: ($message).into(),
-        })
-    }};
     ($message:expr) => {{
         ::axum::extract::Json($crate::SuccessResponse {
             message: ($message).into(),
@@ -153,6 +148,7 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
         .routes(routes!(users::check_usage))
         .routes(routes!(users::get_logged_in_user))
         .routes(routes!(users::update_user))
+        .routes(routes!(users::update_totp))
         .layer(cors)
         .with_state(AppState::new(pool.clone()))
         .split_for_parts();

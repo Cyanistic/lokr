@@ -1,5 +1,6 @@
 use std::ops::ControlFlow;
 
+use anyhow::anyhow;
 use argon2::{
     password_hash::{rand_core::OsRng, PasswordHasher, SaltString},
     PasswordHash, PasswordVerifier,
@@ -13,6 +14,7 @@ use axum::{
 use axum_macros::debug_handler;
 use serde::{Deserialize, Serialize};
 use sqlx::{QueryBuilder, Sqlite};
+use totp_rs::{Algorithm, Secret, TOTP};
 use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 use validator::{Validate, ValidationError};
@@ -138,7 +140,6 @@ pub async fn create_user(
     }
 
     let salt = SaltString::generate(&mut OsRng);
-    let salt_string = salt.to_string();
 
     let password_hash = state
         .argon2
@@ -149,12 +150,11 @@ pub async fn create_user(
         .to_string();
     let uuid = Uuid::new_v4();
     sqlx::query!(
-        "INSERT INTO user (id, username, password_hash, email, salt, iv, encrypted_private_key, public_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO user (id, username, password_hash, email, iv, encrypted_private_key, public_key) VALUES (?, ?, ?, ?, ?, ?, ?)",
         uuid,
         new_user.username,
         password_hash,
         new_user.email,
-        salt_string,
         new_user.iv,
         new_user.encrypted_private_key,
         new_user.public_key
@@ -348,4 +348,149 @@ pub async fn update_user(
     builder.push_bind(Uuid::from_bytes(user.id));
     builder.build().execute(&state.pool).await?;
     Ok((StatusCode::OK, success!("User updated successfully")).into_response())
+}
+
+#[derive(Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase", tag = "type", content = "data")]
+/// Request an update to the currently authenticated user's TOTP settings
+pub enum TOTPRequest {
+    /// Enable or disable TOTP for the currently authenticated user
+    Enable(bool),
+    /// Regenerate the currently authenticated user's TOTP secret
+    Regenerate,
+    /// Verify the currently authenticated user's TOTP
+    /// using the provided TOTP code
+    Verify(Box<str>),
+}
+
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TOTPResponse {
+    /// The base64 encoded QR code for the TOTP secret.
+    /// Encoded as a PNG image to allow for easy presentation to the user.
+    #[schema(content_encoding = "base64")]
+    qr_code: String,
+}
+
+#[utoipa::path(
+    put,
+    path = "/api/totp",
+    description = "Update the currently authenticated user's TOTP settings",
+    request_body(content = TOTPRequest, description = "TOTP settings to update"),
+    responses((status = OK, description = "TOTP settings successfully updated. Returned when successfully enabling, disabling, or, verifing TOTP.", body = SuccessResponse), (status = CREATED, description = "A new TOTP has been regenerated. Returned upon a successful regeneration request", body = TOTPResponse), (status = BAD_REQUEST, description = "Invalid TOTP request", body = ErrorResponse))
+)]
+pub async fn update_totp(
+    State(state): State<AppState>,
+    SessionAuth(user): SessionAuth,
+    Json(totp_req): Json<TOTPRequest>,
+) -> Result<Response, AppError> {
+    let uuid = Uuid::from_bytes(user.id);
+    match totp_req {
+        TOTPRequest::Enable(enable) => {
+            // Query the database to see if the user has both generated a TOTP secret
+            // and verified it to prevent them from being locked out of their account
+            let totp_query = sqlx::query!(
+                "SELECT totp_secret, totp_verified FROM user WHERE id = ?",
+                uuid
+            )
+            .fetch_one(&state.pool)
+            .await?;
+
+            if !totp_query.totp_verified {
+                return Err(AppError::UserError((
+                    StatusCode::BAD_REQUEST,
+                    "You must verify your TOTP before enabling it".into(),
+                )));
+            } else if totp_query.totp_secret.is_none() {
+                return Err(AppError::UserError((
+                    StatusCode::BAD_REQUEST,
+                    "You must generate a TOTP before enabling it".into(),
+                )));
+            }
+
+            // Assume the user has TOTP enabled
+            sqlx::query!(
+                "UPDATE user SET totp_enabled = ? WHERE id = ? RETURNING totp_secret",
+                enable,
+                uuid
+            )
+            .fetch_one(&state.pool)
+            .await?;
+
+            Ok((
+                StatusCode::OK,
+                success!(format!(
+                    "TOTP {} successfully!",
+                    if enable { "enabled" } else { "disabled" }
+                )),
+            )
+                .into_response())
+        }
+        TOTPRequest::Regenerate => {
+            // Generate a totp secret if the user enables TOTP for the first time or
+            // the user has requested a regeneration
+            let secret = Secret::generate_secret();
+            let totp = TOTP::new_unchecked(
+                Algorithm::SHA1,
+                6,
+                1,
+                30,
+                secret.to_bytes()?,
+                Some("Lokr".to_string()),
+                user.email
+                    .clone()
+                    .unwrap_or_else(|| "placeholder@lokr.com".to_string()),
+            );
+            sqlx::query!(
+                "UPDATE user SET totp_secret = ?, totp_verified = false WHERE id = ?",
+                totp.secret,
+                uuid
+            )
+            .execute(&state.pool)
+            .await?;
+            Ok((
+                StatusCode::CREATED,
+                Json(TOTPResponse {
+                    qr_code: totp.get_qr_base64().map_err(|e| {
+                        anyhow!("Could not generate QR code from TOTP struct: {}", e)
+                    })?,
+                }),
+            )
+                .into_response())
+        }
+        TOTPRequest::Verify(code) => {
+            let secret: Secret = Secret::Raw(
+                sqlx::query!("SELECT totp_secret FROM user WHERE id = ?", uuid)
+                    .fetch_one(&state.pool)
+                    .await?
+                    .totp_secret
+                    .ok_or(AppError::UserError((
+                        StatusCode::BAD_REQUEST,
+                        "No TOTP secret found".into(),
+                    )))?,
+            );
+            let totp = TOTP::new_unchecked(
+                Algorithm::SHA1,
+                6,
+                1,
+                30,
+                secret.to_bytes()?,
+                Some("Lokr".to_string()),
+                user.email
+                    .clone()
+                    .unwrap_or_else(|| "placeholder@lokr.com".to_string()),
+            );
+            // Check the TOTP code provided by the user at the current time
+            if !totp.check_current(&code)? {
+                return Err(AppError::UserError((
+                    StatusCode::BAD_REQUEST,
+                    "Invalid TOTP code".into(),
+                )));
+            }
+            sqlx::query!("UPDATE user SET totp_verified = true WHERE id = ?", uuid)
+                .execute(&state.pool)
+                .await?;
+            Ok((StatusCode::OK, success!("TOTP verified successfully!")).into_response())
+        }
+    }
 }

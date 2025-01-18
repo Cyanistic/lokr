@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE user SET totp_secret = ?, totp_verified = false WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "ea39ffbf09c5e6ce491c1952d5e2a39624928d433a841d61e328a2e7099cf5c0"
+}

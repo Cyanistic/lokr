@@ -6,7 +6,9 @@ CREATE TABLE user (
 	public_key TEXT NOT NULL,
 	encrypted_private_key TEXT NOT NULL,
 	iv TEXT NOT NULL,
-	salt TEXT NOT NULL,
+	totp_secret BLOB,
+	totp_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+	totp_verified BOOLEAN NOT NULL DEFAULT FALSE,
 	created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	modified_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -15,7 +17,7 @@ CREATE UNIQUE INDEX idx_users_username ON user (username);
 
 CREATE TRIGGER users_update_modified_at AFTER UPDATE ON user
 BEGIN
-    UPDATE users
+    UPDATE user
     SET modified_at = CURRENT_TIMESTAMP
     WHERE id = NEW.id;
 END;
