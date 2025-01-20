@@ -18,6 +18,7 @@ function App() {
       <Route path="/about" element = {<About />}/>
       <Route path="/downloads" element = {<Downloads />}/>
       <Route path="/login" element = {<Login />}/>
+      <Route path="/register" element = {<Register />}/>
       </Routes>
 
     </BrowserRouter>
@@ -31,8 +32,8 @@ function App() {
           <a href="https://react.dev" target="_blank">
             <img src={reactLogo} className="logo react" alt="React logo" />
           </a>
-        </div>*/}
-        {/*<h1>Lokr</h1>*/}
+        </div>}
+        {<h1>Lokr</h1>}
         <div className="card">
           <button onClick={() => setCount((count) => count + 1)}>
             Encrypted Files Shared {count}
@@ -74,19 +75,108 @@ function Home(){
 
 //Login page
 function Login() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+
+  const handleLogin = (e: { preventDefault: () => void }) => {
+    e.preventDefault();
+
+    const emailRegex = /^\S+@\S+\.\S+$/;
+
+    if (!email || !password) {
+      setError('Email and password are required.');
+    } else if (!emailRegex.test(email)) {
+      setError('Please enter a valid email address.');
+    } else {
+      setError('');
+      console.log('Logged in with:', { email, password });
+      alert('Login successful!');
+    }
+  };
+
   return (
     <div className = 'main'>
       <h1>Log In Page</h1>
-      <p>Enter username and password:</p>
-      <div className='register_main'>
-        <input type="text" id='email_box' placeholder='Enter Your Email'/>
-        <input type="text" id='password_box' placeholder='Enter Password' />
-        <button id='login_button'> Register</button>
-      </div>
+      <form onSubmit={handleLogin} className="register_main">
+        <input
+          type="email"
+          placeholder="Enter Your Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+        />
+        <input
+          type="password"
+          placeholder="Enter Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+        />
+        {error && <p style={{ color: 'red' }}>{error}</p>}
+        <button type="submit">Log In</button>
+        <Link to="/register">Register</Link>
+      </form>
     </div>
-  )
-
+  );
 }
+
+//Register page
+function Register() {
+  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+
+  const handleLogin = (e: { preventDefault: () => void }) => {
+    e.preventDefault();
+
+    const emailRegex = /^\S+@\S+\.\S+$/;
+
+    if (!email || !password) {
+      setError('Email and password are required.');
+    } else if (!emailRegex.test(email)) {
+      setError('Please enter a valid email address.');
+    } else {
+      setError('');
+      console.log('Registered with:', { email, password });
+      alert('Registration was successful!');
+    }
+  };
+
+  return (
+    <div className = 'main'>
+      <h1>Registration Page</h1>
+      <form onSubmit={handleLogin} className="register_main">
+      <input
+          type="username"
+          placeholder="Enter Your Username"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          required
+        />
+        <input
+          type="email"
+          placeholder="Enter Your Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+        />
+        <input
+          type="password"
+          placeholder="Enter Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+        />
+        {error && <p style={{ color: 'red' }}>{error}</p>}
+        <button type="submit">Register</button>
+        <Link to="/login">Log In</Link>
+      </form>
+    </div>
+  );
+}
+
 
 //About us page
 function About() {
