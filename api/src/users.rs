@@ -50,13 +50,16 @@ pub struct CreateUser {
 }
 
 /// A struct representing a user logging in
-#[derive(Deserialize, ToSchema, Validate)]
+#[derive(Serialize, Deserialize, ToSchema, Validate)]
 #[serde(rename_all = "camelCase")]
 pub struct LoginUser {
     #[validate(length(min = 3, max = 20), custom(function = "validate_username"))]
     username: Box<str>,
     #[validate(length(min = 8, max = 64), custom(function = "validate_password"))]
     password: Box<str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[validate(length(min = 6, max = 6))]
+    totp_code: Option<String>,
 }
 
 /// A successful login response
@@ -164,14 +167,14 @@ pub async fn create_user(
     Ok((StatusCode::CREATED, success!("User successfully created!")).into_response())
 }
 
-#[utoipa::path(post, path = "/api/login", description = "Authenticate a user with the backend", request_body(content = LoginUser, description = "User to authenticate"), responses((status = OK, description = "User successfully authenticated", body = LoginResponse, headers(("Set-Cookie" = String, description = "`session` cookie containing the authenticated user's session id"))), (status = UNAUTHORIZED, description = "Invalid username or password", body = ErrorResponse)))]
+#[utoipa::path(post, path = "/api/login", description = "Authenticate a user with the backend", request_body(content = LoginUser, description = "User to authenticate"), responses((status = OK, description = "User successfully authenticated", body = LoginResponse, headers(("Set-Cookie" = String, description = "`session` cookie containing the authenticated user's session id"))), (status = TEMPORARY_REDIRECT, description = "Username and password are correct, but TOTP is missing. Login parameters are returned to allow for easier reuse", body = LoginUser), (status = UNAUTHORIZED, description = "Invalid username or password", body = ErrorResponse)))]
 pub async fn authenticate_user(
     State(state): State<AppState>,
     Json(user): Json<LoginUser>,
 ) -> Result<Response, AppError> {
     user.app_validate()?;
     let Some(db_user) = sqlx::query!(
-        "SELECT id, password_hash FROM user WHERE username = ?",
+        "SELECT id, email, password_hash, totp_enabled, totp_secret FROM user WHERE username = ?",
         user.username
     )
     .fetch_optional(&state.pool)
@@ -183,28 +186,39 @@ pub async fn authenticate_user(
         )));
     };
 
-    // Alert the tokio runtime that there will be a computationally expensive
-    // blocking operation. This will allow the runtime to schedule other tasks
-    // while waiting for this operation to complete
-    tokio::task::block_in_place(|| -> Result<(), AppError> {
-        state
-            .argon2
-            .verify_password(
-                user.password.as_bytes(),
-                &PasswordHash::new(&db_user.password_hash).map_err(|_| {
-                    AppError::UserError((
-                        StatusCode::UNAUTHORIZED,
-                        "Invalid username or password".into(),
-                    ))
-                })?,
-            )
-            .map_err(|_| {
-                AppError::UserError((
-                    StatusCode::UNAUTHORIZED,
-                    "Invalid username or password".into(),
-                ))
-            })
-    })?;
+    verify_password(&state, &user.password, &db_user.password_hash)?;
+
+    // If the user has TOTP enabled, verify the TOTP code
+    if db_user.totp_enabled {
+        let Some(totp_code) = user.totp_code else {
+            // Alert the frontend that they need to provide a TOTP code
+            // Return the user object with a redirect to the frontend to
+            // prompt the user for a TOTP code and reuse the same username and password
+            return Ok((StatusCode::TEMPORARY_REDIRECT, Json(user)).into_response());
+        };
+        let secret = Secret::Raw(db_user.totp_secret.ok_or(AppError::UserError((
+            StatusCode::UNAUTHORIZED,
+            "Invalid username or password".into(),
+        )))?);
+        let totp = TOTP::new_unchecked(
+            Algorithm::SHA1,
+            6,
+            1,
+            30,
+            secret.to_bytes()?,
+            Some("Lokr".to_string()),
+            db_user
+                .email
+                .clone()
+                .unwrap_or_else(|| "placeholder@lokr.com".to_string()),
+        );
+        if !totp.check_current(&totp_code)? {
+            return Err(AppError::UserError((
+                StatusCode::UNAUTHORIZED,
+                "Invalid TOTP code".into(),
+            )));
+        }
+    }
 
     let uuid = Uuid::new_v4();
     let expires_at = chrono::Utc::now() + chrono::Duration::hours(1);
@@ -396,22 +410,23 @@ pub async fn update_totp(
     let uuid = Uuid::from_bytes(user.id);
     match totp_req {
         TOTPRequest::Enable { enable, password } => {
-            verify_password(&state, &uuid, &password).await?;
             // Query the database to see if the user has both generated a TOTP secret
             // and verified it to prevent them from being locked out of their account
-            let totp_query = sqlx::query!(
-                "SELECT totp_secret, totp_verified FROM user WHERE id = ?",
+            let db_user = sqlx::query!(
+                "SELECT password_hash, totp_secret, totp_verified FROM user WHERE id = ?",
                 uuid
             )
             .fetch_one(&state.pool)
             .await?;
+            // Verify the password against the hash in the database
+            verify_password(&state, &password, &db_user.password_hash)?;
 
-            if !totp_query.totp_verified {
+            if !db_user.totp_verified {
                 return Err(AppError::UserError((
                     StatusCode::BAD_REQUEST,
                     "You must verify your TOTP before enabling it".into(),
                 )));
-            } else if totp_query.totp_secret.is_none() {
+            } else if db_user.totp_secret.is_none() {
                 return Err(AppError::UserError((
                     StatusCode::BAD_REQUEST,
                     "You must generate a TOTP before enabling it".into(),
@@ -437,7 +452,14 @@ pub async fn update_totp(
                 .into_response())
         }
         TOTPRequest::Regenerate { password } => {
-            verify_password(&state, &uuid, &password).await?;
+            let db_user = sqlx::query!("SELECT password_hash FROM user WHERE id = ?", uuid)
+                .fetch_one(&state.pool)
+                .await
+                .map_err(|_| {
+                    AppError::UserError((StatusCode::UNAUTHORIZED, "Invalid password".into()))
+                })?;
+            // Verify the password against the hash in the database
+            verify_password(&state, &password, &db_user.password_hash)?;
             // Generate a totp secret if the user enables TOTP for the first time or
             // the user has requested a regeneration
             let secret = Secret::generate_secret();
@@ -507,11 +529,7 @@ pub async fn update_totp(
 }
 
 // Verify the password against the hash in the database
-async fn verify_password(state: &AppState, uuid: &Uuid, password: &str) -> Result<(), AppError> {
-    let db_user = sqlx::query!("SELECT password_hash FROM user WHERE id = ?", uuid)
-        .fetch_one(&state.pool)
-        .await
-        .map_err(|_| AppError::UserError((StatusCode::UNAUTHORIZED, "Invalid password".into())))?;
+fn verify_password(state: &AppState, password: &str, password_hash: &str) -> Result<(), AppError> {
     // Alert the tokio runtime that there will be a computationally expensive
     // blocking operation. This will allow the runtime to schedule other tasks
     // while waiting for this operation to complete
@@ -521,7 +539,7 @@ async fn verify_password(state: &AppState, uuid: &Uuid, password: &str) -> Resul
             .argon2
             .verify_password(
                 password.as_bytes(),
-                &PasswordHash::new(&db_user.password_hash)
+                &PasswordHash::new(password_hash)
                     .map_err(|_| anyhow!("Invalid password hash in database"))?,
             )
             .map_err(|_| AppError::UserError((StatusCode::UNAUTHORIZED, "Invalid password".into())))

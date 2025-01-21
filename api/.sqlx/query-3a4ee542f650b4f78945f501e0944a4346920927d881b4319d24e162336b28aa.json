@@ -1,0 +1,44 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, email, password_hash, totp_enabled, totp_secret FROM user WHERE username = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "email",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "password_hash",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "totp_enabled",
+        "ordinal": 3,
+        "type_info": "Bool"
+      },
+      {
+        "name": "totp_secret",
+        "ordinal": 4,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "3a4ee542f650b4f78945f501e0944a4346920927d881b4319d24e162336b28aa"
+}
