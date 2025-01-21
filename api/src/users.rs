@@ -170,9 +170,12 @@ pub async fn authenticate_user(
     Json(user): Json<LoginUser>,
 ) -> Result<Response, AppError> {
     user.app_validate()?;
-    let Some(db_user) = sqlx::query!("SELECT * FROM user WHERE username = ?", user.username)
-        .fetch_optional(&state.pool)
-        .await?
+    let Some(db_user) = sqlx::query!(
+        "SELECT id, password_hash FROM user WHERE username = ?",
+        user.username
+    )
+    .fetch_optional(&state.pool)
+    .await?
     else {
         return Err(AppError::UserError((
             StatusCode::UNAUTHORIZED,
@@ -180,23 +183,29 @@ pub async fn authenticate_user(
         )));
     };
 
-    state
-        .argon2
-        .verify_password(
-            user.password.as_bytes(),
-            &PasswordHash::new(&db_user.password_hash).map_err(|_| {
+    // Alert the tokio runtime that there will be a computationally expensive
+    // blocking operation. This will allow the runtime to schedule other tasks
+    // while waiting for this operation to complete
+    tokio::task::block_in_place(|| -> Result<(), AppError> {
+        state
+            .argon2
+            .verify_password(
+                user.password.as_bytes(),
+                &PasswordHash::new(&db_user.password_hash).map_err(|_| {
+                    AppError::UserError((
+                        StatusCode::UNAUTHORIZED,
+                        "Invalid username or password".into(),
+                    ))
+                })?,
+            )
+            .map_err(|_| {
                 AppError::UserError((
                     StatusCode::UNAUTHORIZED,
                     "Invalid username or password".into(),
                 ))
-            })?,
-        )
-        .map_err(|_| {
-            AppError::UserError((
-                StatusCode::UNAUTHORIZED,
-                "Invalid username or password".into(),
-            ))
-        })?;
+            })
+    })?;
+
     let uuid = Uuid::new_v4();
     let expires_at = chrono::Utc::now() + chrono::Duration::hours(1);
     sqlx::query!(
@@ -351,16 +360,16 @@ pub async fn update_user(
 }
 
 #[derive(Deserialize, ToSchema)]
-#[serde(rename_all = "camelCase", tag = "type", content = "data")]
+#[serde(rename_all = "camelCase", tag = "type")]
 /// Request an update to the currently authenticated user's TOTP settings
 pub enum TOTPRequest {
     /// Enable or disable TOTP for the currently authenticated user
-    Enable(bool),
+    Enable { enable: bool, password: Box<str> },
     /// Regenerate the currently authenticated user's TOTP secret
-    Regenerate,
+    Regenerate { password: Box<str> },
     /// Verify the currently authenticated user's TOTP
     /// using the provided TOTP code
-    Verify(Box<str>),
+    Verify { code: Box<str> },
 }
 
 #[derive(Serialize, ToSchema)]
@@ -386,7 +395,8 @@ pub async fn update_totp(
 ) -> Result<Response, AppError> {
     let uuid = Uuid::from_bytes(user.id);
     match totp_req {
-        TOTPRequest::Enable(enable) => {
+        TOTPRequest::Enable { enable, password } => {
+            verify_password(&state, &uuid, &password).await?;
             // Query the database to see if the user has both generated a TOTP secret
             // and verified it to prevent them from being locked out of their account
             let totp_query = sqlx::query!(
@@ -426,7 +436,8 @@ pub async fn update_totp(
             )
                 .into_response())
         }
-        TOTPRequest::Regenerate => {
+        TOTPRequest::Regenerate { password } => {
+            verify_password(&state, &uuid, &password).await?;
             // Generate a totp secret if the user enables TOTP for the first time or
             // the user has requested a regeneration
             let secret = Secret::generate_secret();
@@ -458,7 +469,7 @@ pub async fn update_totp(
             )
                 .into_response())
         }
-        TOTPRequest::Verify(code) => {
+        TOTPRequest::Verify { code } => {
             let secret: Secret = Secret::Raw(
                 sqlx::query!("SELECT totp_secret FROM user WHERE id = ?", uuid)
                     .fetch_one(&state.pool)
@@ -493,4 +504,26 @@ pub async fn update_totp(
             Ok((StatusCode::OK, success!("TOTP verified successfully!")).into_response())
         }
     }
+}
+
+// Verify the password against the hash in the database
+async fn verify_password(state: &AppState, uuid: &Uuid, password: &str) -> Result<(), AppError> {
+    let db_user = sqlx::query!("SELECT password_hash FROM user WHERE id = ?", uuid)
+        .fetch_one(&state.pool)
+        .await
+        .map_err(|_| AppError::UserError((StatusCode::UNAUTHORIZED, "Invalid password".into())))?;
+    // Alert the tokio runtime that there will be a computationally expensive
+    // blocking operation. This will allow the runtime to schedule other tasks
+    // while waiting for this operation to complete
+    tokio::task::block_in_place(|| {
+        // Verify the password against the hash in the database
+        state
+            .argon2
+            .verify_password(
+                password.as_bytes(),
+                &PasswordHash::new(&db_user.password_hash)
+                    .map_err(|_| anyhow!("Invalid password hash in database"))?,
+            )
+            .map_err(|_| AppError::UserError((StatusCode::UNAUTHORIZED, "Invalid password".into())))
+    })
 }
