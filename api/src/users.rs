@@ -14,11 +14,10 @@ use axum::{
 use axum_macros::debug_handler;
 use base64::{engine::general_purpose, Engine};
 use serde::{Deserialize, Serialize};
-use sqlx::{QueryBuilder, Sqlite};
 use totp_rs::{Algorithm, Secret, TOTP};
 use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
-use validator::{Validate, ValidationError};
+use validator::{Validate, ValidateEmail, ValidationError};
 
 use crate::{
     auth::SessionAuth,
@@ -27,15 +26,20 @@ use crate::{
     success, SuccessResponse,
 };
 
+pub const MIN_PASSWORD_LENGTH: u64 = 8;
+pub const MAX_PASSWORD_LENGTH: u64 = 64;
+pub const MIN_USERNAME_LENGTH: u64 = 3;
+pub const MAX_USERNAME_LENGTH: u64 = 20;
+
 /// A struct representing a new user to be created
 #[derive(Deserialize, ToSchema, Validate)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateUser {
     /// The name of the user to create
-    #[validate(length(min = 3, max = 20), custom(function = "validate_username"))]
+    #[validate(length(min = MIN_USERNAME_LENGTH, max = MAX_USERNAME_LENGTH), custom(function = "validate_username"))]
     username: Box<str>,
     /// The new user's password
-    #[validate(length(min = 8, max = 64), custom(function = "validate_password"))]
+    #[validate(length(min = MIN_PASSWORD_LENGTH, max = MAX_PASSWORD_LENGTH), custom(function = "validate_password"))]
     password: Box<str>,
     #[validate(email)]
     email: Option<String>,
@@ -364,9 +368,10 @@ pub async fn check_usage(
 pub struct SessionUser {
     username: Box<str>,
     email: Option<String>,
-    iv: String,
-    public_key: String,
-    encrypted_private_key: String,
+    iv: Box<str>,
+    public_key: Box<str>,
+    encrypted_private_key: Box<str>,
+    salt: Box<str>,
 }
 
 #[utoipa::path(get, path = "/api/profile", description = "Get the currently authenticated user", responses((status = OK, description = "User successfully retrieved", body = SessionUser), (status = UNAUTHORIZED, description = "No user is currently authenticated", body = ErrorResponse)))]
@@ -378,7 +383,7 @@ pub async fn get_logged_in_user(
     Ok(Json(
         sqlx::query_as!(
             SessionUser,
-            "SELECT username, email, iv, public_key, encrypted_private_key FROM user WHERE id = ?",
+            "SELECT username, email, iv, public_key, encrypted_private_key, salt FROM user WHERE id = ?",
             uuid
         )
         .fetch_one(&state.pool)
@@ -387,38 +392,148 @@ pub async fn get_logged_in_user(
     .into_response())
 }
 
+/// Update the currently authenticated user's profile
+#[derive(Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct UserUpdate {
+    /// The field to update
+    field: UserUpdateField,
+    /// The new value for the field
+    new_value: Box<str>,
+    /// The user's current password to prevent accidental or
+    /// malicious updates
+    password: Box<str>,
+}
+
+#[derive(Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase", tag = "type")]
+pub enum UserUpdateField {
+    Username,
+    Email,
+    /// Update the user's password
+    /// Requires a new encrypted private key to be provided since
+    /// the password is used to derive the key for the AES encryption
+    #[serde(rename_all = "camelCase")]
+    Password {
+        encrypted_private_key: Box<str>,
+    },
+}
+
 #[utoipa::path(
     put,
     path = "/api/profile",
     description = "Update the currently authenticated user",
-    params(CheckUsage),
-    responses((status = OK, description = "User successfully updated", body = SuccessResponse), (status = BAD_REQUEST, description = "Invalid username or email", body = ErrorResponse))
+    request_body(content = UserUpdate, description = "The user data to update"),
+    responses((status = OK, description = "User successfully updated", body = SuccessResponse), (status = BAD_REQUEST, description = "Invalid username or email", body = ErrorResponse), (status = UNAUTHORIZED, description = "No user is currently authenticated or incorrect password", body = ErrorResponse))
 )]
 pub async fn update_user(
     State(state): State<AppState>,
     SessionAuth(user): SessionAuth,
-    Query(params): Query<CheckUsage>,
+    Json(update): Json<UserUpdate>,
 ) -> Result<Response, AppError> {
-    params.app_validate()?;
-    let mut builder: QueryBuilder<'_, Sqlite> = QueryBuilder::new("UPDATE user SET ");
-    let mut separated = false;
-    if let Some(username) = params.username {
-        builder.push("username = ");
-        builder.push_bind(username);
-        separated = true;
-    }
-    if let Some(email) = params.email {
-        // We only want to push a comma if we've already pushed a username
-        // so we add a variable to check if we have
-        if separated {
-            builder.push(", ");
+    let uuid = Uuid::from_bytes(user.id);
+    let password_hash = sqlx::query!("SELECT password_hash FROM user WHERE id = ?", uuid)
+        .fetch_one(&state.pool)
+        .await?
+        .password_hash;
+    verify_password(&state, &update.password, &password_hash)?;
+
+    match update.field {
+        UserUpdateField::Username => {
+            if update.new_value.len() < MIN_USERNAME_LENGTH as usize
+                || update.new_value.len() > MAX_USERNAME_LENGTH as usize
+            {
+                return Err(AppError::UserError((
+                    StatusCode::BAD_REQUEST,
+                    format!(
+                        "Username must be between {} and {} characters",
+                        MIN_USERNAME_LENGTH, MAX_USERNAME_LENGTH
+                    )
+                    .into(),
+                )));
+            }
+            if validate_username(&update.new_value).is_err() {
+                return Err(AppError::UserError((
+                    StatusCode::BAD_REQUEST,
+                    "Invalid username".into(),
+                )));
+            }
+
+            sqlx::query!(
+                "UPDATE user SET username = ? WHERE id = ?",
+                update.new_value,
+                uuid
+            )
+            .execute(&state.pool)
+            .await?;
         }
-        builder.push("email = ");
-        builder.push_bind(email);
+        UserUpdateField::Email => {
+            if !(&*update.new_value).validate_email() {
+                return Err(AppError::UserError((
+                    StatusCode::BAD_REQUEST,
+                    "Invalid email".into(),
+                )));
+            }
+            sqlx::query!(
+                "UPDATE user SET email = ? WHERE id = ?",
+                update.new_value,
+                uuid
+            )
+            .execute(&state.pool)
+            .await?;
+        }
+        UserUpdateField::Password {
+            encrypted_private_key,
+        } => {
+            if update.new_value.len() < MIN_PASSWORD_LENGTH as usize
+                || update.new_value.len() > MAX_PASSWORD_LENGTH as usize
+            {
+                return Err(AppError::UserError((
+                    StatusCode::BAD_REQUEST,
+                    format!(
+                        "Password must be between {} and {} characters",
+                        MIN_PASSWORD_LENGTH, MAX_PASSWORD_LENGTH
+                    )
+                    .into(),
+                )));
+            }
+            if validate_password(&update.new_value).is_err() {
+                return Err(AppError::UserError((
+                    StatusCode::BAD_REQUEST,
+                    "Invalid password".into(),
+                )));
+            }
+
+            general_purpose::STANDARD
+                .decode(&*encrypted_private_key)
+                .map_err(|_| {
+                    AppError::UserError((
+                        StatusCode::BAD_REQUEST,
+                        "Failed to decode encrypted private key".into(),
+                    ))
+                })?;
+
+            // Hash the new password and store the new hash in the database
+            let salt = SaltString::generate(&mut OsRng);
+            let password_hash = state
+                .argon2
+                .hash_password(update.new_value.as_bytes(), &salt)
+                .map_err(|_| {
+                    AppError::UserError((StatusCode::BAD_REQUEST, "Unable to hash password".into()))
+                })?
+                .to_string();
+
+            sqlx::query!(
+                "UPDATE user SET password_hash = ?, encrypted_private_key = ? WHERE id = ?",
+                password_hash,
+                encrypted_private_key,
+                uuid
+            )
+            .execute(&state.pool)
+            .await?;
+        }
     }
-    builder.push(" WHERE id = ");
-    builder.push_bind(Uuid::from_bytes(user.id));
-    builder.build().execute(&state.pool).await?;
+
     Ok((StatusCode::OK, success!("User updated successfully")).into_response())
 }
 

@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT username, email, iv, public_key, encrypted_private_key FROM user WHERE id = ?",
+  "query": "SELECT username, email, iv, public_key, encrypted_private_key, salt FROM user WHERE id = ?",
   "describe": {
     "columns": [
       {
@@ -27,6 +27,11 @@
         "name": "encrypted_private_key",
         "ordinal": 4,
         "type_info": "Text"
+      },
+      {
+        "name": "salt",
+        "ordinal": 5,
+        "type_info": "Text"
       }
     ],
     "parameters": {
@@ -37,8 +42,9 @@
       true,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "e0971239756c1869fbcfb7a1869424051ae32a1688aafef2c1bc6ed5cf40dcf8"
+  "hash": "af1b024463998d6204a880aa6ee0232deeb91e7b8a5fa39d3f88fba75fa43389"
 }
