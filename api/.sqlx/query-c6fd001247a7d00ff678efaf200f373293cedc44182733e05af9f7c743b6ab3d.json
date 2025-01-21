@@ -39,28 +39,33 @@
         "type_info": "Text"
       },
       {
-        "name": "totp_secret",
+        "name": "salt",
         "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "totp_secret",
+        "ordinal": 8,
         "type_info": "Blob"
       },
       {
         "name": "totp_enabled",
-        "ordinal": 8,
-        "type_info": "Bool"
-      },
-      {
-        "name": "totp_verified",
         "ordinal": 9,
         "type_info": "Bool"
       },
       {
-        "name": "created_at",
+        "name": "totp_verified",
         "ordinal": 10,
+        "type_info": "Bool"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 11,
         "type_info": "Datetime"
       },
       {
         "name": "modified_at",
-        "ordinal": 11,
+        "ordinal": 12,
         "type_info": "Datetime"
       }
     ],
@@ -71,6 +76,7 @@
       false,
       false,
       true,
+      false,
       false,
       false,
       false,

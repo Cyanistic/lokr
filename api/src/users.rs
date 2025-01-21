@@ -12,6 +12,7 @@ use axum::{
     Json,
 };
 use axum_macros::debug_handler;
+use base64::{engine::general_purpose, Engine};
 use serde::{Deserialize, Serialize};
 use sqlx::{QueryBuilder, Sqlite};
 use totp_rs::{Algorithm, Secret, TOTP};
@@ -38,15 +39,18 @@ pub struct CreateUser {
     password: Box<str>,
     #[validate(email)]
     email: Option<String>,
-    /// The initialization vector for the user's private key
+    /// The initialization vector for the AES encrypted user's private key
     #[schema(content_encoding = "base64")]
-    iv: String,
+    iv: Box<str>,
     /// The user's public key
     #[schema(content_encoding = "base64")]
-    public_key: String,
+    public_key: Box<str>,
     /// The user's private key encrypted using their password
     #[schema(content_encoding = "base64")]
-    encrypted_private_key: String,
+    encrypted_private_key: Box<str>,
+    /// The salt for the PBKDF2 key derivation function
+    #[schema(content_encoding = "base64")]
+    salt: Box<str>,
 }
 
 /// A struct representing a user logging in
@@ -66,9 +70,10 @@ pub struct LoginUser {
 #[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct LoginResponse {
-    iv: String,
-    public_key: String,
-    encrypted_private_key: String,
+    iv: Box<str>,
+    public_key: Box<str>,
+    encrypted_private_key: Box<str>,
+    salt: Box<str>,
 }
 
 /// Verify that the username only contains alphanumeric characters and underscores
@@ -142,6 +147,49 @@ pub async fn create_user(
         }
     }
 
+    let decoded_public_key = general_purpose::STANDARD
+        .decode(&*new_user.public_key)
+        .map_err(|_| {
+            AppError::UserError((
+                StatusCode::BAD_REQUEST,
+                "Failed to decode public key".into(),
+            ))
+        })?;
+    // Ed25519 public keys are 32 bytes
+    if decoded_public_key.len() != 32 {
+        return Err(AppError::UserError((
+            StatusCode::BAD_REQUEST,
+            "Public key must be 32 bytes".into(),
+        )));
+    }
+    let decoded_iv = general_purpose::STANDARD
+        .decode(&*new_user.iv)
+        .map_err(|_| {
+            AppError::UserError((StatusCode::BAD_REQUEST, "Failed to decode iv".into()))
+        })?;
+    // AES-GCM requires a 12 byte IV
+    if decoded_iv.len() != 12 {
+        return Err(AppError::UserError((
+            StatusCode::BAD_REQUEST,
+            "IV must be 12 bytes".into(),
+        )));
+    }
+    general_purpose::STANDARD
+        .decode(&*new_user.salt)
+        .map_err(|_| {
+            AppError::UserError((StatusCode::BAD_REQUEST, "Failed to decode salt".into()))
+        })?;
+    general_purpose::STANDARD
+        .decode(&*new_user.encrypted_private_key)
+        .map_err(|_| {
+            AppError::UserError((
+                StatusCode::BAD_REQUEST,
+                "Failed to decode encrypted private key".into(),
+            ))
+        })?;
+
+    // Salt used for password hashing on the backend, not the one used for the PBKDF2 key derivation function
+    // The user provided salt is used for the PBKDF2 key derivation function
     let salt = SaltString::generate(&mut OsRng);
 
     let password_hash = state
@@ -153,14 +201,15 @@ pub async fn create_user(
         .to_string();
     let uuid = Uuid::new_v4();
     sqlx::query!(
-        "INSERT INTO user (id, username, password_hash, email, iv, encrypted_private_key, public_key) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO user (id, username, password_hash, email, iv, encrypted_private_key, public_key, salt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         uuid,
         new_user.username,
         password_hash,
         new_user.email,
         new_user.iv,
         new_user.encrypted_private_key,
-        new_user.public_key
+        new_user.public_key,
+        new_user.salt
     )
     .execute(&state.pool)
     .await?;
@@ -233,7 +282,7 @@ pub async fn authenticate_user(
 
     let login_body = sqlx::query_as!(
         LoginResponse,
-        "SELECT iv, public_key, encrypted_private_key FROM user WHERE username = ?",
+        "SELECT iv, public_key, encrypted_private_key, salt FROM user WHERE username = ?",
         user.username
     )
     .fetch_one(&state.pool)

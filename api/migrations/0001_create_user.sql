@@ -6,6 +6,7 @@ CREATE TABLE user (
 	public_key TEXT NOT NULL,
 	encrypted_private_key TEXT NOT NULL,
 	iv TEXT NOT NULL,
+	salt TEXT NOT NULL,
 	totp_secret BLOB,
 	totp_enabled BOOLEAN NOT NULL DEFAULT FALSE,
 	totp_verified BOOLEAN NOT NULL DEFAULT FALSE,
