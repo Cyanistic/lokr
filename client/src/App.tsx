@@ -65,22 +65,18 @@ function Home(){
 
 //Login page
 function Login() {
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
   const handleLogin = (e: { preventDefault: () => void }) => {
     e.preventDefault();
 
-    const emailRegex = /^\S+@\S+\.\S+$/;
-
-    if (!email || !password) {
-      setError('Email and password are required.');
-    } else if (!emailRegex.test(email)) {
-      setError('Please enter a valid email address.');
+    if (!username || !password) {
+      setError('Username and password are required.');
     } else {
       setError('');
-      console.log('Logged in with:', { email, password });
+      console.log('Logged in with:', { username, password });
       alert('Login successful!');
     }
   };
@@ -90,10 +86,10 @@ function Login() {
       <h1>Log In Page</h1>
       <form onSubmit={handleLogin} className="register_main">
         <input
-          type="email"
-          placeholder="Enter Your Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          type="username"
+          placeholder="Enter Your Username"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
           required
         />
         <input
@@ -123,9 +119,9 @@ function Register() {
 
     const emailRegex = /^\S+@\S+\.\S+$/;
 
-    if (!email || !password) {
-      setError('Email and password are required.');
-    } else if (!emailRegex.test(email)) {
+    if (!username || !password) {
+      setError('Username and password are required.');
+    } else if (email && !emailRegex.test(email)) {
       setError('Please enter a valid email address.');
     } else {
       setError('');
@@ -146,18 +142,17 @@ function Register() {
           required
         />
         <input
-          type="email"
-          placeholder="Enter Your Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
-        <input
           type="password"
           placeholder="Enter Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
+        />
+        <input
+          type="email"
+          placeholder="Enter Your Email (optional)"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
         />
         {error && <p style={{ color: 'red' }}>{error}</p>}
         <button type="submit">Register</button>
