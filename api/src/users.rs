@@ -458,6 +458,20 @@ pub async fn update_user(
                     "Invalid username".into(),
                 )));
             }
+            // Check that the new username is not already in use
+            // unless the new username is the same as the old one just
+            // with different case
+            if !user.username.eq_ignore_ascii_case(&update.new_value)
+                && sqlx::query!("SELECT id FROM user WHERE username = ?", update.new_value)
+                    .fetch_optional(&state.pool)
+                    .await?
+                    .is_some()
+            {
+                return Err(AppError::UserError((
+                    StatusCode::BAD_REQUEST,
+                    "Username already in use".into(),
+                )));
+            }
 
             sqlx::query!(
                 "UPDATE user SET username = ? WHERE id = ?",
@@ -474,6 +488,24 @@ pub async fn update_user(
                     "Invalid email".into(),
                 )));
             }
+
+            // Check that the new email is not already in use
+            // unless the new email is the same as the old one just
+            // with different case
+            if !user
+                .email
+                .is_some_and(|email| email.eq_ignore_ascii_case(&update.new_value))
+                && sqlx::query!("SELECT id FROM user WHERE email = ?", update.new_value)
+                    .fetch_optional(&state.pool)
+                    .await?
+                    .is_some()
+            {
+                return Err(AppError::UserError((
+                    StatusCode::BAD_REQUEST,
+                    "Email already in use".into(),
+                )));
+            }
+
             sqlx::query!(
                 "UPDATE user SET email = ? WHERE id = ?",
                 update.new_value,
