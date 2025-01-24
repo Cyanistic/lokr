@@ -35,6 +35,7 @@ use sqlx::{
 pub mod auth;
 pub mod error;
 pub mod state;
+pub mod upload;
 pub mod users;
 pub mod utils;
 
@@ -42,9 +43,18 @@ pub const PKG_NAME: &str = env!("CARGO_PKG_NAME");
 
 #[derive(OpenApi)]
 #[openapi(
-        paths(users::create_user, users::authenticate_user, users::check_usage, users::get_logged_in_user, users::update_user, users::update_totp),
+        paths(
+            users::create_user,
+            users::authenticate_user,
+            users::check_usage,
+            users::get_logged_in_user,
+            users::update_user,
+            users::update_totp,
+            upload::upload_file
+        ),
         tags(
             (name = "users", description = "User related operations"),
+            (name = "upload", description = "File uploading"),
         )
     )]
 struct ApiDoc;
@@ -149,6 +159,7 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
         .routes(routes!(users::get_logged_in_user))
         .routes(routes!(users::update_user))
         .routes(routes!(users::update_totp))
+        .routes(routes!(upload::upload_file))
         .layer(cors)
         .with_state(AppState::new(pool.clone()))
         .split_for_parts();
