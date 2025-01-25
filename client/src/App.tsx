@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import './App.css'
 import { BrowserRouter, Routes, Route, Link } from 'react-router-dom'
+import Register from './pages/Register'
 
 function App() {
   //const [count, setCount] = useState(0)
@@ -92,8 +93,8 @@ function Login() {
   );
 }
 
-//Register page
-function Register() {
+/* //Register page(old)
+function Register_Old() {
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -148,7 +149,7 @@ function Register() {
   );
   
 }
-
+ */
 
 //About us page
 function About() {
