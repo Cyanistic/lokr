@@ -41,10 +41,10 @@ export default function Register() {
                 username,
                 email: email || null,
                 salt: saltBase64,
-                encryptedPrivateKey: "c3RyaW5n", //encrypt
+                encryptedPrivateKey: encryptedBase64, //encrypt
                 iv: ivBase64,
                 password: saltBase64, // Hash with Arg2 instead 
-                publicKey: "c3RyaW5n" //encode dont encrypt
+                publicKey: btoa("c3RyaW5n") //encode dont encrypt
             
             })
 

@@ -1,4 +1,4 @@
-// 🔹 Generate AES-GCM Key (For General Use, Not Password-Based)
+// 🔹 Generate AES-GCM Key (General Use, Not Password-Based)
 export async function generateAESKey(): Promise<CryptoKey> {
     return await crypto.subtle.generateKey(
         { name: "AES-GCM", length: 256 },
@@ -9,7 +9,7 @@ export async function generateAESKey(): Promise<CryptoKey> {
 
 // 🔹 Encrypt Data using AES-GCM (with a derived key)
 export async function encryptData(key: CryptoKey, data: string): Promise<{ iv: Uint8Array; encrypted: ArrayBuffer }> {
-    const iv = crypto.getRandomValues(new Uint8Array(12)); // Generate a random IV (12 bytes for AES-GCM)
+    const iv = crypto.getRandomValues(new Uint8Array(12)); // AES-GCM IV should always be 12 bytes
     const encodedData = new TextEncoder().encode(data); // Convert text to bytes
 
     const encrypted = await crypto.subtle.encrypt(
@@ -46,7 +46,7 @@ export async function deriveKeyFromPassword(password: string, salt: Uint8Array):
         {
             name: "PBKDF2",
             salt,
-            iterations: 100000, // High iteration count for security
+            iterations: 120000, // High iteration count for security
             hash: "SHA-256",
         },
         keyMaterial,
@@ -55,3 +55,4 @@ export async function deriveKeyFromPassword(password: string, salt: Uint8Array):
         ["encrypt", "decrypt"]
     );
 }
+
