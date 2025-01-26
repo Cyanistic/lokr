@@ -18,7 +18,7 @@ use crate::{
     utils::data_dir,
 };
 
-/// All data for the uploaded file
+/// All data for the uploaded file.
 /// All encrypted fields are expected to be encrypted
 /// by the provided key, except for the key itself
 /// which is expected to be encrypted by the user's public key
@@ -39,16 +39,29 @@ pub struct UploadMetadata {
     /// The nonce for the file (not encrypted)
     #[schema(content_encoding = "base64")]
     nonce: Box<str>,
+    /// Whether the file is a directory
+    #[serde(default)]
+    is_directory: bool,
+    /// The direct parent id of the file
+    /// Should be null if in the root directory
+    parent_id: Option<Uuid>,
 }
 
-/// The file size and id of the uploaded file
+/// The size and id of the uploaded file
+/// Also has a flag to indicate if the file is a directory
 #[derive(Serialize, ToSchema)]
 pub struct UploadResponse {
     id: Uuid,
     size: i64,
+    is_directory: bool,
 }
 
+/// A request to upload a file
+// We need to add allow unused to avoid warnings
+// as this type is only used for documentation
+// and isn't actually used anywhere in the code
 #[derive(ToSchema)]
+#[allow(unused)]
 pub struct UploadRequest {
     metadata: UploadMetadata,
     /// The encrypted file data as bytes
@@ -107,22 +120,29 @@ pub async fn upload_file(
             "Missing file metadata".into(),
         )));
     };
-    let Some(mut file) = file else {
-        return Err(AppError::UserError((
-            StatusCode::BAD_REQUEST,
-            "Missing file".into(),
-        )));
+
+    let file_size = if !metadata.is_directory {
+        let Some(mut file) = file else {
+            return Err(AppError::UserError((
+                StatusCode::BAD_REQUEST,
+                "Missing file".into(),
+            )));
+        };
+        file.write_all(&file_data).await?;
+        file_data.len() as i64
+    } else {
+        0
     };
-    let file_size = file_data.len() as i64;
-    file.write_all(&file_data).await?;
     sqlx::query!(
-        "INSERT INTO file (id, owner_id, encrypted_key, name, mime, nonce, size) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO file (id, owner_id, parent_id, encrypted_key, encrypted_name, mime, nonce, is_directory, size) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         file_id,
         uuid,
+        metadata.parent_id,
         metadata.encrypted_key,
         metadata.encrypted_file_name,
         metadata.encrypted_mime_type,
         metadata.nonce,
+        metadata.is_directory,
         file_size,
     )
     .execute(&state.pool)
@@ -133,6 +153,7 @@ pub async fn upload_file(
         Json(UploadResponse {
             id: file_id,
             size: file_size,
+            is_directory: metadata.is_directory,
         }),
     )
         .into_response())
