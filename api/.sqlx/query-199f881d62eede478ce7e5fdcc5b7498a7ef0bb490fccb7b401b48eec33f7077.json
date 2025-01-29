@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT owner_id FROM file WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "owner_id",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "199f881d62eede478ce7e5fdcc5b7498a7ef0bb490fccb7b401b48eec33f7077"
+}
