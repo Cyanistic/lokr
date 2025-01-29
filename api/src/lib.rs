@@ -15,7 +15,10 @@ use tower_http::{
 };
 use tracing::{info, Level};
 use url::Url;
-use utoipa::{OpenApi, ToSchema};
+use utoipa::{
+    openapi::security::{ApiKey, ApiKeyValue, SecurityScheme},
+    Modify, OpenApi, ToSchema,
+};
 use utoipa_axum::{router::OpenApiRouter, routes};
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -43,6 +46,7 @@ pub const PKG_NAME: &str = env!("CARGO_PKG_NAME");
 
 #[derive(OpenApi)]
 #[openapi(
+        modifiers(&SecurityAddon),
         paths(
             users::create_user,
             users::authenticate_user,
@@ -61,8 +65,22 @@ pub const PKG_NAME: &str = env!("CARGO_PKG_NAME");
     )]
 struct ApiDoc;
 
+struct SecurityAddon;
+
+impl Modify for SecurityAddon {
+    fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
+        if let Some(components) = openapi.components.as_mut() {
+            components.add_security_scheme(
+                "lokr_session_cookie",
+                SecurityScheme::ApiKey(ApiKey::Cookie(ApiKeyValue::new("session"))),
+            )
+        }
+    }
+}
+
 #[derive(Serialize, ToSchema)]
 pub struct SuccessResponse {
+    #[schema(example = "Yay! It worked!")]
     pub message: String,
 }
 

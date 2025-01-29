@@ -11,7 +11,6 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
-use axum_macros::debug_handler;
 use base64::{engine::general_purpose, Engine};
 use serde::{Deserialize, Serialize};
 use totp_rs::{Algorithm, Secret, TOTP};
@@ -37,23 +36,36 @@ pub const MAX_USERNAME_LENGTH: u64 = 20;
 pub struct CreateUser {
     /// The name of the user to create
     #[validate(length(min = MIN_USERNAME_LENGTH, max = MAX_USERNAME_LENGTH), custom(function = "validate_username"))]
+    #[schema(example = "sussyman")]
     username: Box<str>,
     /// The new user's password
+    /// Should be hashed using Argon2 before being sent to the backend
     #[validate(length(min = MIN_PASSWORD_LENGTH, max = MAX_PASSWORD_LENGTH), custom(function = "validate_password"))]
+    #[schema(
+        example = "$argon2id$v=19$m=16,t=2,p=1$aUtKY1JKZjdmd3RPNmVzdA$/XFnfdBI9vbMEPNeCqlGbw"
+    )]
     password: Box<str>,
+    /// Optional email for the user
     #[validate(email)]
+    #[schema(example = "sussyman@amogus.com")]
     email: Option<String>,
     /// The initialization vector for the AES encrypted user's private key
-    #[schema(content_encoding = "base64")]
+    #[schema(content_encoding = "base64", example = "BukSfO6yaQ")]
     iv: Box<str>,
     /// The user's public key
-    #[schema(content_encoding = "base64")]
+    #[schema(
+        content_encoding = "base64",
+        example = "QQe22k5wy-88PUFIW1P7MkgxoyMyalmjnffAuUNgMuE"
+    )]
     public_key: Box<str>,
     /// The user's private key encrypted using their password
-    #[schema(content_encoding = "base64")]
+    #[schema(
+        content_encoding = "base64",
+        example = "9WNx5GS9CSaqesguryWS-jiY8Vb0VMMjMtV5JJECk9A"
+    )]
     encrypted_private_key: Box<str>,
     /// The salt for the PBKDF2 key derivation function
-    #[schema(content_encoding = "base64")]
+    #[schema(content_encoding = "base64", example = "iKJcRJf7fwtO6est")]
     salt: Box<str>,
 }
 
@@ -62,11 +74,17 @@ pub struct CreateUser {
 #[serde(rename_all = "camelCase")]
 pub struct LoginUser {
     #[validate(length(min = 3, max = 20), custom(function = "validate_username"))]
+    #[schema(example = "sussyman")]
     username: Box<str>,
     #[validate(length(min = 8, max = 64), custom(function = "validate_password"))]
+    #[schema(
+        example = "$argon2id$v=19$m=16,t=2,p=1$aUtKY1JKZjdmd3RPNmVzdA$/XFnfdBI9vbMEPNeCqlGbw"
+    )]
     password: Box<str>,
+    /// The totp code provided by the user. Should always be exactly 6 digits
     #[serde(skip_serializing_if = "Option::is_none")]
     #[validate(length(min = 6, max = 6))]
+    #[schema(example = "696969")]
     totp_code: Option<String>,
 }
 
@@ -74,9 +92,23 @@ pub struct LoginUser {
 #[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct LoginResponse {
+    /// The initialization vector for the AES encrypted user's private key
+    #[schema(content_encoding = "base64", example = "BukSfO6yaQ")]
     iv: Box<str>,
+    /// The user's public key
+    #[schema(
+        content_encoding = "base64",
+        example = "QQe22k5wy-88PUFIW1P7MkgxoyMyalmjnffAuUNgMuE"
+    )]
     public_key: Box<str>,
+    /// The user's private key encrypted using their password
+    #[schema(
+        content_encoding = "base64",
+        example = "9WNx5GS9CSaqesguryWS-jiY8Vb0VMMjMtV5JJECk9A"
+    )]
     encrypted_private_key: Box<str>,
+    /// The salt for the PBKDF2 key derivation function
+    #[schema(content_encoding = "base64", example = "iKJcRJf7fwtO6est")]
     salt: Box<str>,
 }
 
@@ -120,7 +152,17 @@ fn validate_password(password: &str) -> Result<(), ValidationError> {
     }
 }
 
-#[utoipa::path(post, path = "/api/register", description = "Register a new user to the database", request_body(content = CreateUser, description = "User to register"), responses((status = CREATED, description = "User successfully created", body = SuccessResponse), (status = CONFLICT, description = "Username or email already in use", body = ErrorResponse),(status = BAD_REQUEST, description = "Invalid username, email, or password", body = ErrorResponse)))]
+#[utoipa::path(
+    post,
+    path = "/api/register",
+    description = "Register a new user to the database",
+    request_body(content = CreateUser, description = "User to register"),
+    responses(
+        (status = CREATED, description = "User successfully created", body = SuccessResponse),
+        (status = CONFLICT, description = "Username or email already in use", body = ErrorResponse),
+        (status = BAD_REQUEST, description = "Invalid username, email, or password", body = ErrorResponse)
+    )
+)]
 pub async fn create_user(
     State(state): State<AppState>,
     Json(new_user): Json<CreateUser>,
@@ -220,7 +262,17 @@ pub async fn create_user(
     Ok((StatusCode::CREATED, success!("User successfully created!")).into_response())
 }
 
-#[utoipa::path(post, path = "/api/login", description = "Authenticate a user with the backend", request_body(content = LoginUser, description = "User to authenticate"), responses((status = OK, description = "User successfully authenticated", body = LoginResponse, headers(("Set-Cookie" = String, description = "`session` cookie containing the authenticated user's session id"))), (status = TEMPORARY_REDIRECT, description = "Username and password are correct, but TOTP is missing. Login parameters are returned to allow for easier reuse", body = LoginUser), (status = UNAUTHORIZED, description = "Invalid username or password", body = ErrorResponse)))]
+#[utoipa::path(
+    post,
+    path = "/api/login",
+    description = "Authenticate a user with the backend",
+    request_body(content = LoginUser, description = "User to authenticate"),
+    responses(
+        (status = OK, description = "User successfully authenticated", body = LoginResponse, headers(("Set-Cookie" = String, description = "`session` cookie containing the authenticated user's session id"))),
+        (status = TEMPORARY_REDIRECT, description = "Username and password are correct, but TOTP is missing. Login parameters are returned to allow for easier reuse", body = LoginUser),
+        (status = UNAUTHORIZED, description = "Invalid username or password", body = ErrorResponse)
+    )
+)]
 pub async fn authenticate_user(
     State(state): State<AppState>,
     Json(user): Json<LoginUser>,
@@ -308,8 +360,21 @@ pub struct CheckUsage {
     email: Option<String>,
 }
 
-#[utoipa::path(get, path = "/api/check", description = "Check if a username or email (or both at once) is already in use", params(CheckUsage), responses((status = OK, description = "No conflicts found", body = SuccessResponse), (status = CONFLICT, description = "Username or email already in use", body = [ErrorResponse]), (status = BAD_REQUEST, description = "Invalid username or email", body = ErrorResponse)))]
-#[debug_handler]
+#[utoipa::path(
+    get,
+    path = "/api/check",
+    description = "Check if a username or email (or both at once) is already in use",
+    params(CheckUsage),
+    responses(
+        (status = OK, description = "No conflicts found", body = SuccessResponse),
+        (status = CONFLICT, description = "Username or email already in use", body = [ErrorResponse]),
+        (status = BAD_REQUEST, description = "Invalid username or email", body = ErrorResponse)
+    ),
+    security(
+        (),
+        ("lokr_session_cookie" = [])
+    )
+)]
 pub async fn check_usage(
     State(state): State<AppState>,
     user: Option<SessionAuth>,
@@ -365,16 +430,46 @@ pub async fn check_usage(
 
 #[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+/// A struct representing the currently logged in user
 pub struct SessionUser {
+    /// The name of the user
+    #[schema(example = "sussyman")]
     username: Box<str>,
+    /// Optional email for the user
+    #[schema(example = "sussyman@amogus.com")]
     email: Option<String>,
+    /// The initialization vector for the AES encrypted user's private key
+    #[schema(content_encoding = "base64", example = "BukSfO6yaQ")]
     iv: Box<str>,
+    /// The user's public key
+    #[schema(
+        content_encoding = "base64",
+        example = "QQe22k5wy-88PUFIW1P7MkgxoyMyalmjnffAuUNgMuE"
+    )]
     public_key: Box<str>,
+    /// The user's private key encrypted using their password
+    #[schema(
+        content_encoding = "base64",
+        example = "9WNx5GS9CSaqesguryWS-jiY8Vb0VMMjMtV5JJECk9A"
+    )]
     encrypted_private_key: Box<str>,
+    /// The salt for the PBKDF2 key derivation function
+    #[schema(content_encoding = "base64", example = "iKJcRJf7fwtO6est")]
     salt: Box<str>,
 }
 
-#[utoipa::path(get, path = "/api/profile", description = "Get the currently authenticated user", responses((status = OK, description = "User successfully retrieved", body = SessionUser), (status = UNAUTHORIZED, description = "No user is currently authenticated", body = ErrorResponse)))]
+#[utoipa::path(
+    get,
+    path = "/api/profile",
+    description = "Get the currently authenticated user",
+    responses(
+        (status = OK, description = "User successfully retrieved", body = SessionUser),
+        (status = UNAUTHORIZED, description = "No user is currently authenticated", body = ErrorResponse)
+    ),
+    security(
+        ("lokr_session_cookie" = [])
+    )
+)]
 pub async fn get_logged_in_user(
     State(state): State<AppState>,
     SessionAuth(user): SessionAuth,
@@ -397,11 +492,16 @@ pub async fn get_logged_in_user(
 #[serde(rename_all = "camelCase")]
 pub struct UserUpdate {
     /// The field to update
+    #[serde(flatten)]
     field: UserUpdateField,
     /// The new value for the field
+    #[schema(example = "sussyman2")]
     new_value: Box<str>,
     /// The user's current password to prevent accidental or
     /// malicious updates
+    #[schema(
+        example = "$argon2id$v=19$m=16,t=2,p=1$aUtKY1JKZjdmd3RPNmVzdA$/XFnfdBI9vbMEPNeCqlGbw"
+    )]
     password: Box<str>,
 }
 
@@ -424,7 +524,14 @@ pub enum UserUpdateField {
     path = "/api/profile",
     description = "Update the currently authenticated user",
     request_body(content = UserUpdate, description = "The user data to update"),
-    responses((status = OK, description = "User successfully updated", body = SuccessResponse), (status = BAD_REQUEST, description = "Invalid username or email", body = ErrorResponse), (status = UNAUTHORIZED, description = "No user is currently authenticated or incorrect password", body = ErrorResponse))
+    responses(
+        (status = OK, description = "User successfully updated", body = SuccessResponse),
+        (status = BAD_REQUEST, description = "Invalid username or email", body = ErrorResponse),
+        (status = UNAUTHORIZED, description = "No user is currently authenticated or incorrect password", body = ErrorResponse)
+    ),
+    security(
+        ("lokr_session_cookie" = [])
+    )
 )]
 pub async fn update_user(
     State(state): State<AppState>,
@@ -574,12 +681,27 @@ pub async fn update_user(
 /// Request an update to the currently authenticated user's TOTP settings
 pub enum TOTPRequest {
     /// Enable or disable TOTP for the currently authenticated user
-    Enable { enable: bool, password: Box<str> },
+    Enable {
+        enable: bool,
+
+        #[schema(
+            example = "$argon2id$v=19$m=16,t=2,p=1$aUtKY1JKZjdmd3RPNmVzdA$/XFnfdBI9vbMEPNeCqlGbw"
+        )]
+        password: Box<str>,
+    },
     /// Regenerate the currently authenticated user's TOTP secret
-    Regenerate { password: Box<str> },
+    Regenerate {
+        #[schema(
+            example = "$argon2id$v=19$m=16,t=2,p=1$aUtKY1JKZjdmd3RPNmVzdA$/XFnfdBI9vbMEPNeCqlGbw"
+        )]
+        password: Box<str>,
+    },
     /// Verify the currently authenticated user's TOTP
     /// using the provided TOTP code
-    Verify { code: Box<str> },
+    Verify {
+        #[schema(example = "696969")]
+        code: Box<str>,
+    },
 }
 
 #[derive(Serialize, ToSchema)]
@@ -587,7 +709,10 @@ pub enum TOTPRequest {
 pub struct TOTPResponse {
     /// The base64 encoded QR code for the TOTP secret.
     /// Encoded as a PNG image to allow for easy presentation to the user.
-    #[schema(content_encoding = "base64")]
+    #[schema(
+        content_encoding = "base64",
+        example = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0N"
+    )]
     qr_code: String,
 }
 
@@ -596,7 +721,14 @@ pub struct TOTPResponse {
     path = "/api/totp",
     description = "Update the currently authenticated user's TOTP settings",
     request_body(content = TOTPRequest, description = "TOTP settings to update"),
-    responses((status = OK, description = "TOTP settings successfully updated. Returned when successfully enabling, disabling, or, verifing TOTP.", body = SuccessResponse), (status = CREATED, description = "A new TOTP has been regenerated. Returned upon a successful regeneration request", body = TOTPResponse), (status = BAD_REQUEST, description = "Invalid TOTP request", body = ErrorResponse))
+    responses(
+        (status = OK, description = "TOTP settings successfully updated. Returned when successfully enabling, disabling, or, verifing TOTP.", body = SuccessResponse),
+        (status = CREATED, description = "A new TOTP has been regenerated. Returned upon a successful regeneration request", body = TOTPResponse), 
+        (status = BAD_REQUEST, description = "Invalid TOTP request", body = ErrorResponse)
+    ),
+    security(
+        ("lokr_session_cookie" = [])
+    )
 )]
 pub async fn update_totp(
     State(state): State<AppState>,
