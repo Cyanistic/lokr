@@ -189,7 +189,15 @@ pub async fn delete_file(
 ) -> Result<Response, AppError> {
     let uuid = Uuid::from_bytes(user.id);
     // Check if the user owns the file
-    if !is_owner(&state.pool, &uuid, &id).await? {
+    // Check if the new parent is owned by the user
+    let Some(file) = sqlx::query!(
+        "SELECT is_directory FROM file WHERE id = ? AND owner_id = ?",
+        id,
+        uuid
+    )
+    .fetch_optional(&state.pool)
+    .await?
+    else {
         // Return an error if the user doen't own the file
         // or the file doesn't exist
         // This is to prevent users from deleting files they don't own
@@ -198,6 +206,20 @@ pub async fn delete_file(
             StatusCode::NOT_FOUND,
             "File not found".into(),
         )));
+    };
+
+    // Only delete the file on the local file system if it is not a directory
+    // This is because we don't actually store created directories on the file system
+    if file.is_directory.is_none_or(|is_directory| !is_directory) {
+        // If the file exists, delete it
+        match std::fs::remove_file(data_dir().join(id.to_string())) {
+            // A not found error likely means that the file was already deleted
+            // so just ignore it.
+            // Any other error likely means that there actually is a file
+            // system error so return it as an error.
+            Err(e) if e.kind() != ErrorKind::NotFound => return Err(e.into()),
+            _ => {}
+        }
     }
 
     // The user owns the file so delete it
