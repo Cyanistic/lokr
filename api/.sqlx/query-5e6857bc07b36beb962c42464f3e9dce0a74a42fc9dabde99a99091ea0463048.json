@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE file SET encrypted_name = ? WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "5e6857bc07b36beb962c42464f3e9dce0a74a42fc9dabde99a99091ea0463048"
+}

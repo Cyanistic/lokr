@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT owner_id FROM file WHERE id = ?",
+  "query": "SELECT owner_id FROM file WHERE id = ? AND owner_id = ?",
   "describe": {
     "columns": [
       {
@@ -10,11 +10,11 @@
       }
     ],
     "parameters": {
-      "Right": 1
+      "Right": 2
     },
     "nullable": [
       true
     ]
   },
-  "hash": "199f881d62eede478ce7e5fdcc5b7498a7ef0bb490fccb7b401b48eec33f7077"
+  "hash": "305176119c1da8692c970c5203517d772f1cdca82f593751f02361d4659b516e"
 }
