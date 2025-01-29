@@ -81,6 +81,9 @@ pub struct UploadRequest {
         (status = OK, description = "The file was uploaded successfully", body = UploadResponse),
         (status = BAD_REQUEST, description = "The file metadata or file data was not provided or provided incorrectly", body = ErrorResponse),
     ),
+    security(
+        ("lokr_session_cookie" = [])
+    )
 )]
 pub async fn upload_file(
     State(state): State<AppState>,
@@ -167,11 +170,17 @@ pub async fn upload_file(
     delete,
     path = "/api/file/{id}",
     description = "Delete a file. Recursively deletes all children if the file is a directory",
+    params(
+            ("id" = Uuid, Path, description = "The id of the file to delete"),
+        ),
     responses(
         (status = OK, description = "The file was deleted successfully", body = SuccessResponse),
         (status = BAD_REQUEST, description = "File id was not provided", body = ErrorResponse),
         (status = NOT_FOUND, description = "File was not found", body = ErrorResponse),
     ),
+    security(
+        ("lokr_session_cookie" = [])
+    )
 )]
 pub async fn delete_file(
     State(state): State<AppState>,
@@ -228,7 +237,7 @@ pub enum UpdateFile {
         (status = NOT_FOUND, description = "File was not found", body = ErrorResponse),
     ),
     security(
-        ("api_key" = [])
+        ("lokr_session_cookie" = [])
     )
 )]
 pub async fn update_file(
