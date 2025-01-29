@@ -2,6 +2,7 @@ import { useState } from 'react'
 import './App.css'
 import { BrowserRouter, Routes, Route, Link } from 'react-router-dom'
 import Register from './pages/Register'
+import Upload from './pages/Upload'
 
 function App() {
   //const [count, setCount] = useState(0)
@@ -19,6 +20,7 @@ function App() {
       <Route path="/login" element = {<Login />}/>
       <Route path="/register" element = {<Register />}/>
       <Route path="/profile" element = {<Profile/>}/>
+      <Route path='/upload' element = {<Upload/>}/>
       </Routes>
 
     </BrowserRouter>
@@ -32,6 +34,7 @@ function Navigation(){
     <div className='header'>
         <Link to="/">Home</Link>
         <Link to="/about">About Lokr</Link>
+        <Link to="/upload">Upload</Link>
         <Link to="/downloads">Downloads</Link>
         <Link to="/login">Log In</Link>
       </div>
