@@ -1,4 +1,4 @@
-use std::{io::ErrorKind, path::PathBuf};
+use std::io::ErrorKind;
 
 use axum::{
     extract::{Multipart, Path, State},
@@ -16,9 +16,7 @@ use crate::{
     auth::SessionAuth,
     error::{AppError, ErrorResponse},
     state::AppState,
-    success,
-    utils::data_dir,
-    SuccessResponse,
+    success, SuccessResponse, DATA_DIR, UPLOAD_DIR,
 };
 
 /// All data for the uploaded file.
@@ -92,14 +90,6 @@ pub async fn upload_file(
 ) -> Result<Response, AppError> {
     let mut metadata: Option<UploadMetadata> = None;
     let uuid = Uuid::from_bytes(user.id);
-    let user_dir = get_user_dir(&uuid.to_string());
-    if !user_dir.exists() {
-        match std::fs::create_dir_all(&user_dir) {
-            Err(e) if e.kind() == ErrorKind::AlreadyExists => {}
-            Err(e) => return Err(e.into()),
-            _ => {}
-        }
-    }
     let file_id = Uuid::now_v7();
     let mut file: Option<File> = None;
     // Allocate a megabyte buffer
@@ -111,7 +101,7 @@ pub async fn upload_file(
                 metadata = Some(serde_json::from_slice(&field.bytes().await?)?);
             }
             Some("file") => {
-                file = Some(File::create(user_dir.join(file_id.to_string())).await?);
+                file = Some(File::create(UPLOAD_DIR.join(file_id.to_string())).await?);
 
                 while let Some(chunk) = field.chunk().await? {
                     file_data.extend_from_slice(&chunk);
@@ -212,7 +202,7 @@ pub async fn delete_file(
     // This is because we don't actually store created directories on the file system
     if file.is_directory.is_none_or(|is_directory| !is_directory) {
         // If the file exists, delete it
-        match std::fs::remove_file(data_dir().join(id.to_string())) {
+        match std::fs::remove_file(&*DATA_DIR.join(id.to_string())) {
             // A not found error likely means that the file was already deleted
             // so just ignore it.
             // Any other error likely means that there actually is a file
@@ -336,7 +326,18 @@ pub async fn is_owner(pool: &SqlitePool, user: &Uuid, file: &Uuid) -> Result<boo
     .is_some())
 }
 
-#[inline]
-fn get_user_dir(user: &str) -> PathBuf {
-    data_dir().join("uploads").join(user)
-}
+#[utoipa::path(
+    get,
+    path = "/api/file/{id}",
+    description = "Get the raw contents of a file or directory",
+    params(
+            ("id" = Uuid, Path, description = "The id of the file to get"),
+        ),
+    responses(
+        (status = OK, description = "The file was retrieved successfully", content_type = "application/octet-stream"),
+        (status = NOT_FOUND, description = "File was not found"),
+    ),
+)]
+// Dummy function to avoid generate documentation for this path
+#[allow(unused)]
+async fn get_file() {}
