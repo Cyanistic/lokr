@@ -7,6 +7,7 @@ use axum::{
     Json,
 };
 use serde::{Deserialize, Serialize};
+use sqlx::SqlitePool;
 use tokio::{fs::File, io::AsyncWriteExt};
 use utoipa::ToSchema;
 use uuid::Uuid;
@@ -17,6 +18,7 @@ use crate::{
     state::AppState,
     success,
     utils::data_dir,
+    SuccessResponse,
 };
 
 /// All data for the uploaded file.
@@ -51,6 +53,7 @@ pub struct UploadMetadata {
 /// The size and id of the uploaded file
 /// Also has a flag to indicate if the file is a directory
 #[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct UploadResponse {
     id: Uuid,
     size: i64,
@@ -165,7 +168,7 @@ pub async fn upload_file(
     path = "/api/file/{id}",
     description = "Delete a file. Recursively deletes all children if the file is a directory",
     responses(
-        (status = OK, description = "The file was deleted successfully", body = UploadResponse),
+        (status = OK, description = "The file was deleted successfully", body = SuccessResponse),
         (status = BAD_REQUEST, description = "File id was not provided", body = ErrorResponse),
         (status = NOT_FOUND, description = "File was not found", body = ErrorResponse),
     ),
@@ -175,13 +178,9 @@ pub async fn delete_file(
     SessionAuth(user): SessionAuth,
     Path(id): Path<Uuid>,
 ) -> Result<Response, AppError> {
+    let uuid = Uuid::from_bytes(user.id);
     // Check if the user owns the file
-    if sqlx::query!("SELECT owner_id FROM file WHERE id = ?", id)
-        .fetch_optional(&state.pool)
-        .await?
-        .and_then(|row| row.owner_id)
-        .is_none_or(|owner_id| owner_id != user.id)
-    {
+    if !is_owner(&state.pool, &uuid, &id).await? {
         // Return an error if the user doen't own the file
         // or the file doesn't exist
         // This is to prevent users from deleting files they don't own
@@ -198,6 +197,112 @@ pub async fn delete_file(
         .await?;
 
     Ok((StatusCode::OK, success!("File deleted successfully")).into_response())
+}
+
+#[derive(Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase", tag = "type", content = "data")]
+pub enum UpdateFile {
+    /// Move the file to a new parent
+    Move(
+        /// The new parent id of the file
+        Uuid,
+    ),
+    /// Rename the file
+    Rename(
+        /// The new encrypted name of the file
+        Box<str>,
+    ),
+}
+
+#[utoipa::path(
+    put,
+    path = "/api/file/{id}",
+    description = "Update a file or directory. Can be used to move or rename a file",
+    request_body(content = UpdateFile, content_type = "application/json"),
+    params(
+            ("id" = Uuid, Path, description = "The id of the file to update"),
+        ),
+    responses(
+        (status = OK, description = "The file was updated successfully", body = SuccessResponse),
+        (status = BAD_REQUEST, description = "File id was not provided or the new parent is not a directory", body = ErrorResponse),
+        (status = NOT_FOUND, description = "File was not found", body = ErrorResponse),
+    ),
+    security(
+        ("api_key" = [])
+    )
+)]
+pub async fn update_file(
+    State(state): State<AppState>,
+    SessionAuth(user): SessionAuth,
+    Path(id): Path<Uuid>,
+    Json(body): Json<UpdateFile>,
+) -> Result<Response, AppError> {
+    let uuid = Uuid::from_bytes(user.id);
+    // Check if the user owns the file
+    if !is_owner(&state.pool, &uuid, &id).await? {
+        // Return an error if the user doen't own the file
+        // or the file doesn't exist
+        // This is to prevent users from updating files they don't own
+        // or attempting to snoop on files they don't have access to
+        return Err(AppError::UserError((
+            StatusCode::NOT_FOUND,
+            "Source file not found".into(),
+        )));
+    }
+    match body {
+        UpdateFile::Move(parent_id) => {
+            // Check if the new parent is owned by the user
+            let Some(parent_file) = sqlx::query!(
+                "SELECT is_directory FROM file WHERE id = ? AND owner_id = ?",
+                parent_id,
+                uuid
+            )
+            .fetch_optional(&state.pool)
+            .await?
+            else {
+                return Err(AppError::UserError((
+                    StatusCode::NOT_FOUND,
+                    "Destination file not found".into(),
+                )));
+            };
+
+            // Check that the new parent is a directory
+            if !parent_file
+                .is_directory
+                .is_some_and(|is_directory| is_directory)
+            {
+                return Err(AppError::UserError((
+                    StatusCode::BAD_REQUEST,
+                    "Cannot set file parent to non-directories".into(),
+                )));
+            }
+
+            // Update the parent id of the file
+            sqlx::query!("UPDATE file SET parent_id = ? WHERE id = ?", parent_id, id)
+                .execute(&state.pool)
+                .await?;
+        }
+        UpdateFile::Rename(name) => {
+            // Rename the file
+            sqlx::query!("UPDATE file SET encrypted_name = ? WHERE id = ?", name, id)
+                .execute(&state.pool)
+                .await?;
+        }
+    }
+
+    Ok((StatusCode::OK, success!("File updated successfully")).into_response())
+}
+
+/// Check if a user owns a file
+pub async fn is_owner(pool: &SqlitePool, user: &Uuid, file: &Uuid) -> Result<bool, AppError> {
+    Ok(sqlx::query!(
+        "SELECT owner_id FROM file WHERE id = ? AND owner_id = ?",
+        file,
+        user
+    )
+    .fetch_optional(pool)
+    .await?
+    .is_some())
 }
 
 #[inline]
