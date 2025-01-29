@@ -2,7 +2,14 @@ use anyhow::{anyhow, Result};
 use regex::Regex;
 use serde::Serialize;
 use state::AppState;
-use std::{net::SocketAddr, str::FromStr, sync::Arc, time::Duration};
+use std::{
+    env::current_dir,
+    net::SocketAddr,
+    path::PathBuf,
+    str::FromStr,
+    sync::{Arc, LazyLock},
+    time::Duration,
+};
 use tower::ServiceBuilder;
 use tower_governor::governor::GovernorConfigBuilder;
 use tower_governor::GovernorLayer;
@@ -40,9 +47,55 @@ pub mod error;
 pub mod state;
 pub mod upload;
 pub mod users;
-pub mod utils;
 
 pub const PKG_NAME: &str = env!("CARGO_PKG_NAME");
+
+/// Path to the data directory for the application.
+/// Falls back to the current directory if the data directory cannot be determined.
+pub static DATA_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
+    let mut path = match dirs::data_dir() {
+        Some(dir) => dir,
+        None => {
+            eprintln!(
+                "Warning: Could not determine data directory. Attempting to use current directory."
+            );
+            current_dir().unwrap()
+        }
+    };
+    path.push(PKG_NAME);
+    if !path.exists() {
+        std::fs::create_dir_all(&path).unwrap();
+    }
+    path
+});
+
+/// Path to the config directory for the application.
+/// Falls back to the current directory if the config directory cannot be determined.
+pub static CONFIG_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
+    let mut path = match dirs::config_dir() {
+        Some(dir) => dir,
+        None => {
+            eprintln!(
+                "Warning: Could not determine config directory. Attempting to use current directory."
+            );
+            current_dir().unwrap()
+        }
+    };
+    path.push(PKG_NAME);
+    if !path.exists() {
+        std::fs::create_dir_all(&path).unwrap();
+    }
+    path
+});
+
+/// Path to where user uploads are stored.
+pub static UPLOAD_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
+    let path = DATA_DIR.join("uploads");
+    if !path.exists() {
+        std::fs::create_dir_all(&path).unwrap();
+    }
+    path
+});
 
 #[derive(OpenApi)]
 #[openapi(
@@ -57,6 +110,7 @@ pub const PKG_NAME: &str = env!("CARGO_PKG_NAME");
             upload::upload_file,
             upload::delete_file,
             upload::update_file,
+            upload::get_file,
         ),
         tags(
             (name = "users", description = "User related operations"),
@@ -189,6 +243,10 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
     let app = Router::new()
         .merge(api_router)
         .merge(SwaggerUi::new("/docs").url("/api-docs/openapi.json", open_api))
+        // Serve uploaded files from the uploads directory
+        // These files are encrypted so they can't be accessed directly,
+        // but they can be downloaded by the user who uploaded them.
+        .nest_service("/api/files/", ServeDir::new(&*UPLOAD_DIR))
         // Serve the client files from the `../client/dist` directory
         // We use a fallback `ServeDir` for this because we send all the requests to the same file and
         // react-router handles the routing on the client side.
