@@ -50,7 +50,8 @@ pub const PKG_NAME: &str = env!("CARGO_PKG_NAME");
             users::get_logged_in_user,
             users::update_user,
             users::update_totp,
-            upload::upload_file
+            upload::upload_file,
+            upload::delete_file
         ),
         tags(
             (name = "users", description = "User related operations"),
@@ -160,6 +161,7 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
         .routes(routes!(users::update_user))
         .routes(routes!(users::update_totp))
         .routes(routes!(upload::upload_file))
+        .routes(routes!(upload::delete_file))
         .layer(cors)
         .with_state(AppState::new(pool.clone()))
         .split_for_parts();

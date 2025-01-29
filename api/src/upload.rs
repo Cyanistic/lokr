@@ -1,7 +1,7 @@
 use std::{io::ErrorKind, path::PathBuf};
 
 use axum::{
-    extract::{Multipart, State},
+    extract::{Multipart, Path, State},
     http::StatusCode,
     response::{IntoResponse, Response},
     Json,
@@ -15,6 +15,7 @@ use crate::{
     auth::SessionAuth,
     error::{AppError, ErrorResponse},
     state::AppState,
+    success,
     utils::data_dir,
 };
 
@@ -157,6 +158,46 @@ pub async fn upload_file(
         }),
     )
         .into_response())
+}
+
+#[utoipa::path(
+    delete,
+    path = "/api/file/{id}",
+    description = "Delete a file. Recursively deletes all children if the file is a directory",
+    responses(
+        (status = OK, description = "The file was deleted successfully", body = UploadResponse),
+        (status = BAD_REQUEST, description = "File id was not provided", body = ErrorResponse),
+        (status = NOT_FOUND, description = "File was not found", body = ErrorResponse),
+    ),
+)]
+pub async fn delete_file(
+    State(state): State<AppState>,
+    SessionAuth(user): SessionAuth,
+    Path(id): Path<Uuid>,
+) -> Result<Response, AppError> {
+    // Check if the user owns the file
+    if sqlx::query!("SELECT owner_id FROM file WHERE id = ?", id)
+        .fetch_optional(&state.pool)
+        .await?
+        .and_then(|row| row.owner_id)
+        .is_none_or(|owner_id| owner_id != user.id)
+    {
+        // Return an error if the user doen't own the file
+        // or the file doesn't exist
+        // This is to prevent users from deleting files they don't own
+        // or attempting to snoop on files they don't have access to
+        return Err(AppError::UserError((
+            StatusCode::NOT_FOUND,
+            "File not found".into(),
+        )));
+    }
+
+    // The user owns the file so delete it
+    sqlx::query!("DELETE FROM file WHERE id = ?", id)
+        .execute(&state.pool)
+        .await?;
+
+    Ok((StatusCode::OK, success!("File deleted successfully")).into_response())
 }
 
 #[inline]
