@@ -111,6 +111,7 @@ pub static UPLOAD_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
             upload::delete_file,
             upload::update_file,
             upload::get_file,
+            upload::get_file_metadata,
         ),
         tags(
             (name = "users", description = "User related operations"),
@@ -236,6 +237,7 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
         .routes(routes!(upload::upload_file))
         .routes(routes!(upload::delete_file))
         .routes(routes!(upload::update_file))
+        .routes(routes!(upload::get_file_metadata))
         .layer(cors)
         .with_state(AppState::new(pool.clone()))
         .split_for_parts();
@@ -246,7 +248,7 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
         // Serve uploaded files from the uploads directory
         // These files are encrypted so they can't be accessed directly,
         // but they can be downloaded by the user who uploaded them.
-        .nest_service("/api/files/", ServeDir::new(&*UPLOAD_DIR))
+        .nest_service("/api/files/data/", ServeDir::new(&*UPLOAD_DIR))
         // Serve the client files from the `../client/dist` directory
         // We use a fallback `ServeDir` for this because we send all the requests to the same file and
         // react-router handles the routing on the client side.
