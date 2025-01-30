@@ -2,6 +2,7 @@ import { useState } from 'react'
 import './App.css'
 import { BrowserRouter, Routes, Route, Link } from 'react-router-dom'
 import Register from './pages/Register'
+import FileExplorer from './pages/FileExplorer'
 
 function App() {
   //const [count, setCount] = useState(0)
@@ -19,6 +20,7 @@ function App() {
       <Route path="/login" element = {<Login />}/>
       <Route path="/register" element = {<Register />}/>
       <Route path="/profile" element = {<Profile/>}/>
+      <Route path="/files" element = {<FileExplorer/>}/>
       </Routes>
 
     </BrowserRouter>
