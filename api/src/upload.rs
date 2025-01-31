@@ -82,16 +82,17 @@ pub struct UploadRequest {
         (status = BAD_REQUEST, description = "The file metadata or file data was not provided or provided incorrectly", body = ErrorResponse),
     ),
     security(
+        (),
         ("lokr_session_cookie" = [])
     )
 )]
 pub async fn upload_file(
     State(state): State<AppState>,
-    SessionAuth(user): SessionAuth,
+    user: Option<SessionAuth>,
     mut data: Multipart,
 ) -> Result<Response, AppError> {
     let mut metadata: Option<UploadMetadata> = None;
-    let uuid = Uuid::from_bytes(user.id);
+    let uuid = user.map(|user| Uuid::from_bytes(user.0.id));
     let file_id = Uuid::now_v7();
     let mut file: Option<File> = None;
     // Allocate a megabyte buffer
