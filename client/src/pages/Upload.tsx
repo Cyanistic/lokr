@@ -11,14 +11,33 @@ export default function Upload() {
         }
     };
       
-    const handleSubmit = () => {
+    const handleSubmit = async () => {
         // Here you can handle file upload logic (e.g., sending to server)
         if (file) {
           console.log('File ready to upload:', file);
         } else {
           console.log('No file selected');
+          return;
+        }
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const response = await fetch('http://localhost:6969/api/upload', {
+              method: 'POST',
+              body: formData,
+            });
+      
+            if (response.ok) {
+              console.log('File uploaded successfully');
+            } else {
+              console.log('File upload failed');
+            }
+        } catch (error) {
+            console.error('Error during file upload', error);
         }
     };
+
 
     return (
         <div className="uploadMain">
