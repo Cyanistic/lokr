@@ -1,4 +1,4 @@
-use std::ops::ControlFlow;
+use std::{cmp::Ordering, fs::File, io::BufWriter, ops::ControlFlow};
 
 use anyhow::anyhow;
 use argon2::{
@@ -6,12 +6,15 @@ use argon2::{
     PasswordHash, PasswordVerifier,
 };
 use axum::{
+    body::{Body, HttpBody},
     extract::{Path, Query, State},
     http::{header::SET_COOKIE, StatusCode},
     response::{IntoResponse, Response},
     Json,
 };
 use base64::{engine::general_purpose, Engine};
+use futures_util::StreamExt;
+use image::{imageops::FilterType, DynamicImage, GenericImageView};
 use serde::{Deserialize, Serialize};
 use serde_inline_default::serde_inline_default;
 use totp_rs::{Algorithm, Secret, TOTP};
@@ -25,7 +28,7 @@ use crate::{
     state::AppState,
     success,
     utils::levenshtien,
-    SuccessResponse,
+    SuccessResponse, AVATAR_DIR,
 };
 
 pub const MIN_PASSWORD_LENGTH: u64 = 8;
@@ -41,7 +44,7 @@ pub struct CreateUser {
     #[validate(length(min = MIN_USERNAME_LENGTH, max = MAX_USERNAME_LENGTH), custom(function = "validate_username"))]
     // I would use the max and min constants here, but they are not allowed in the attribute
     #[schema(min_length = 3, max_length = 20, example = "sussyman")]
-    username: Box<str>,
+    username: String,
     /// The new user's password
     /// Should be hashed using Argon2 before being sent to the backend
     #[validate(length(min = MIN_PASSWORD_LENGTH, max = MAX_PASSWORD_LENGTH), custom(function = "validate_password"))]
@@ -50,29 +53,29 @@ pub struct CreateUser {
         max_length = 64,
         example = "$argon2id$v=19$m=16,t=2,p=1$aUtKY1JKZjdmd3RPNmVzdA$/XFnfdBI9vbMEPNeCqlGbw"
     )]
-    password: Box<str>,
+    password: String,
     /// Optional email for the user
     #[validate(email)]
     #[schema(example = "sussyman@amogus.com")]
     email: Option<String>,
     /// The initialization vector for the AES encrypted user's private key
-    #[schema(content_encoding = "base64", example = "BukSfO6yaQ")]
-    iv: Box<str>,
+    #[schema(content_encoding = "base64", example = "l+EEL/mHKlkxlEG0")]
+    iv: String,
     /// The user's public key
     #[schema(
         content_encoding = "base64",
-        example = "QQe22k5wy-88PUFIW1P7MkgxoyMyalmjnffAuUNgMuE"
+        example = "d4Ogp+CI5mkdCCfXxDmmxor9FKMTQ5dq4gAvCECgcFs="
     )]
-    public_key: Box<str>,
+    public_key: String,
     /// The user's private key encrypted using their password
     #[schema(
         content_encoding = "base64",
-        example = "9WNx5GS9CSaqesguryWS-jiY8Vb0VMMjMtV5JJECk9A"
+        example = "38ZP4XEKLikREzyy9ttdaKLZ8WiWCd2i8ptTCwRwMlc="
     )]
-    encrypted_private_key: Box<str>,
+    encrypted_private_key: String,
     /// The salt for the PBKDF2 key derivation function
     #[schema(content_encoding = "base64", example = "iKJcRJf7fwtO6est")]
-    salt: Box<str>,
+    salt: String,
 }
 
 /// A struct representing a user logging in
@@ -81,12 +84,12 @@ pub struct CreateUser {
 pub struct LoginUser {
     #[validate(length(min = 3, max = 20), custom(function = "validate_username"))]
     #[schema(example = "sussyman")]
-    username: Box<str>,
+    username: String,
     #[validate(length(min = 8, max = 64), custom(function = "validate_password"))]
     #[schema(
         example = "$argon2id$v=19$m=16,t=2,p=1$aUtKY1JKZjdmd3RPNmVzdA$/XFnfdBI9vbMEPNeCqlGbw"
     )]
-    password: Box<str>,
+    password: String,
     /// The totp code provided by the user. Should always be exactly 6 digits
     #[serde(skip_serializing_if = "Option::is_none")]
     #[validate(length(min = 6, max = 6))]
@@ -100,22 +103,22 @@ pub struct LoginUser {
 pub struct LoginResponse {
     /// The initialization vector for the AES encrypted user's private key
     #[schema(content_encoding = "base64", example = "BukSfO6yaQ")]
-    iv: Box<str>,
+    iv: String,
     /// The user's public key
     #[schema(
         content_encoding = "base64",
         example = "QQe22k5wy-88PUFIW1P7MkgxoyMyalmjnffAuUNgMuE"
     )]
-    public_key: Box<str>,
+    public_key: String,
     /// The user's private key encrypted using their password
     #[schema(
         content_encoding = "base64",
         example = "9WNx5GS9CSaqesguryWS-jiY8Vb0VMMjMtV5JJECk9A"
     )]
-    encrypted_private_key: Box<str>,
+    encrypted_private_key: String,
     /// The salt for the PBKDF2 key derivation function
     #[schema(content_encoding = "base64", example = "iKJcRJf7fwtO6est")]
-    salt: Box<str>,
+    salt: String,
 }
 
 /// Verify that the username only contains alphanumeric characters and underscores
@@ -361,7 +364,7 @@ pub async fn authenticate_user(
 #[serde(rename_all = "camelCase")]
 pub struct CheckUsage {
     #[validate(length(min = 3, max = 20), custom(function = "validate_username"))]
-    username: Option<Box<str>>,
+    username: Option<String>,
     #[validate(email)]
     email: Option<String>,
 }
@@ -438,30 +441,34 @@ pub async fn check_usage(
 #[serde(rename_all = "camelCase")]
 /// A struct representing the currently logged in user
 pub struct SessionUser {
+    id: Uuid,
     /// The name of the user
     #[schema(example = "sussyman")]
-    username: Box<str>,
+    username: String,
     /// Optional email for the user
     #[schema(example = "sussyman@amogus.com")]
     email: Option<String>,
     /// The initialization vector for the AES encrypted user's private key
     #[schema(content_encoding = "base64", example = "BukSfO6yaQ")]
-    iv: Box<str>,
+    iv: String,
     /// The user's public key
     #[schema(
         content_encoding = "base64",
         example = "QQe22k5wy-88PUFIW1P7MkgxoyMyalmjnffAuUNgMuE"
     )]
-    public_key: Box<str>,
+    public_key: String,
     /// The user's private key encrypted using their password
     #[schema(
         content_encoding = "base64",
         example = "9WNx5GS9CSaqesguryWS-jiY8Vb0VMMjMtV5JJECk9A"
     )]
-    encrypted_private_key: Box<str>,
+    encrypted_private_key: String,
     /// The salt for the PBKDF2 key derivation function
     #[schema(content_encoding = "base64", example = "iKJcRJf7fwtO6est")]
-    salt: Box<str>,
+    salt: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// The file extension for the user's avatar
+    avatar_extension: Option<String>,
 }
 
 #[utoipa::path(
@@ -481,15 +488,22 @@ pub async fn get_logged_in_user(
     SessionAuth(user): SessionAuth,
 ) -> Result<Response, AppError> {
     let uuid = Uuid::from_bytes(user.id);
-    Ok(Json(
-        sqlx::query_as!(
-            SessionUser,
-            "SELECT username, email, iv, public_key, encrypted_private_key, salt FROM user WHERE id = ?",
+    let query = sqlx::query!(
+            "SELECT id, username, email, iv, public_key, encrypted_private_key, salt, avatar FROM user WHERE id = ?",
             uuid
         )
         .fetch_one(&state.pool)
-        .await?,
-    )
+        .await?;
+    Ok(Json(SessionUser {
+        id: Uuid::from_slice(&query.id)?,
+        username: query.username,
+        email: query.email,
+        iv: query.iv,
+        public_key: query.public_key,
+        encrypted_private_key: query.encrypted_private_key,
+        salt: query.salt,
+        avatar_extension: query.avatar,
+    })
     .into_response())
 }
 
@@ -502,13 +516,13 @@ pub struct UserUpdate {
     field: UserUpdateField,
     /// The new value for the field
     #[schema(example = "sussyman2")]
-    new_value: Box<str>,
+    new_value: String,
     /// The user's current password to prevent accidental or
     /// malicious updates
     #[schema(
         example = "$argon2id$v=19$m=16,t=2,p=1$aUtKY1JKZjdmd3RPNmVzdA$/XFnfdBI9vbMEPNeCqlGbw"
     )]
-    password: Box<str>,
+    password: String,
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -521,7 +535,7 @@ pub enum UserUpdateField {
     /// the password is used to derive the key for the AES encryption
     #[serde(rename_all = "camelCase")]
     Password {
-        encrypted_private_key: Box<str>,
+        encrypted_private_key: String,
     },
 }
 
@@ -693,20 +707,20 @@ pub enum TOTPRequest {
         #[schema(
             example = "$argon2id$v=19$m=16,t=2,p=1$aUtKY1JKZjdmd3RPNmVzdA$/XFnfdBI9vbMEPNeCqlGbw"
         )]
-        password: Box<str>,
+        password: String,
     },
     /// Regenerate the currently authenticated user's TOTP secret
     Regenerate {
         #[schema(
             example = "$argon2id$v=19$m=16,t=2,p=1$aUtKY1JKZjdmd3RPNmVzdA$/XFnfdBI9vbMEPNeCqlGbw"
         )]
-        password: Box<str>,
+        password: String,
     },
     /// Verify the currently authenticated user's TOTP
     /// using the provided TOTP code
     Verify {
         #[schema(example = "696969")]
-        code: Box<str>,
+        code: String,
     },
 }
 
@@ -903,6 +917,9 @@ pub struct PublicUser {
         example = "QQe22k5wy-88PUFIW1P7MkgxoyMyalmjnffAuUNgMuE"
     )]
     public_key: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// The file extension for the user's avatar
+    avatar_extension: Option<String>,
 }
 
 #[utoipa::path(
@@ -933,7 +950,7 @@ pub async fn search_users(
             format!("Query must be at most {} characters", MAX_USERNAME_LENGTH).into(),
         )));
     }
-    let mut all_users = sqlx::query!("SELECT id, username, email, public_key FROM user")
+    let mut all_users = sqlx::query!("SELECT id, username, email, public_key, avatar FROM user")
         .fetch_all(&state.pool)
         .await?;
     // Find the best matches for the query using the Levenshtein distance
@@ -947,6 +964,7 @@ pub async fn search_users(
             username: user.username,
             email: user.email,
             public_key: user.public_key,
+            avatar_extension: user.avatar,
         })
         .collect::<Vec<_>>();
     // Sort the best matches based on the sort order
@@ -982,7 +1000,7 @@ pub async fn get_user(
     Path(id): Path<Uuid>,
 ) -> Result<Response, AppError> {
     let Some(db_query) = sqlx::query!(
-        "SELECT id, username, email, public_key FROM user WHERE id = ?",
+        "SELECT id, username, email, public_key, avatar FROM user WHERE id = ?",
         id
     )
     .fetch_optional(&state.pool)
@@ -996,13 +1014,85 @@ pub async fn get_user(
     Ok((
         StatusCode::OK,
         Json(PublicUser {
-            id: id,
+            id,
             username: db_query.username,
             email: db_query.email,
             public_key: db_query.public_key,
+            avatar_extension: db_query.avatar,
         }),
     )
         .into_response())
+}
+
+#[utoipa::path(
+    put,
+    path = "/api/profile/upload",
+    description = "Upload a profile image",
+    request_body(content = String, description = "The image to upload", content_type = "application/octet-stream"),
+    responses(
+        (status = OK, description = "Image uploaded successfully", body = SuccessResponse),
+        (status = BAD_REQUEST, description = "Invalid image", body = ErrorResponse)
+    ),
+    security(
+        ("lokr_session_cookie" = [])
+    )
+)]
+pub async fn upload_avatar(
+    State(state): State<AppState>,
+    SessionAuth(user): SessionAuth,
+    image_body: Body,
+) -> Result<Response, AppError> {
+    let mut image_stream = image_body.into_data_stream();
+    let mut image_data = Vec::with_capacity(image_stream.size_hint().lower() as usize);
+    while let Some(chunk) = image_stream.next().await {
+        image_data.extend_from_slice(&chunk?);
+    }
+    let image_type = image::guess_format(&image_data).map_err(|e| {
+        AppError::UserError((StatusCode::BAD_REQUEST, format!("Invalid file data: {}", e)))
+    })?;
+    let file_extension = image_type
+        .extensions_str()
+        .first()
+        .ok_or(AppError::UserError((
+            StatusCode::BAD_REQUEST,
+            "Image type does not have a valid file extension".into(),
+        )))?;
+    let original_image = image::load_from_memory_with_format(&image_data, image_type)?;
+    let cropped_image = crop_square(&original_image).resize(256, 256, FilterType::Lanczos3);
+    let user_uuid = Uuid::from_bytes(user.id);
+    tokio::task::block_in_place(|| -> Result<(), AppError> {
+        let mut file =
+            File::create(&*AVATAR_DIR.join(format!("{}.{}", user_uuid, file_extension)))?;
+        let mut writer = BufWriter::new(&mut file);
+        cropped_image.write_to(&mut writer, image_type)?;
+        Ok(())
+    })?;
+    sqlx::query!(
+        "UPDATE user SET avatar = ? WHERE id = ?",
+        file_extension,
+        user_uuid
+    )
+    .execute(&state.pool)
+    .await?;
+    Ok((
+        StatusCode::OK,
+        success!("Avatar image uploaded successfully"),
+    )
+        .into_response())
+}
+
+// Crop an image into a square using the center as the anchor point
+fn crop_square(image: &DynamicImage) -> DynamicImage {
+    let (iwidth, iheight) = image.dimensions();
+    let min_dim = iwidth.min(iheight);
+    let (x, y) = match iwidth.cmp(&iheight) {
+        Ordering::Less => (0, (iheight - min_dim) / 2),
+        Ordering::Greater => ((iwidth - min_dim) / 2, 0),
+        Ordering::Equal => (0, 0),
+    };
+    // This function from the image crate crops the image with the top left corner as the anchor point
+    // So translate the center to the top left corner
+    image.crop_imm(x, y, min_dim, min_dim)
 }
 
 // Verify the password against the hash in the database
@@ -1022,3 +1112,20 @@ fn verify_password(state: &AppState, password: &str, password_hash: &str) -> Res
             .map_err(|_| AppError::UserError((StatusCode::UNAUTHORIZED, "Invalid password".into())))
     })
 }
+
+#[utoipa::path(
+    get,
+    path = "/api/avatars/{id}.{ext}",
+    description = "Get the avatar of a user from their id. For now, all uploaded images are converted into 256x256.",
+    params(
+            ("id" = Uuid, Path, description = "The id of the file to get"),
+            ("ext" = String, Path, description = "The file's extension"),
+        ),
+    responses(
+        (status = OK, description = "The file was retrieved successfully", content_type = "application/octet-stream"),
+        (status = NOT_FOUND, description = "File was not found"),
+    ),
+)]
+// Dummy function to avoid generate documentation for this path
+#[allow(unused)]
+async fn get_avatar() {}

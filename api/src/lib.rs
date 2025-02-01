@@ -31,7 +31,10 @@ use utoipa_swagger_ui::SwaggerUi;
 
 use axum::{
     http::{
-        header::{ACCEPT, AUTHORIZATION, CONTENT_ENCODING, CONTENT_LENGTH, CONTENT_TYPE, COOKIE},
+        header::{
+            ACCEPT, AUTHORIZATION, CONTENT_ENCODING, CONTENT_LENGTH, CONTENT_TYPE, COOKIE,
+            SET_COOKIE,
+        },
         HeaderValue,
     },
     Router,
@@ -99,6 +102,15 @@ pub static UPLOAD_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
     path
 });
 
+/// Path to where user avatar/profile images are stored.
+pub static AVATAR_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
+    let path = DATA_DIR.join("avatars");
+    if !path.exists() {
+        std::fs::create_dir_all(&path).unwrap();
+    }
+    path
+});
+
 #[derive(OpenApi)]
 #[openapi(
         modifiers(&SecurityAddon),
@@ -111,6 +123,8 @@ pub static UPLOAD_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
             users::update_totp,
             users::search_users,
             users::get_user,
+            users::upload_avatar,
+            users::get_avatar,
             upload::upload_file,
             upload::delete_file,
             upload::update_file,
@@ -169,6 +183,7 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
             CONTENT_ENCODING,
             CONTENT_LENGTH,
             ACCEPT,
+            SET_COOKIE,
         ])
         .expose_headers([
             AUTHORIZATION,
@@ -176,6 +191,7 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
             CONTENT_ENCODING,
             CONTENT_LENGTH,
             ACCEPT,
+            SET_COOKIE,
         ]);
 
     let sensitive_headers: Arc<[_]> = [AUTHORIZATION, COOKIE].into();
@@ -242,6 +258,7 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
         .routes(routes!(users::update_totp))
         .routes(routes!(users::search_users))
         .routes(routes!(users::get_user))
+        .routes(routes!(users::upload_avatar))
         .routes(routes!(upload::upload_file))
         .routes(routes!(upload::delete_file))
         .routes(routes!(upload::update_file))
@@ -258,6 +275,7 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
         // These files are encrypted so they can't be accessed directly,
         // but they can be downloaded by the user who uploaded them.
         .nest_service("/api/files/data/", ServeDir::new(&*UPLOAD_DIR))
+        .nest_service("/api/avatars/", ServeDir::new(&*AVATAR_DIR))
         // Serve the client files from the `../client/dist` directory
         // We use a fallback `ServeDir` for this because we send all the requests to the same file and
         // react-router handles the routing on the client side.

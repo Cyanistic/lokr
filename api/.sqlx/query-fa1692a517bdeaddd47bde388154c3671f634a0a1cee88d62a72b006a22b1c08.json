@@ -59,13 +59,18 @@
         "type_info": "Bool"
       },
       {
-        "name": "created_at",
+        "name": "avatar",
         "ordinal": 11,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 12,
         "type_info": "Datetime"
       },
       {
         "name": "modified_at",
-        "ordinal": 12,
+        "ordinal": 13,
         "type_info": "Datetime"
       }
     ],
@@ -84,6 +89,7 @@
       true,
       false,
       false,
+      true,
       false,
       false
     ]

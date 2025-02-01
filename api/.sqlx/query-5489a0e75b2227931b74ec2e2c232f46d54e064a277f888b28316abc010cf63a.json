@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, username, email, public_key FROM user WHERE id = ?",
+  "query": "SELECT id, username, email, public_key, avatar FROM user",
   "describe": {
     "columns": [
       {
@@ -22,17 +22,23 @@
         "name": "public_key",
         "ordinal": 3,
         "type_info": "Text"
+      },
+      {
+        "name": "avatar",
+        "ordinal": 4,
+        "type_info": "Text"
       }
     ],
     "parameters": {
-      "Right": 1
+      "Right": 0
     },
     "nullable": [
       false,
       false,
       true,
-      false
+      false,
+      true
     ]
   },
-  "hash": "14497e3392736b06ae5975a9cd49b90204f63e370ec618fdd21104c396535f79"
+  "hash": "5489a0e75b2227931b74ec2e2c232f46d54e064a277f888b28316abc010cf63a"
 }

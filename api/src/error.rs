@@ -21,7 +21,7 @@ pub enum AppError {
     SerdeError(sonic_rs::Error),
     ValidationError(Vec<AppValidationError>),
     AuthError(anyhow::Error),
-    UserError((StatusCode, Box<str>)),
+    UserError((StatusCode, String)),
     Generic(anyhow::Error),
 }
 

@@ -1,36 +1,46 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT username, email, iv, public_key, encrypted_private_key, salt FROM user WHERE id = ?",
+  "query": "SELECT id, username, email, iv, public_key, encrypted_private_key, salt, avatar FROM user WHERE id = ?",
   "describe": {
     "columns": [
       {
-        "name": "username",
+        "name": "id",
         "ordinal": 0,
-        "type_info": "Text"
+        "type_info": "Blob"
       },
       {
-        "name": "email",
+        "name": "username",
         "ordinal": 1,
         "type_info": "Text"
       },
       {
-        "name": "iv",
+        "name": "email",
         "ordinal": 2,
         "type_info": "Text"
       },
       {
-        "name": "public_key",
+        "name": "iv",
         "ordinal": 3,
         "type_info": "Text"
       },
       {
-        "name": "encrypted_private_key",
+        "name": "public_key",
         "ordinal": 4,
         "type_info": "Text"
       },
       {
-        "name": "salt",
+        "name": "encrypted_private_key",
         "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "salt",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "avatar",
+        "ordinal": 7,
         "type_info": "Text"
       }
     ],
@@ -39,12 +49,14 @@
     },
     "nullable": [
       false,
+      false,
       true,
       false,
       false,
       false,
-      false
+      false,
+      true
     ]
   },
-  "hash": "af1b024463998d6204a880aa6ee0232deeb91e7b8a5fa39d3f88fba75fa43389"
+  "hash": "8270f45f3d537b238b93f553c9d6ae37f84be41e840f2c3cbf79c46b199c6a47"
 }

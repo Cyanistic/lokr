@@ -10,6 +10,7 @@ CREATE TABLE user (
 	totp_secret BLOB,
 	totp_enabled BOOLEAN NOT NULL DEFAULT FALSE,
 	totp_verified BOOLEAN NOT NULL DEFAULT FALSE,
+	avatar TEXT, -- The file extension of the avatar
 	created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	modified_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

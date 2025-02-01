@@ -9,7 +9,7 @@ use crate::{error::AppError, state::AppState};
 
 pub struct User {
     pub id: [u8; 16],
-    pub username: Box<str>,
+    pub username: String,
     pub email: Option<String>,
 }
 

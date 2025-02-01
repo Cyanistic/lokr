@@ -251,7 +251,7 @@ pub enum UpdateFile {
     /// Rename the file
     Rename(
         /// The new encrypted name of the file
-        Box<str>,
+        String,
     ),
 }
 

@@ -22,10 +22,7 @@ use crate::{
 
 /// An enum representing the type of sharing
 #[derive(Deserialize, ToSchema)]
-#[serde(
-    rename_all = "camelCase",
-    tag = "type"
-)]
+#[serde(rename_all = "camelCase", tag = "type")]
 pub enum ShareRequestType {
     #[serde(rename_all = "camelCase")]
     User {
