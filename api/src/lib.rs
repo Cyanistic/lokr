@@ -109,6 +109,7 @@ pub static UPLOAD_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
             users::update_user,
             users::update_totp,
             users::search_users,
+            users::get_user,
             upload::upload_file,
             upload::delete_file,
             upload::update_file,
@@ -237,6 +238,7 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
         .routes(routes!(users::update_user))
         .routes(routes!(users::update_totp))
         .routes(routes!(users::search_users))
+        .routes(routes!(users::get_user))
         .routes(routes!(upload::upload_file))
         .routes(routes!(upload::delete_file))
         .routes(routes!(upload::update_file))

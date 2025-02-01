@@ -863,9 +863,13 @@ pub async fn update_totp(
 }
 
 #[derive(Deserialize, IntoParams)]
+#[into_params(
+    parameter_in = Query
+)]
 #[serde_inline_default]
 pub struct UserSearch {
     #[serde(default)]
+    #[param(inline)]
     sort: SortOrder,
     #[serde_inline_default(10)]
     limit: u32,
@@ -908,6 +912,7 @@ pub struct PublicUser {
     params(UserSearch, ("query" = String, Path, description = "The query to search for")),
     responses(
         (status = OK, description = "Users found", body = [PublicUser]),
+        (status = BAD_REQUEST, description = "Invalid query values", body = ErrorResponse),
         (status = NOT_FOUND, description = "No users found", body = ErrorResponse)
     )
 )]
@@ -916,6 +921,22 @@ pub async fn search_users(
     Query(params): Query<UserSearch>,
     Path(query): Path<String>,
 ) -> Result<Response, AppError> {
+    // Don't allow queries that are too short or too long
+    if query.len() < MIN_USERNAME_LENGTH as usize {
+        return Err(AppError::UserError((
+            StatusCode::BAD_REQUEST,
+            format!("Query must be at least {} characters", MIN_USERNAME_LENGTH).into(),
+        )));
+    } else if query.len() > MAX_USERNAME_LENGTH as usize {
+        return Err(AppError::UserError((
+            StatusCode::BAD_REQUEST,
+            format!(
+                "Query must be at most {} characters",
+                MAX_USERNAME_LENGTH
+            )
+            .into(),
+        )));
+    }
     let mut all_users = sqlx::query!("SELECT id, username, email, public_key FROM user")
         .fetch_all(&state.pool)
         .await?;
@@ -945,6 +966,47 @@ pub async fn search_users(
     }
 
     Ok((StatusCode::OK, Json(best_matches)).into_response())
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/user/{id}",
+    description = "Get information about a specific user",
+    responses(
+        (status = OK, description = "User found", body = PublicUser),
+        (status = BAD_REQUEST, description = "Invalid user id", body = ErrorResponse),
+        (status = NOT_FOUND, description = "No users found", body = ErrorResponse)
+    ),
+    security(
+        ()
+    )
+)]
+pub async fn get_user(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Response, AppError> {
+    let Some(db_query) = sqlx::query!(
+        "SELECT id, username, email, public_key FROM user WHERE id = ?",
+        id
+    )
+    .fetch_optional(&state.pool)
+    .await?
+    else {
+        return Err(AppError::UserError((
+            StatusCode::NOT_FOUND,
+            "User not found".into(),
+        )));
+    };
+    Ok((
+        StatusCode::OK,
+        Json(PublicUser {
+            id: id,
+            username: db_query.username,
+            email: db_query.email,
+            public_key: db_query.public_key,
+        }),
+    )
+        .into_response())
 }
 
 // Verify the password against the hash in the database
