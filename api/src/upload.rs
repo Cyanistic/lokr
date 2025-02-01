@@ -1,4 +1,4 @@
-use std::{collections::HashMap, io::ErrorKind};
+use std::{collections::HashMap, io::ErrorKind, path::PathBuf};
 
 use axum::{
     extract::{Multipart, Path, Query, State},
@@ -67,6 +67,7 @@ pub struct UploadResponse {
 #[derive(ToSchema)]
 #[allow(unused)]
 pub struct UploadRequest {
+    #[schema(content_encoding = "application/json")]
     metadata: UploadMetadata,
     /// The encrypted file data as bytes
     #[schema(format = Binary, content_media_type = "application/octet-stream")]
@@ -94,7 +95,7 @@ pub async fn upload_file(
     let mut metadata: Option<UploadMetadata> = None;
     let uuid = user.map(|user| Uuid::from_bytes(user.0.id));
     let file_id = Uuid::now_v7();
-    let mut file: Option<File> = None;
+    let mut file_path: Option<PathBuf> = None;
     // Allocate a megabyte buffer
     let mut file_data: Vec<u8> = Vec::with_capacity(1024 * 1024);
 
@@ -104,7 +105,7 @@ pub async fn upload_file(
                 metadata = Some(serde_json::from_slice(&field.bytes().await?)?);
             }
             Some("file") => {
-                file = Some(File::create(UPLOAD_DIR.join(file_id.to_string())).await?);
+                file_path = Some(UPLOAD_DIR.join(file_id.to_string()));
 
                 while let Some(chunk) = field.chunk().await? {
                     file_data.extend_from_slice(&chunk);
@@ -122,18 +123,19 @@ pub async fn upload_file(
     };
 
     let file_size = if !metadata.is_directory {
-        let Some(mut file) = file else {
+        let Some(file_path) = file_path else {
             return Err(AppError::UserError((
                 StatusCode::BAD_REQUEST,
                 "Missing file".into(),
             )));
         };
+        let mut file = File::create(file_path).await?;
         file.write_all(&file_data).await?;
         file_data.len() as i64
     } else {
         0
     };
-    sqlx::query!(
+    match sqlx::query!(
         "INSERT INTO file (id, owner_id, parent_id, encrypted_key, encrypted_name, mime, nonce, is_directory, size) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         file_id,
         uuid,
@@ -146,7 +148,22 @@ pub async fn upload_file(
         file_size,
     )
     .execute(&state.pool)
-    .await?;
+    .await {
+        // If a FOREIGN KEY constraint is violated, it likely means that the parent id is invalid
+        // this is a user error and not a server error, so report it as such.
+            Err(e)
+                if e.as_database_error()
+                    .and_then(|e| e.code())
+                    .is_some_and(|code| code == "787") =>
+            {
+                return Err(AppError::UserError((
+                    StatusCode::BAD_REQUEST,
+                    "Invalid parent id".into(),
+                )))
+            }
+        Err(e) => return Err(e.into()),
+        _ => {}
+    }
 
     Ok((
         StatusCode::OK,
