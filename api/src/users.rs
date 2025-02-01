@@ -930,11 +930,7 @@ pub async fn search_users(
     } else if query.len() > MAX_USERNAME_LENGTH as usize {
         return Err(AppError::UserError((
             StatusCode::BAD_REQUEST,
-            format!(
-                "Query must be at most {} characters",
-                MAX_USERNAME_LENGTH
-            )
-            .into(),
+            format!("Query must be at most {} characters", MAX_USERNAME_LENGTH).into(),
         )));
     }
     let mut all_users = sqlx::query!("SELECT id, username, email, public_key FROM user")

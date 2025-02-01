@@ -44,6 +44,7 @@ use sqlx::{
 
 pub mod auth;
 pub mod error;
+pub mod share;
 pub mod state;
 pub mod upload;
 pub mod users;
@@ -115,10 +116,12 @@ pub static UPLOAD_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
             upload::update_file,
             upload::get_file,
             upload::get_file_metadata,
+            share::share_file,
         ),
         tags(
             (name = "users", description = "User related operations"),
-            (name = "upload", description = "File uploading"),
+            (name = "upload", description = "File and directory uploading"),
+            (name = "share", description = "File and directory sharing"),
         )
     )]
 struct ApiDoc;
@@ -243,6 +246,7 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
         .routes(routes!(upload::delete_file))
         .routes(routes!(upload::update_file))
         .routes(routes!(upload::get_file_metadata))
+        .routes(routes!(share::share_file))
         .layer(cors)
         .with_state(AppState::new(pool.clone()))
         .split_for_parts();

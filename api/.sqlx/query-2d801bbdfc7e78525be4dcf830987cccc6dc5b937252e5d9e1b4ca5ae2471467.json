@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO share_user (file_id, user_id, encrypted_key) VALUES (?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "2d801bbdfc7e78525be4dcf830987cccc6dc5b937252e5d9e1b4ca5ae2471467"
+}

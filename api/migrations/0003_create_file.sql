@@ -1,4 +1,3 @@
--- SQLite Schema
 CREATE TABLE file (
     id BLOB PRIMARY KEY NOT NULL,         -- UUIDv7
     owner_id BLOB,   	 -- User ID of the file owner could be NULL for anonymous files
@@ -24,41 +23,3 @@ BEGIN
     SET modified_at = CURRENT_TIMESTAMP
     WHERE id = NEW.id;
 END;
-
-    -- WITH RECURSIVE children AS (
-    --     -- Anchor member (root or specified node)
-    --     SELECT 
-    --         id, 
-    --         parent_id, 
-    --         encrypted_name, 
-    --         nonce, 
-    --         is_directory, 
-    --         mime_type,
-    --         size,
-    --         created_at,
-    --         modified_at,
-    --         0 AS depth
-    --     FROM nodes
-    --     WHERE 
-	   --  parent_id IS NULL
-    --     UNION ALL
-    --     
-    --     -- Recursive member
-    --     SELECT 
-    --         n.id, 
-    --         n.parent_id, 
-    --         n.encrypted_name, 
-    --         n.nonce, 
-    --         n.is_directory, 
-    --         n.mime_type,
-    --         n.size,
-    --         n.created_at,
-    --         n.modified_at,
-    --         c.depth + 1
-    --     FROM nodes n
-    --     JOIN children c ON n.parent_id = c.id
-    --     WHERE 
-    --         c.depth < 20 -- Prevent infinite loops
-    --     ORDER BY c.depth + 1
-    -- )
-    -- SELECT * FROM children;
