@@ -47,6 +47,7 @@ pub mod error;
 pub mod state;
 pub mod upload;
 pub mod users;
+pub mod utils;
 
 pub const PKG_NAME: &str = env!("CARGO_PKG_NAME");
 
@@ -107,6 +108,7 @@ pub static UPLOAD_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
             users::get_logged_in_user,
             users::update_user,
             users::update_totp,
+            users::search_users,
             upload::upload_file,
             upload::delete_file,
             upload::update_file,
@@ -234,6 +236,7 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
         .routes(routes!(users::get_logged_in_user))
         .routes(routes!(users::update_user))
         .routes(routes!(users::update_totp))
+        .routes(routes!(users::search_users))
         .routes(routes!(upload::upload_file))
         .routes(routes!(upload::delete_file))
         .routes(routes!(upload::update_file))

@@ -6,13 +6,14 @@ use argon2::{
     PasswordHash, PasswordVerifier,
 };
 use axum::{
-    extract::{Query, State},
+    extract::{Path, Query, State},
     http::{header::SET_COOKIE, StatusCode},
     response::{IntoResponse, Response},
     Json,
 };
 use base64::{engine::general_purpose, Engine};
 use serde::{Deserialize, Serialize};
+use serde_inline_default::serde_inline_default;
 use totp_rs::{Algorithm, Secret, TOTP};
 use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
@@ -22,7 +23,9 @@ use crate::{
     auth::SessionAuth,
     error::{AppError, AppValidate, ErrorResponse},
     state::AppState,
-    success, SuccessResponse,
+    success,
+    utils::levenshtien,
+    SuccessResponse,
 };
 
 pub const MIN_PASSWORD_LENGTH: u64 = 8;
@@ -36,12 +39,15 @@ pub const MAX_USERNAME_LENGTH: u64 = 20;
 pub struct CreateUser {
     /// The name of the user to create
     #[validate(length(min = MIN_USERNAME_LENGTH, max = MAX_USERNAME_LENGTH), custom(function = "validate_username"))]
-    #[schema(example = "sussyman")]
+    // I would use the max and min constants here, but they are not allowed in the attribute
+    #[schema(min_length = 3, max_length = 20, example = "sussyman")]
     username: Box<str>,
     /// The new user's password
     /// Should be hashed using Argon2 before being sent to the backend
     #[validate(length(min = MIN_PASSWORD_LENGTH, max = MAX_PASSWORD_LENGTH), custom(function = "validate_password"))]
     #[schema(
+        min_length = 8,
+        max_length = 64,
         example = "$argon2id$v=19$m=16,t=2,p=1$aUtKY1JKZjdmd3RPNmVzdA$/XFnfdBI9vbMEPNeCqlGbw"
     )]
     password: Box<str>,
@@ -854,6 +860,91 @@ pub async fn update_totp(
             Ok((StatusCode::OK, success!("TOTP verified successfully!")).into_response())
         }
     }
+}
+
+#[derive(Deserialize, IntoParams)]
+#[serde_inline_default]
+pub struct UserSearch {
+    #[serde(default)]
+    sort: SortOrder,
+    #[serde_inline_default(10)]
+    limit: u32,
+    #[serde_inline_default(0)]
+    offset: u32,
+}
+
+#[derive(Deserialize, ToSchema, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum SortOrder {
+    #[default]
+    BestMatch,
+    Alphabetical,
+    Shortest,
+}
+
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PublicUser {
+    /// The id of the user
+    id: Uuid,
+    /// The name of the user
+    #[schema(example = "sussyman")]
+    username: String,
+    /// Optional email for the user
+    #[schema(example = "sussyman@amogus.com")]
+    email: Option<String>,
+    /// The user's public key
+    #[schema(
+        content_encoding = "base64",
+        example = "QQe22k5wy-88PUFIW1P7MkgxoyMyalmjnffAuUNgMuE"
+    )]
+    public_key: String,
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/users/search/{query}",
+    description = "Search for users",
+    params(UserSearch, ("query" = String, Path, description = "The query to search for")),
+    responses(
+        (status = OK, description = "Users found", body = [PublicUser]),
+        (status = NOT_FOUND, description = "No users found", body = ErrorResponse)
+    )
+)]
+pub async fn search_users(
+    State(state): State<AppState>,
+    Query(params): Query<UserSearch>,
+    Path(query): Path<String>,
+) -> Result<Response, AppError> {
+    let mut all_users = sqlx::query!("SELECT id, username, email, public_key FROM user")
+        .fetch_all(&state.pool)
+        .await?;
+    // Find the best matches for the query using the Levenshtein distance
+    all_users.sort_by_cached_key(|user| levenshtien(&query, &user.username));
+    let mut best_matches = all_users
+        .into_iter()
+        .skip(params.offset as usize * params.limit as usize)
+        .take(10)
+        .map(|user| PublicUser {
+            id: Uuid::from_slice(&user.id).expect("Should be a valid UUID"),
+            username: user.username,
+            email: user.email,
+            public_key: user.public_key,
+        })
+        .collect::<Vec<_>>();
+    // Sort the best matches based on the sort order
+    match params.sort {
+        SortOrder::Alphabetical => {
+            best_matches.sort_by(|user1, user2| user1.username.cmp(&user2.username));
+        }
+        SortOrder::Shortest => {
+            best_matches.sort_by_key(|user| user.username.len());
+        }
+        // Already sorted by best match
+        SortOrder::BestMatch => {}
+    }
+
+    Ok((StatusCode::OK, Json(best_matches)).into_response())
 }
 
 // Verify the password against the hash in the database
