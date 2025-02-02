@@ -1,5 +1,19 @@
 import { useState } from "react";
-import { deriveKeyFromPassword, encryptData } from "../cryptoFunctions";
+import {
+    deriveKeyFromPassword,
+    encryptData,
+    generateEd25519KeyPair
+} from "../cryptoFunctions";
+
+// Helper function to convert Uint8Array to Base64 safely
+function toBase64(bytes: Uint8Array): string {
+    return btoa(String.fromCharCode(...bytes));
+}
+
+// Helper function to safely Base64-encode an `ArrayBuffer`
+function bufferToBase64(buffer: ArrayBuffer): string {
+    return btoa(String.fromCharCode(...new Uint8Array(buffer)));
+}
 
 export default function Register() {
     const [username, setUsername] = useState("");
@@ -13,61 +27,79 @@ export default function Register() {
 
             // Validation checks
             if (!username || !password) {
-                setMessage("❌ Username and password are required.");
+                setMessage("Username and password are required.");
                 return;
             }
 
             if (username.length < 3 || username.length > 20) {
-                setMessage("❌ Username must be 3-20 characters long.");
+                setMessage("Username must be 3-20 characters long.");
                 return;
             }
 
             if (password.length < 8) {
-                setMessage("❌ Password must be at least 8 characters long.");
+                setMessage("Password must be at least 8 characters long.");
                 return;
             }
 
-            // Generate salt for PBKDF2
+            // Step 1: Generate Salt for PBKDF2
             const salt = crypto.getRandomValues(new Uint8Array(16));
-            const key = await deriveKeyFromPassword(password, salt);
-            const { iv, encrypted } = await encryptData(key, username);
+            const masterKey = await deriveKeyFromPassword(password, salt);
 
-            // Convert data to Base64
-            const saltBase64 = btoa(String.fromCharCode(...salt));
-            const ivBase64 = btoa(String.fromCharCode(...iv));
-            const encryptedBase64 = btoa(String.fromCharCode(...new Uint8Array(encrypted)));
+            // Step 2: Generate Ed25519 Key Pair
+            const { publicKey, privateKey } = await generateEd25519KeyPair();
+
+            // 🔍 Log the original private key before encryption
+            const privateKeyBase64 = toBase64(privateKey);
+            console.log("Original Private Key (Base64):", privateKeyBase64);
+
+            // Step 3: Encrypt Private Key using AES-GCM
+            const { iv, encrypted } = await encryptData(masterKey, privateKeyBase64);
+
+            // Convert all binary data to Base64 for JSON transmission
+            const saltBase64 = toBase64(salt);
+            const ivBase64 = toBase64(iv);
+            const encryptedPrivateKeyBase64 = bufferToBase64(encrypted);
+            const publicKeyBase64 = toBase64(publicKey);
+
+            // 🔍 Log the encrypted private key after encryption
+            console.log("Encrypted Private Key (Base64):", encryptedPrivateKeyBase64);
+
+            // Prepare Request Data
             const body = JSON.stringify({
-
                 username,
                 email: email || null,
+                password, // 🔹 Backend requires this field
                 salt: saltBase64,
-                encryptedPrivateKey: encryptedBase64, //encrypt
-                iv: ivBase64,
-                password: saltBase64, // Hash with Arg2 instead 
-                publicKey: btoa("c3RyaW5n") //encode dont encrypt
-            
-            })
+                encryptedPrivateKey: encryptedPrivateKeyBase64, // Encrypted private key
+                iv: ivBase64, // IV for decryption
+                publicKey: publicKeyBase64 // Public key (plaintext)
+            });
 
+            console.log("Sending payload:", body);
 
-            // Send request to backend with correct field names
+            // Send request to backend
             const response = await fetch("http://localhost:6969/api/register", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body
             });
-            
-            console.log(body);
-            const responseData = await response.json();
+
+            const responseText = await response.text();
+            console.log("Server Response:", responseText);
 
             if (!response.ok) {
-                setMessage(`❌ ${responseData.message || "Registration failed."}`);
-                return;
+                throw new Error(`Server Error: ${responseText}`);
             }
 
-            setMessage("✅ Registration successful!");
-        } catch (error) {
-            console.error("❌ Registration error:", error);
-            setMessage("❌ Registration failed. Please try again.");
+            setMessage("Registration successful!");
+        } catch (error: unknown) {
+            console.error("Registration error:", error);
+
+            if (error instanceof Error) {
+                setMessage(`Registration failed: ${error.message}`);
+            } else {
+                setMessage("Registration failed due to an unknown error.");
+            }
         }
     }
 
