@@ -36,22 +36,22 @@ export default function FileExplorer() {
             <table style={styles.table}>
                 <thead>
                     <tr style={styles.tableHeader}>
-                        <th>
+                        <th style={styles.tableHeader}>
                             Name
                             <button style={styles.sortButton} onClick={() => handleSort("name")}>
-                                {sortBy === "name" ? (sortOrder === "asc" ? " ^" : " v") : " ↕"}
+                                {sortBy === "name" ? (sortOrder === "asc" ? " ↑" : " ↓") : " ↕"}
                             </button>
                         </th>
                         <th>
                             Size (MB)
                             <button style={styles.sortButton} onClick={() => handleSort("size")}>
-                                {sortBy === "size" ? (sortOrder === "asc" ? " ^" : " v") : " ↕"}
+                                {sortBy === "size" ? (sortOrder === "asc" ? " ↑" : " ↓") : " ↕"}
                             </button>
                         </th>
                         <th>
                             Date Uploaded
                             <button style={styles.sortButton} onClick={() => handleSort("uploadDate")}>
-                                {sortBy === "uploadDate" ? (sortOrder === "asc" ? " ^" : " v") : " ↕"}
+                                {sortBy === "uploadDate" ? (sortOrder === "asc" ? " ↑" : " ↓") : " ↕"}
                             </button>
                         </th>
                         <th>Type</th>
@@ -62,9 +62,9 @@ export default function FileExplorer() {
                         .filter((file) => file.name.toLowerCase().includes(search.toLowerCase()))
                         .map((file) => (
                             <tr key={file.id} style={styles.tableRow}>
-                                <td>{file.name}</td>
+                                <td style={{ textAlign: "left", paddingLeft: "10px" }}>{file.name}</td>
                                 <td>{file.size}</td>
-                                <td>{file.uploadDate.toDateString()}</td>
+                                <td>{file.uploadDate.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}</td>
                                 <td>{file.fileType}</td>
                             </tr>
                         ))}
@@ -100,7 +100,7 @@ const styles = {
         gap: "1rem",
         backgroundColor: "#f8f9fa",
         borderRadius: "8px",
-        boxShadow: "0px 4px 6px rgba(0, 0, 0, 0.1)",
+        boxShadow: "0px 4px 6px black)",
     },
     title: {
         color: "#007bff",
@@ -117,17 +117,20 @@ const styles = {
     table: {
         width: "100%",
         borderCollapse: "collapse" as const,
-        background: "white",
+        background: "#f8f9fa",
         marginTop: "1rem",
-        boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
+        boxShadow: "0 4px 6px black)",
     },
     tableHeader: {
         backgroundColor: "#007bff",
         color: "white",
+        textAlign: "left" as const,
+        paddingLeft: "10px",
     },
     tableRow: {
-        borderBottom: "1px solid #ddd",
+        borderBottom: "2px solid #ddd",
         textAlign: "left" as const,
+        height: "35px",
     },
     sortButton: {
         marginLeft: "5px",
