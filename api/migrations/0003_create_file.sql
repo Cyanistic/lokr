@@ -8,8 +8,8 @@ CREATE TABLE file (
     mime TEXT,                   -- Encrypted MIME type
     size INTEGER DEFAULT 0,      -- Encrypted size, should be 0 for directories
     is_directory BOOLEAN DEFAULT 0, -- 1 if the file is a directory
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    modified_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    modified_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (owner_id) REFERENCES user(id) ON DELETE CASCADE,
     FOREIGN KEY (parent_id) REFERENCES file(id) ON DELETE CASCADE
 );

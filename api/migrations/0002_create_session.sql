@@ -6,10 +6,3 @@ CREATE TABLE session (
     last_used_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES user (id)
 );
-
-CREATE TRIGGER session_update_modified_at AFTER UPDATE ON session
-BEGIN
-    UPDATE session
-    SET last_used_at = CURRENT_TIMESTAMP
-    WHERE id = NEW.id;
-END;

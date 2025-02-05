@@ -6,6 +6,7 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_inline_default::serde_inline_default;
 use sqlx::SqlitePool;
@@ -240,18 +241,27 @@ pub async fn delete_file(
 }
 
 #[derive(Deserialize, ToSchema)]
-#[serde(rename_all = "camelCase", tag = "type", content = "data")]
+#[serde(rename_all = "camelCase", tag = "type")]
 pub enum UpdateFile {
     /// Move the file to a new parent
-    Move(
+    Move {
         /// The new parent id of the file
-        Uuid,
-    ),
+        parent_id: Option<Uuid>,
+        #[schema(
+            example = "38ZP4XEKLikREzyy9ttdaKLZ8WiWCd2i8ptTCwRwMlc=",
+            content_encoding = "base64"
+        )]
+        encrypted_key: String,
+    },
     /// Rename the file
-    Rename(
+    Rename {
         /// The new encrypted name of the file
-        String,
-    ),
+        #[schema(
+            example = "38ZP4XEKLikREzyy9ttdaKLZ8WiWCd2i8ptTCwRwMlc=",
+            content_encoding = "base64"
+        )]
+        encrypted_name: String,
+    },
 }
 
 #[utoipa::path(
@@ -289,7 +299,10 @@ pub async fn update_file(
         )));
     }
     match body {
-        UpdateFile::Move(parent_id) => {
+        UpdateFile::Move {
+            parent_id,
+            encrypted_key,
+        } => {
             // Check if the new parent is owned by the user
             let Some(parent_file) = sqlx::query!(
                 "SELECT is_directory FROM file WHERE id = ? AND owner_id = ?",
@@ -317,15 +330,24 @@ pub async fn update_file(
             }
 
             // Update the parent id of the file
-            sqlx::query!("UPDATE file SET parent_id = ? WHERE id = ?", parent_id, id)
-                .execute(&state.pool)
-                .await?;
+            sqlx::query!(
+                "UPDATE file SET parent_id = ?, encrypted_key = ? WHERE id = ?",
+                parent_id,
+                encrypted_key,
+                id
+            )
+            .execute(&state.pool)
+            .await?;
         }
-        UpdateFile::Rename(name) => {
+        UpdateFile::Rename { encrypted_name } => {
             // Rename the file
-            sqlx::query!("UPDATE file SET encrypted_name = ? WHERE id = ?", name, id)
-                .execute(&state.pool)
-                .await?;
+            sqlx::query!(
+                "UPDATE file SET encrypted_name = ? WHERE id = ?",
+                encrypted_name,
+                id
+            )
+            .execute(&state.pool)
+            .await?;
         }
     }
 
@@ -352,6 +374,8 @@ pub struct FileMetadata {
     id: Uuid,
     #[serde(flatten)]
     upload: UploadMetadata,
+    created_at: DateTime<Utc>,
+    modified_at: DateTime<Utc>,
     /// The children of the directory.
     /// Only present if the file is a directory.
     /// This is a recursive definition so it can be used to get the entire directory tree,
@@ -451,8 +475,8 @@ pub async fn get_file_metadata(
             )
             SELECT 
                 -- Goofy ahh workaround to get the query to work with sqlx
-                depth as "depth!: u32",
-                id, 
+                depth AS "depth!: u32",
+                id AS "id: Uuid",
                 parent_id, 
                 encrypted_name, 
                 encrypted_key, 
@@ -475,7 +499,9 @@ pub async fn get_file_metadata(
             let root = query
                 .into_iter()
                 .map(|row| FileMetadata {
-                    id: Uuid::from_slice(&row.id[..]).expect("Should be a valid uuid"),
+                    id: row.id,
+                    created_at: row.created_at.and_utc(),
+                    modified_at: row.modified_at.and_utc(),
                     upload: UploadMetadata {
                         encrypted_file_name: row.encrypted_name,
                         encrypted_mime_type: row.mime,
@@ -560,8 +586,8 @@ pub async fn get_file_metadata(
             )
             SELECT 
                 -- Goofy ahh workaround to get the query to work with sqlx
-                depth as "depth!: u32",
-                id, 
+                depth AS "depth!: u32",
+                id AS "id: Uuid", 
                 parent_id, 
                 encrypted_name, 
                 encrypted_key, 
@@ -584,7 +610,9 @@ pub async fn get_file_metadata(
             let root = query
                 .into_iter()
                 .map(|row| FileMetadata {
-                    id: Uuid::from_slice(&row.id[..]).expect("Should be a valid uuid"),
+                    id: row.id,
+                    created_at: row.created_at.and_utc(),
+                    modified_at: row.modified_at.and_utc(),
                     upload: UploadMetadata {
                         encrypted_file_name: row.encrypted_name,
                         encrypted_mime_type: row.mime,
