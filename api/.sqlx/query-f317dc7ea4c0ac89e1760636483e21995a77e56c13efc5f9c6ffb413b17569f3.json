@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "INSERT INTO session (id, user_id, expires_at) VALUES (?, ?, ?) RETURNING id",
+  "query": "INSERT INTO session (id, user_id) VALUES (?, ?) RETURNING id",
   "describe": {
     "columns": [
       {
@@ -10,11 +10,11 @@
       }
     ],
     "parameters": {
-      "Right": 3
+      "Right": 2
     },
     "nullable": [
       false
     ]
   },
-  "hash": "6fd7fe6e67fdb24f0491e5ea2d84e42d4e8a01801c5779daeefcd0af7c9e5493"
+  "hash": "f317dc7ea4c0ac89e1760636483e21995a77e56c13efc5f9c6ffb413b17569f3"
 }

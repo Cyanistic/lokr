@@ -335,12 +335,10 @@ pub async fn authenticate_user(
     }
 
     let uuid = Uuid::new_v4();
-    let expires_at = chrono::Utc::now() + chrono::Duration::hours(1);
     sqlx::query!(
-        "INSERT INTO session (id, user_id, expires_at) VALUES (?, ?, ?) RETURNING id",
+        "INSERT INTO session (id, user_id) VALUES (?, ?) RETURNING id",
         uuid,
-        db_user.id,
-        expires_at
+        db_user.id
     )
     .fetch_one(&state.pool)
     .await?;

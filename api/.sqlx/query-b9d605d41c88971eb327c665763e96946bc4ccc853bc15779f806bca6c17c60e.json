@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "\n            SELECT user.id, username, email\n            FROM user\n            JOIN session ON user.id = session.user_id\n            WHERE session.id = ?\n            AND expires_at > CURRENT_TIMESTAMP\n            ",
+  "query": "\n            SELECT user.id, username, email\n            FROM user\n            JOIN session ON user.id = session.user_id\n            WHERE session.id = ?\n            AND last_used_at + idle_duration > CURRENT_TIMESTAMP\n            ",
   "describe": {
     "columns": [
       {
@@ -28,5 +28,5 @@
       true
     ]
   },
-  "hash": "e01167c488ae71f54000c6d2dccda4f101f981558d098ed566d1dbe057af8d81"
+  "hash": "b9d605d41c88971eb327c665763e96946bc4ccc853bc15779f806bca6c17c60e"
 }

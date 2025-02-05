@@ -1,0 +1,32 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        SELECT id AS \"id: _\",\n        created_at AS \"created_at: _\",\n        last_used_at AS \"last_used_at: _\" FROM session WHERE user_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id: _",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "created_at: _",
+        "ordinal": 1,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "last_used_at: _",
+        "ordinal": 2,
+        "type_info": "Datetime"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "4bd4e7eb5d158628417ff098f20c5244bf9c4eda44dd56fdc6b70ce0fe44462e"
+}

@@ -47,6 +47,7 @@ use sqlx::{
 
 pub mod auth;
 pub mod error;
+pub mod session;
 pub mod share;
 pub mod state;
 pub mod upload;
@@ -131,10 +132,12 @@ pub static AVATAR_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
             upload::get_file,
             upload::get_file_metadata,
             share::share_file,
+            session::get_sessions,
         ),
         tags(
             (name = "users", description = "User related operations"),
             (name = "upload", description = "File and directory uploading"),
+            (name = "session", description = "User session management"),
             (name = "share", description = "File and directory sharing"),
         )
     )]
@@ -264,6 +267,7 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
         .routes(routes!(upload::update_file))
         .routes(routes!(upload::get_file_metadata))
         .routes(routes!(share::share_file))
+        .routes(routes!(session::get_sessions))
         .layer(cors)
         .with_state(AppState::new(pool.clone()))
         .split_for_parts();

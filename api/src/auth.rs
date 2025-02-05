@@ -42,20 +42,31 @@ where
                 .find_map(|x| x.strip_prefix("session="))
                 .ok_or_else(|| AppError::AuthError(anyhow!("No session cookie provided")))?,
         )?;
-        Ok(SessionAuth({
-            let user = sqlx::query!(
-                r#"
+        let user = sqlx::query!(
+            r#"
             SELECT user.id, username, email
             FROM user
             JOIN session ON user.id = session.user_id
             WHERE session.id = ?
-            AND expires_at > CURRENT_TIMESTAMP
+            AND last_used_at + idle_duration > CURRENT_TIMESTAMP
             "#,
-                session
-            )
-            .fetch_optional(&state.pool)
-            .await?
-            .ok_or_else(|| AppError::AuthError(anyhow!("Invalid session")))?;
+            session
+        )
+        .fetch_optional(&state.pool)
+        .await?
+        .ok_or_else(|| AppError::AuthError(anyhow!("Invalid session")))?;
+        // Update the session's last_used_at timestamp so it doesn't expire
+        sqlx::query!(
+            "
+            UPDATE session
+            SET last_used_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            ",
+            session
+        )
+        .execute(&state.pool)
+        .await?;
+        Ok(SessionAuth({
             User {
                 id: user.id.try_into().unwrap(),
                 username: user.username.into(),
@@ -99,20 +110,31 @@ where
                 None => return Ok(None),
             },
         )?;
-        Ok(Some(SessionAuth({
-            let user = sqlx::query!(
-                r#"
+        let user = sqlx::query!(
+            r#"
             SELECT user.id, username, email
             FROM user
             JOIN session ON user.id = session.user_id
             WHERE session.id = ?
-            AND expires_at > CURRENT_TIMESTAMP
+            AND last_used_at + idle_duration > CURRENT_TIMESTAMP
             "#,
-                session
-            )
-            .fetch_optional(&state.pool)
-            .await?
-            .ok_or_else(|| AppError::AuthError(anyhow!("Invalid session")))?;
+            session
+        )
+        .fetch_optional(&state.pool)
+        .await?
+        .ok_or_else(|| AppError::AuthError(anyhow!("Invalid session")))?;
+        // Update the session's last_used_at timestamp so it doesn't expire
+        sqlx::query!(
+            "
+            UPDATE session
+            SET last_used_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            ",
+            session
+        )
+        .execute(&state.pool)
+        .await?;
+        Ok(Some(SessionAuth({
             User {
                 id: user.id.try_into().unwrap(),
                 username: user.username.into(),
