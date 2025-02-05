@@ -1,5 +1,5 @@
 use axum::{
-    extract::State,
+    extract::{Path, State},
     http::StatusCode,
     response::{IntoResponse, Response},
     Json,
@@ -13,6 +13,7 @@ use crate::{
     auth::SessionAuth,
     error::{AppError, ErrorResponse},
     state::AppState,
+    success, SuccessResponse,
 };
 
 #[derive(Serialize, ToSchema)]
@@ -50,4 +51,38 @@ pub async fn get_sessions(
     .fetch_all(&state.pool)
     .await?;
     Ok((StatusCode::OK, Json(query)).into_response())
+}
+
+#[utoipa::path(
+    delete,
+    path = "/api/session/{id}",
+    description = "Delete an active session for the currently authenticated user",
+    responses(
+        (status = OK, description = "Session successfully deleted", body = SuccessResponse),
+        (status = NOT_FOUND, description = "Session not found", body = ErrorResponse)
+    ),
+    security(
+        ("lokr_session_cookie" = [])
+    )
+)]
+pub async fn delete_session(
+    State(state): State<AppState>,
+    SessionAuth(user): SessionAuth,
+    Path(id): Path<Uuid>,
+) -> Result<Response, AppError> {
+    if sqlx::query!(
+        "DELETE FROM session WHERE id = ? AND user_id = ? RETURNING id",
+        id,
+        user.id
+    )
+    .fetch_optional(&state.pool)
+    .await?
+    .is_none()
+    {
+        return Err(AppError::UserError((
+            StatusCode::NOT_FOUND,
+            "Session not found".into(),
+        )));
+    };
+    Ok((StatusCode::OK, success!("Session successfully deleted")).into_response())
 }
