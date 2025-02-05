@@ -8,6 +8,7 @@ export default function Upload() {
 
     const [file, setFile] = useState<File | null>(null);
     const [fileMeta, setFileMeta] = useState<FileMetadata | null>(null);
+    const [uploadStatus, setUploadStatus] = useState<string>('');
       
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const uploadedFile = e.target.files? e.target.files[0] : null;
@@ -26,10 +27,15 @@ export default function Upload() {
       
     const handleSubmit = async () => {
         // Here you can handle file upload logic (e.g., sending to server)
+
+        setUploadStatus('Uploading...');
+
+        
         if (file) {
           console.log('File ready to upload:', file);
         } else {
           console.log('No file selected');
+          setUploadStatus('No file selected');
           return;
         }
 
@@ -60,11 +66,14 @@ export default function Upload() {
       
             if (response.ok) {
               console.log('File uploaded successfully');
+              setUploadStatus('File uploaded successfully!');
             } else {
               console.log('File upload failed');
+              setUploadStatus('File upload failed. Please try again.');
             }
         } catch (error) {
             console.error('Error during file upload', error);
+            setUploadStatus('Error during file upload.');
         }
     };
 
@@ -82,6 +91,9 @@ export default function Upload() {
                         </div>
                     )}
                     <button onClick={handleSubmit}>Upload</button>
+
+                    {/* Display the upload status */}
+                    {uploadStatus && <p>{uploadStatus}</p>}
                 </div>
             </div>
 
