@@ -1,10 +1,10 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, username, email, public_key, avatar FROM user WHERE id = ?",
+  "query": "SELECT id AS \"id: _\", username, email, public_key, avatar AS avatar_extension FROM user",
   "describe": {
     "columns": [
       {
-        "name": "id",
+        "name": "id: _",
         "ordinal": 0,
         "type_info": "Blob"
       },
@@ -24,13 +24,13 @@
         "type_info": "Text"
       },
       {
-        "name": "avatar",
+        "name": "avatar_extension",
         "ordinal": 4,
         "type_info": "Text"
       }
     ],
     "parameters": {
-      "Right": 1
+      "Right": 0
     },
     "nullable": [
       false,
@@ -40,5 +40,5 @@
       true
     ]
   },
-  "hash": "c60df9561ef159de7d1d197df00492c0a7feaa6cbc5ba3000fe5f97eda32e63d"
+  "hash": "535f215eb9cf1fdaa3e25dd4607c9ff86d3921e490e023b64ad0d2172dafd261"
 }

@@ -485,24 +485,13 @@ pub async fn get_logged_in_user(
     State(state): State<AppState>,
     SessionAuth(user): SessionAuth,
 ) -> Result<Response, AppError> {
-    let uuid = Uuid::from_bytes(user.id);
-    let query = sqlx::query!(
-            "SELECT id, username, email, iv, public_key, encrypted_private_key, salt, avatar FROM user WHERE id = ?",
-            uuid
+    let query = sqlx::query_as!(SessionUser,
+            r#"SELECT id AS "id: _", username, email, iv, public_key, encrypted_private_key, salt, avatar AS avatar_extension FROM user WHERE id = ?"#,
+            user.id
         )
         .fetch_one(&state.pool)
         .await?;
-    Ok(Json(SessionUser {
-        id: Uuid::from_slice(&query.id)?,
-        username: query.username,
-        email: query.email,
-        iv: query.iv,
-        public_key: query.public_key,
-        encrypted_private_key: query.encrypted_private_key,
-        salt: query.salt,
-        avatar_extension: query.avatar,
-    })
-    .into_response())
+    Ok(Json(query).into_response())
 }
 
 /// Update the currently authenticated user's profile
@@ -556,8 +545,7 @@ pub async fn update_user(
     SessionAuth(user): SessionAuth,
     Json(update): Json<UserUpdate>,
 ) -> Result<Response, AppError> {
-    let uuid = Uuid::from_bytes(user.id);
-    let password_hash = sqlx::query!("SELECT password_hash FROM user WHERE id = ?", uuid)
+    let password_hash = sqlx::query!("SELECT password_hash FROM user WHERE id = ?", user.id)
         .fetch_one(&state.pool)
         .await?
         .password_hash;
@@ -601,7 +589,7 @@ pub async fn update_user(
             sqlx::query!(
                 "UPDATE user SET username = ? WHERE id = ?",
                 update.new_value,
-                uuid
+                user.id
             )
             .execute(&state.pool)
             .await?;
@@ -634,7 +622,7 @@ pub async fn update_user(
             sqlx::query!(
                 "UPDATE user SET email = ? WHERE id = ?",
                 update.new_value,
-                uuid
+                user.id
             )
             .execute(&state.pool)
             .await?;
@@ -684,7 +672,7 @@ pub async fn update_user(
                 "UPDATE user SET password_hash = ?, encrypted_private_key = ? WHERE id = ?",
                 password_hash,
                 encrypted_private_key,
-                uuid
+                user.id
             )
             .execute(&state.pool)
             .await?;
@@ -753,14 +741,13 @@ pub async fn update_totp(
     SessionAuth(user): SessionAuth,
     Json(totp_req): Json<TOTPRequest>,
 ) -> Result<Response, AppError> {
-    let uuid = Uuid::from_bytes(user.id);
     match totp_req {
         TOTPRequest::Enable { enable, password } => {
             // Query the database to see if the user has both generated a TOTP secret
             // and verified it to prevent them from being locked out of their account
             let db_user = sqlx::query!(
                 "SELECT password_hash, totp_secret, totp_verified FROM user WHERE id = ?",
-                uuid
+                user.id
             )
             .fetch_one(&state.pool)
             .await?;
@@ -783,7 +770,7 @@ pub async fn update_totp(
             sqlx::query!(
                 "UPDATE user SET totp_enabled = ? WHERE id = ? RETURNING totp_secret",
                 enable,
-                uuid
+                user.id
             )
             .fetch_one(&state.pool)
             .await?;
@@ -798,7 +785,7 @@ pub async fn update_totp(
                 .into_response())
         }
         TOTPRequest::Regenerate { password } => {
-            let db_user = sqlx::query!("SELECT password_hash FROM user WHERE id = ?", uuid)
+            let db_user = sqlx::query!("SELECT password_hash FROM user WHERE id = ?", user.id)
                 .fetch_one(&state.pool)
                 .await
                 .map_err(|_| {
@@ -823,7 +810,7 @@ pub async fn update_totp(
             sqlx::query!(
                 "UPDATE user SET totp_secret = ?, totp_verified = false WHERE id = ?",
                 totp.secret,
-                uuid
+                user.id
             )
             .execute(&state.pool)
             .await?;
@@ -839,7 +826,7 @@ pub async fn update_totp(
         }
         TOTPRequest::Verify { code } => {
             let secret: Secret = Secret::Raw(
-                sqlx::query!("SELECT totp_secret FROM user WHERE id = ?", uuid)
+                sqlx::query!("SELECT totp_secret FROM user WHERE id = ?", user.id)
                     .fetch_one(&state.pool)
                     .await?
                     .totp_secret
@@ -866,7 +853,7 @@ pub async fn update_totp(
                     "Invalid TOTP code".into(),
                 )));
             }
-            sqlx::query!("UPDATE user SET totp_verified = true WHERE id = ?", uuid)
+            sqlx::query!("UPDATE user SET totp_verified = true WHERE id = ?", user.id)
                 .execute(&state.pool)
                 .await?;
             Ok((StatusCode::OK, success!("TOTP verified successfully!")).into_response())
@@ -948,22 +935,18 @@ pub async fn search_users(
             format!("Query must be at most {} characters", MAX_USERNAME_LENGTH).into(),
         )));
     }
-    let mut all_users = sqlx::query!("SELECT id, username, email, public_key, avatar FROM user")
-        .fetch_all(&state.pool)
-        .await?;
+    let mut all_users = sqlx::query_as!(
+        PublicUser,
+        r#"SELECT id AS "id: _", username, email, public_key, avatar AS avatar_extension FROM user"#
+    )
+    .fetch_all(&state.pool)
+    .await?;
     // Find the best matches for the query using the Levenshtein distance
     all_users.sort_by_cached_key(|user| levenshtien(&query, &user.username));
     let mut best_matches = all_users
         .into_iter()
         .skip(params.offset as usize * params.limit as usize)
         .take(10)
-        .map(|user| PublicUser {
-            id: Uuid::from_slice(&user.id).expect("Should be a valid UUID"),
-            username: user.username,
-            email: user.email,
-            public_key: user.public_key,
-            avatar_extension: user.avatar,
-        })
         .collect::<Vec<_>>();
     // Sort the best matches based on the sort order
     match params.sort {
@@ -997,8 +980,9 @@ pub async fn get_user(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Response, AppError> {
-    let Some(db_query) = sqlx::query!(
-        "SELECT id, username, email, public_key, avatar FROM user WHERE id = ?",
+    let Some(query) = sqlx::query_as!(
+        PublicUser,
+        r#"SELECT id AS "id: _", username, email, public_key, avatar AS avatar_extension FROM user WHERE id = ?"#,
         id
     )
     .fetch_optional(&state.pool)
@@ -1009,17 +993,7 @@ pub async fn get_user(
             "User not found".into(),
         )));
     };
-    Ok((
-        StatusCode::OK,
-        Json(PublicUser {
-            id,
-            username: db_query.username,
-            email: db_query.email,
-            public_key: db_query.public_key,
-            avatar_extension: db_query.avatar,
-        }),
-    )
-        .into_response())
+    Ok((StatusCode::OK, Json(query)).into_response())
 }
 
 #[utoipa::path(
@@ -1057,10 +1031,8 @@ pub async fn upload_avatar(
         )))?;
     let original_image = image::load_from_memory_with_format(&image_data, image_type)?;
     let cropped_image = crop_square(&original_image).resize(256, 256, FilterType::Lanczos3);
-    let user_uuid = Uuid::from_bytes(user.id);
     tokio::task::block_in_place(|| -> Result<(), AppError> {
-        let mut file =
-            File::create(&*AVATAR_DIR.join(format!("{}.{}", user_uuid, file_extension)))?;
+        let mut file = File::create(&*AVATAR_DIR.join(format!("{}.{}", user.id, file_extension)))?;
         let mut writer = BufWriter::new(&mut file);
         cropped_image.write_to(&mut writer, image_type)?;
         Ok(())
@@ -1068,7 +1040,7 @@ pub async fn upload_avatar(
     sqlx::query!(
         "UPDATE user SET avatar = ? WHERE id = ?",
         file_extension,
-        user_uuid
+        user.id
     )
     .execute(&state.pool)
     .await?;

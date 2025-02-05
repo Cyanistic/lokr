@@ -8,7 +8,7 @@ use uuid::Uuid;
 use crate::{error::AppError, state::AppState};
 
 pub struct User {
-    pub id: [u8; 16],
+    pub id: Uuid,
     pub username: String,
     pub email: Option<String>,
 }
@@ -42,9 +42,10 @@ where
                 .find_map(|x| x.strip_prefix("session="))
                 .ok_or_else(|| AppError::AuthError(anyhow!("No session cookie provided")))?,
         )?;
-        let user = sqlx::query!(
+        let user = sqlx::query_as!(
+            User,
             r#"
-            SELECT user.id, username, email
+            SELECT user.id AS "id: _", username, email
             FROM user
             JOIN session ON user.id = session.user_id
             WHERE session.id = ?
@@ -66,13 +67,7 @@ where
         )
         .execute(&state.pool)
         .await?;
-        Ok(SessionAuth({
-            User {
-                id: user.id.try_into().unwrap(),
-                username: user.username.into(),
-                email: user.email,
-            }
-        }))
+        Ok(SessionAuth(user))
     }
 }
 
@@ -110,9 +105,10 @@ where
                 None => return Ok(None),
             },
         )?;
-        let user = sqlx::query!(
+        let user = sqlx::query_as!(
+            User,
             r#"
-            SELECT user.id, username, email
+            SELECT user.id AS "id: _", username, email
             FROM user
             JOIN session ON user.id = session.user_id
             WHERE session.id = ?
@@ -134,12 +130,6 @@ where
         )
         .execute(&state.pool)
         .await?;
-        Ok(Some(SessionAuth({
-            User {
-                id: user.id.try_into().unwrap(),
-                username: user.username.into(),
-                email: user.email,
-            }
-        })))
+        Ok(Some(SessionAuth(user)))
     }
 }

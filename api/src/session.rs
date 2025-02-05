@@ -1,10 +1,19 @@
-use axum::{extract::State, http::StatusCode, response::{IntoResponse, Response}, Json};
+use axum::{
+    extract::State,
+    http::StatusCode,
+    response::{IntoResponse, Response},
+    Json,
+};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-use crate::{auth::SessionAuth, error::{AppError, ErrorResponse}, state::AppState};
+use crate::{
+    auth::SessionAuth,
+    error::{AppError, ErrorResponse},
+    state::AppState,
+};
 
 #[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -30,14 +39,13 @@ pub async fn get_sessions(
     State(state): State<AppState>,
     SessionAuth(user): SessionAuth,
 ) -> Result<Response, AppError> {
-    let uuid = Uuid::from_bytes(user.id);
     let query = sqlx::query_as!(
         Session,
         r#"
         SELECT id AS "id: _",
         created_at AS "created_at: _",
         last_used_at AS "last_used_at: _" FROM session WHERE user_id = ?"#,
-        uuid
+        user.id
     )
     .fetch_all(&state.pool)
     .await?;

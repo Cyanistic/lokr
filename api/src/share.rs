@@ -66,18 +66,17 @@ pub async fn share_file(
     SessionAuth(user): SessionAuth,
     Json(body): Json<ShareRequest>,
 ) -> Result<Response, AppError> {
-    let uuid = Uuid::from_bytes(user.id);
     match body.type_ {
         ShareRequestType::User {
             user_id,
             encrypted_key,
         } => {
-            share_with_user(&state, body.id, &encrypted_key, uuid, user_id).await?;
+            share_with_user(&state, body.id, &encrypted_key, user.id, user_id).await?;
             Ok((StatusCode::OK, success!("File shared with user")).into_response())
         }
         ShareRequestType::Link { expires } => Ok((
             StatusCode::CREATED,
-            Json(share_with_link(&state, Some(uuid), body.id, expires).await?),
+            Json(share_with_link(&state, Some(user.id), body.id, expires).await?),
         )
             .into_response()),
     }

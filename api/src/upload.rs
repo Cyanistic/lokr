@@ -93,7 +93,7 @@ pub async fn upload_file(
     mut data: Multipart,
 ) -> Result<Response, AppError> {
     let mut metadata: Option<UploadMetadata> = None;
-    let uuid = user.map(|user| Uuid::from_bytes(user.0.id));
+    let uuid = user.map(|user| user.0.id);
     let file_id = Uuid::now_v7();
     let mut file_path: Option<PathBuf> = None;
     // Allocate a megabyte buffer
@@ -197,13 +197,12 @@ pub async fn delete_file(
     SessionAuth(user): SessionAuth,
     Path(id): Path<Uuid>,
 ) -> Result<Response, AppError> {
-    let uuid = Uuid::from_bytes(user.id);
     // Check if the user owns the file
     // Check if the new parent is owned by the user
     let Some(file) = sqlx::query!(
         "SELECT is_directory FROM file WHERE id = ? AND owner_id = ?",
         id,
-        uuid
+        user.id
     )
     .fetch_optional(&state.pool)
     .await?
@@ -278,9 +277,8 @@ pub async fn update_file(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateFile>,
 ) -> Result<Response, AppError> {
-    let uuid = Uuid::from_bytes(user.id);
     // Check if the user owns the file
-    if !is_owner(&state.pool, &uuid, &id).await? {
+    if !is_owner(&state.pool, &user.id, &id).await? {
         // Return an error if the user doen't own the file
         // or the file doesn't exist
         // This is to prevent users from updating files they don't own
@@ -296,7 +294,7 @@ pub async fn update_file(
             let Some(parent_file) = sqlx::query!(
                 "SELECT is_directory FROM file WHERE id = ? AND owner_id = ?",
                 parent_id,
-                uuid
+                user.id
             )
             .fetch_optional(&state.pool)
             .await?
@@ -519,7 +517,6 @@ pub async fn get_file_metadata(
             Ok((StatusCode::OK, Json(root)).into_response())
         }
         (_, Some(SessionAuth(user))) => {
-            let uuid = Uuid::from_bytes(user.id);
             let query = sqlx::query!(
                 r#"
             WITH RECURSIVE children AS (
@@ -576,7 +573,7 @@ pub async fn get_file_metadata(
                 modified_at
             FROM (SELECT * FROM children ORDER BY depth LIMIT ? OFFSET ?) ORDER BY depth DESC
             "#,
-                uuid,
+                user.id,
                 depth,
                 params.limit,
                 params.offset

@@ -1,10 +1,10 @@
 {
   "db_name": "SQLite",
-  "query": "\n            SELECT user.id, username, email\n            FROM user\n            JOIN session ON user.id = session.user_id\n            WHERE session.id = ?\n            AND last_used_at + idle_duration > CURRENT_TIMESTAMP\n            ",
+  "query": "\n            SELECT user.id AS \"id: _\", username, email\n            FROM user\n            JOIN session ON user.id = session.user_id\n            WHERE session.id = ?\n            AND last_used_at + idle_duration > CURRENT_TIMESTAMP\n            ",
   "describe": {
     "columns": [
       {
-        "name": "id",
+        "name": "id: _",
         "ordinal": 0,
         "type_info": "Blob"
       },
@@ -28,5 +28,5 @@
       true
     ]
   },
-  "hash": "b9d605d41c88971eb327c665763e96946bc4ccc853bc15779f806bca6c17c60e"
+  "hash": "35474f035fd049b6b51b455f71f1e555a73d90c754247ea6482e7713d27270b6"
 }
