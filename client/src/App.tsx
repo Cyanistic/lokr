@@ -51,6 +51,7 @@ function Home(){
     <div className = 'main'>
       <h1>Lokr</h1>
       <p>Encrypted File Sharing Website</p>
+      {Upload()}
     </div>
   )
 

@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 
-interface FileMetadata {
-  name: string;
-}
 
 export default function Upload() {
+
+  interface FileMetadata {
+    name: string;
+  }
 
     const [file, setFile] = useState<File | null>(null);
     const [fileMeta, setFileMeta] = useState<FileMetadata | null>(null);
@@ -80,7 +81,6 @@ export default function Upload() {
 
     return (
         <div className="uploadMain">
-            <h1>Upload Page test</h1>
 
             <div className="uploadFile">
                 <div>
