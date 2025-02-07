@@ -5,7 +5,6 @@ import Register from './pages/Register'
 import Profile from './pages/Profile'
 import FileExplorer from './pages/FileExplorer'
 import Login from './pages/Login'
-import Upload from './pages/Upload'
 
 function App() {
   //const [count, setCount] = useState(0)
@@ -24,7 +23,6 @@ function App() {
       <Route path="/register" element = {<Register />}/>
       <Route path="/profile" element = {<Profile/>}/>
       <Route path="/files" element = {<FileExplorer/>}/>
-      <Route path='/upload' element = {<Upload/>}/>
       </Routes>
 
     </BrowserRouter>
@@ -38,7 +36,6 @@ function Navigation(){
     <div className='header'>
         <Link to="/">Home</Link>
         <Link to="/about">About Lokr</Link>
-        <Link to="/upload">Upload</Link>
         <Link to="/downloads">Downloads</Link>
         <Link to="/login">Log In</Link>
       </div>
