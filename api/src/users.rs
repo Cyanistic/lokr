@@ -35,6 +35,7 @@ pub const MIN_PASSWORD_LENGTH: u64 = 8;
 pub const MAX_PASSWORD_LENGTH: u64 = 64;
 pub const MIN_USERNAME_LENGTH: u64 = 3;
 pub const MAX_USERNAME_LENGTH: u64 = 20;
+pub const PUBLIC_KEY_LENGTH: usize = 550; // Length I ended up with after encoding the public key
 
 /// A struct representing a new user to be created
 #[derive(Deserialize, ToSchema, Validate)]
@@ -210,11 +211,11 @@ pub async fn create_user(
                 "Failed to decode public key".into(),
             ))
         })?;
-    // Ed25519 public keys are 32 bytes
-    if decoded_public_key.len() != 32 {
+
+    if decoded_public_key.len() != PUBLIC_KEY_LENGTH {
         return Err(AppError::UserError((
             StatusCode::BAD_REQUEST,
-            "Public key must be 32 bytes".into(),
+            format!("Public key must be {} bytes", PUBLIC_KEY_LENGTH).into(),
         )));
     }
     let decoded_iv = general_purpose::STANDARD

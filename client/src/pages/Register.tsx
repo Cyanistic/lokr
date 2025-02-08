@@ -1,8 +1,8 @@
 import { useState } from "react";
 import {
     deriveKeyFromPassword,
-    encryptData,
-    generateEd25519KeyPair
+    encryptPrivateKey,
+    generateRSAKeyPair
 } from "../cryptoFunctions";
 
 // Helper function to convert Uint8Array to Base64 safely
@@ -46,20 +46,16 @@ export default function Register() {
             const masterKey = await deriveKeyFromPassword(password, salt);
 
             // Step 2: Generate Ed25519 Key Pair
-            const { publicKey, privateKey } = await generateEd25519KeyPair();
-
-            // 🔍 Log the original private key before encryption
-            const privateKeyBase64 = toBase64(privateKey);
-            console.log("Original Private Key (Base64):", privateKeyBase64);
+            const { publicKey, privateKey } = await generateRSAKeyPair();
 
             // Step 3: Encrypt Private Key using AES-GCM
-            const { iv, encrypted } = await encryptData(masterKey, privateKeyBase64);
-
+            const { iv, encrypted } = await encryptPrivateKey(privateKey, masterKey);
             // Convert all binary data to Base64 for JSON transmission
             const saltBase64 = toBase64(salt);
             const ivBase64 = toBase64(iv);
             const encryptedPrivateKeyBase64 = bufferToBase64(encrypted);
-            const publicKeyBase64 = toBase64(publicKey);
+            const exportedPublicKey = await crypto.subtle.exportKey("spki", publicKey);
+            const publicKeyBase64 = bufferToBase64(exportedPublicKey);
 
             // 🔍 Log the encrypted private key after encryption
             console.log("Encrypted Private Key (Base64):", encryptedPrivateKeyBase64);
