@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Link } from 'react-router-dom'
 import Register from './pages/Register'
 import Profile from './pages/Profile'
 import FileExplorer from './pages/FileExplorer'
+import Login from './pages/Login'
 
 function App() {
   //const [count, setCount] = useState(0)
@@ -52,8 +53,8 @@ function Home(){
 
 }
 
-//Login page
-function Login() {
+/* //Login page(old)
+function Login_old() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -94,7 +95,7 @@ function Login() {
       </form>
     </div>
   );
-}
+} */
 
 /* //Register page(old)
 function Register_Old() {
