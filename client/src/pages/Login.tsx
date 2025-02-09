@@ -1,3 +1,4 @@
+import localforage from "localforage";
 import { useState } from "react";
 import { Link } from "react-router-dom"; // Import Link
 
@@ -63,10 +64,10 @@ export default function Login() {
     
             // **If successful, save session**
             console.log("Login successful! Saving session data...");
-            localStorage.setItem("iv", responseData.iv);
-            localStorage.setItem("publicKey", responseData.publicKey);
-            localStorage.setItem("encryptedPrivateKey", responseData.encryptedPrivateKey);
-            localStorage.setItem("salt", responseData.salt);
+            localforage.setItem("iv", responseData.iv);
+            localforage.setItem("publicKey", responseData.publicKey);
+            localforage.setItem("encryptedPrivateKey", responseData.encryptedPrivateKey);
+            localforage.setItem("salt", responseData.salt);
     
             setMessage("Login successful!");
             alert("Login successful!");
