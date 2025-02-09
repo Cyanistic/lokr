@@ -10,7 +10,7 @@ export default function Login() {
     async function handleLogin() {
         try {
             setMessage("");
-            console.log("🔍 Starting login process...");
+            console.log("Starting login process...");
     
             if (!username || !password) {
                 setMessage("Username and password are required.");
@@ -19,7 +19,7 @@ export default function Login() {
             }
     
             // **Step 1: Check if the username exists in the backend**
-            console.log("🔎 Checking username:", username);
+            console.log("Checking username:", username);
             const checkResponse = await fetch(`http://localhost:6969/api/check?username=${username}`, {
                 method: "GET",
                 headers: { "Content-Type": "application/json" }
