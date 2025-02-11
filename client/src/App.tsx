@@ -1,13 +1,12 @@
-import { useState } from 'react'
 import './App.css'
 import { BrowserRouter, Routes, Route, Link } from 'react-router-dom'
 import Register from './pages/Register'
 import Profile from './pages/Profile'
 import FileExplorer from './pages/FileExplorer'
 import Login from './pages/Login'
+import Upload from './pages/Upload'
 
 function App() {
-  //const [count, setCount] = useState(0)
 
   return (
     <>
@@ -48,7 +47,7 @@ function Home(){
     <div className = 'main'>
       <h1>Lokr</h1>
       <p>Encrypted File Sharing Website</p>
-      {Upload()}
+      <Upload />
     </div>
   )
 
