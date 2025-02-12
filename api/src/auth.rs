@@ -49,7 +49,7 @@ where
             FROM user
             JOIN session ON user.id = session.user_id
             WHERE session.id = ?
-            AND last_used_at + idle_duration > CURRENT_TIMESTAMP
+            AND DATETIME(last_used_at, '+' || idle_duration || ' seconds' ) > CURRENT_TIMESTAMP
             "#,
             session
         )
@@ -112,7 +112,7 @@ where
             FROM user
             JOIN session ON user.id = session.user_id
             WHERE session.id = ?
-            AND last_used_at + idle_duration > CURRENT_TIMESTAMP
+            AND DATETIME(last_used_at, '+' || idle_duration || ' seconds' ) > CURRENT_TIMESTAMP
             "#,
             session
         )
