@@ -3,7 +3,7 @@ use std::fmt::{Display, Formatter};
 
 use axum::{
     extract::rejection::JsonRejection,
-    http::StatusCode,
+    http::{header::SET_COOKIE, HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     Json,
 };
@@ -78,13 +78,20 @@ impl IntoResponse for AppError {
             | AppError::UserError(_) => warn!("{}", self),
             AppError::SqlxError(_) | AppError::Generic(_) => error!("{}", self),
         }
+        let mut headers = HeaderMap::new();
         let (status, message) = match &self {
             AppError::JsonRejection(rejection) => (rejection.status(), rejection.body_text()),
             AppError::SerdeError(e) => (StatusCode::BAD_REQUEST, e.to_string()),
             AppError::ValidationError(e) => {
                 (StatusCode::BAD_REQUEST, sonic_rs::to_string(&e).unwrap())
             }
-            AppError::AuthError(e) => (StatusCode::UNAUTHORIZED, e.to_string()),
+            AppError::AuthError(e) => {
+                headers.insert(
+                    SET_COOKIE,
+                    "session=; HttpOnly; Max-Age=0;".parse().unwrap(),
+                );
+                (StatusCode::UNAUTHORIZED, e.to_string())
+            }
             AppError::UserError((code, e)) => (*code, e.to_string()),
             AppError::SqlxError(_) | AppError::Generic(_) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -94,6 +101,7 @@ impl IntoResponse for AppError {
         // Return a JSON response with the error type and message.
         (
             status,
+            headers,
             Json(ErrorResponse {
                 error_type: self.r#type(),
                 message,
