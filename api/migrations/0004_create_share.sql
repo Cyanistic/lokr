@@ -13,5 +13,6 @@ CREATE TABLE share_link (
     file_id BLOB NOT NULL,   	 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     expires_at TIMESTAMP, -- NULL for never
+    password_hash TEXT, -- NULL for no password
     FOREIGN KEY (file_id) REFERENCES file(id) ON DELETE CASCADE
 );

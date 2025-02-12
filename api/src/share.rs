@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use argon2::password_hash::{rand_core::OsRng, PasswordHasher, SaltString};
 use axum::{
     extract::State,
     http::StatusCode,
@@ -31,6 +32,7 @@ pub enum ShareRequestType {
     },
     Link {
         expires: u64,
+        password: Option<String>,
     },
 }
 
@@ -74,9 +76,9 @@ pub async fn share_file(
             share_with_user(&state, body.id, &encrypted_key, user.id, user_id).await?;
             Ok((StatusCode::OK, success!("File shared with user")).into_response())
         }
-        ShareRequestType::Link { expires } => Ok((
+        ShareRequestType::Link { expires, password } => Ok((
             StatusCode::CREATED,
-            Json(share_with_link(&state, Some(user.id), body.id, expires).await?),
+            Json(share_with_link(&state, Some(user.id), body.id, expires, password).await?),
         )
             .into_response()),
     }
@@ -88,6 +90,7 @@ pub async fn share_with_link(
     user: Option<Uuid>,
     file_id: Uuid,
     expires: u64,
+    password: Option<String>,
 ) -> Result<ShareResponse, AppError> {
     let link = Uuid::new_v4();
     let expires = if expires > 0 {
@@ -108,12 +111,32 @@ pub async fn share_with_link(
         }
     }
 
+    let password_hash = match &password {
+        Some(password) => {
+            let salt = SaltString::generate(&mut OsRng);
+            Some(
+                state
+                    .argon2
+                    .hash_password(password.as_bytes(), &salt)
+                    .map_err(|_| {
+                        AppError::UserError((
+                            StatusCode::BAD_REQUEST,
+                            "Unable to hash password".into(),
+                        ))
+                    })?
+                    .to_string(),
+            )
+        }
+        None => None,
+    };
+
     // Everything is good so insert the link
     sqlx::query!(
-        "INSERT INTO share_link (id, file_id, expires_at) VALUES (?, ?, ?)",
+        "INSERT INTO share_link (id, file_id, expires_at, password_hash) VALUES (?, ?, ?, ?)",
         link,
         file_id,
-        expires
+        expires,
+        password_hash
     )
     .execute(&state.pool)
     .await?;
