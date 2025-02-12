@@ -376,6 +376,7 @@ pub struct FileMetadata {
     upload: UploadMetadata,
     created_at: DateTime<Utc>,
     modified_at: DateTime<Utc>,
+    owner_id: Option<Uuid>,
     /// The children of the directory.
     /// Only present if the file is a directory.
     /// This is a recursive definition so it can be used to get the entire directory tree,
@@ -391,19 +392,19 @@ pub struct FileQuery {
     /// The id of the file or directory to get.
     /// If not provided, the root of the currently
     /// authorized user directory is returned
-    id: Option<Uuid>,
+    pub id: Option<Uuid>,
     /// The maximum depth to return children for
     #[serde_inline_default(1)]
     #[param(maximum = 20, default = 1)]
-    depth: u32,
+    pub depth: u32,
     /// The offset to start returning children from
     #[param(default = 0)]
     #[serde_inline_default(0)]
-    offset: u32,
+    pub offset: u32,
     /// The maximum number of children to return
     #[param(default = 50)]
     #[serde_inline_default(50)]
-    limit: u32,
+    pub limit: u32,
 }
 
 #[utoipa::path(
@@ -443,6 +444,7 @@ pub async fn get_file_metadata(
                     parent_id, 
                     encrypted_name, 
                     encrypted_key, 
+                    owner_id,
                     nonce, 
                     is_directory, 
                     mime,
@@ -451,7 +453,7 @@ pub async fn get_file_metadata(
                     modified_at
                 FROM file
                 WHERE 
-                    parent_id = ?
+                    id = ?
                 UNION ALL
                 
                 -- Recursive member
@@ -461,6 +463,7 @@ pub async fn get_file_metadata(
                     f.parent_id, 
                     f.encrypted_name, 
                     f.encrypted_key, 
+                    f.owner_id,
                     f.nonce, 
                     f.is_directory, 
                     f.mime,
@@ -477,9 +480,10 @@ pub async fn get_file_metadata(
                 -- Goofy ahh workaround to get the query to work with sqlx
                 depth AS "depth!: u32",
                 id AS "id: Uuid",
-                parent_id, 
+                parent_id AS "parent_id: Uuid", 
                 encrypted_name, 
                 encrypted_key, 
+                owner_id AS "owner_id: Uuid",
                 nonce, 
                 is_directory, 
                 mime,
@@ -502,15 +506,14 @@ pub async fn get_file_metadata(
                     id: row.id,
                     created_at: row.created_at.and_utc(),
                     modified_at: row.modified_at.and_utc(),
+                    owner_id: row.owner_id,
                     upload: UploadMetadata {
                         encrypted_file_name: row.encrypted_name,
                         encrypted_mime_type: row.mime,
                         encrypted_key: row.encrypted_key,
                         nonce: row.nonce,
                         is_directory: row.is_directory.is_some_and(|is_directory| is_directory),
-                        parent_id: row
-                            .parent_id
-                            .map(|id| Uuid::from_slice(&id[..]).expect("Should be a valid uuid")),
+                        parent_id: row.parent_id,
                     },
                     children: Vec::new(),
                 })
@@ -537,7 +540,8 @@ pub async fn get_file_metadata(
                 // Files and directories in the root should have a parent_id of None so we remove it from the map
                 // If everything went well, the only key left in the map should be None. As
                 // childern are moved to their parents, their parent_id is removed from the map.
-                .remove(&Some(id))
+                .into_values()
+                .next()
                 // A user may have no files, so we default to an empty root directory
                 .unwrap_or_default();
             Ok((StatusCode::OK, Json(root)).into_response())
@@ -554,6 +558,7 @@ pub async fn get_file_metadata(
                     encrypted_name, 
                     encrypted_key, 
                     nonce, 
+                    owner_id,
                     is_directory, 
                     mime,
                     size,
@@ -573,6 +578,7 @@ pub async fn get_file_metadata(
                     f.encrypted_name, 
                     f.encrypted_key, 
                     f.nonce, 
+                    f.owner_id,
                     f.is_directory, 
                     f.mime,
                     f.size,
@@ -588,10 +594,11 @@ pub async fn get_file_metadata(
                 -- Goofy ahh workaround to get the query to work with sqlx
                 depth AS "depth!: u32",
                 id AS "id: Uuid", 
-                parent_id, 
+                parent_id AS "parent_id: Uuid", 
                 encrypted_name, 
                 encrypted_key, 
                 nonce, 
+                owner_id AS "owner_id: Uuid",
                 is_directory, 
                 mime,
                 size,
@@ -613,15 +620,14 @@ pub async fn get_file_metadata(
                     id: row.id,
                     created_at: row.created_at.and_utc(),
                     modified_at: row.modified_at.and_utc(),
+                    owner_id: row.owner_id,
                     upload: UploadMetadata {
                         encrypted_file_name: row.encrypted_name,
                         encrypted_mime_type: row.mime,
                         encrypted_key: row.encrypted_key,
                         nonce: row.nonce,
                         is_directory: row.is_directory.is_some_and(|is_directory| is_directory),
-                        parent_id: row
-                            .parent_id
-                            .map(|id| Uuid::from_slice(&id[..]).expect("Should be a valid uuid")),
+                        parent_id: row.parent_id,
                     },
                     children: Vec::new(),
                 })
