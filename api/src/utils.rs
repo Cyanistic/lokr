@@ -1,3 +1,9 @@
+use std::collections::HashMap;
+
+use uuid::Uuid;
+
+use crate::upload::FileMetadata;
+
 pub fn levenshtien(a: &str, b: &str) -> usize {
     let len_a = a.chars().count();
     let len_b = b.chars().count();
@@ -43,4 +49,37 @@ pub fn levenshtien(a: &str, b: &str) -> usize {
         }
     }
     cur[len_b - 1]
+}
+
+pub trait Hierarchify {
+    fn hierarchify(self) -> Vec<FileMetadata>;
+}
+impl<T: Iterator<Item = FileMetadata>> Hierarchify for T {
+    /// Convert rows into a tree like structure that represents the hierarchy of the files
+    fn hierarchify(self) -> Vec<FileMetadata> {
+        self.fold(
+            HashMap::new(),
+            |mut acc: HashMap<Option<Uuid>, Vec<FileMetadata>>, mut cur| {
+                // Check if the current file has children that we have previously
+                // saved in our accumulator. If so, then we can move those
+                // children to the current file.
+                if let Some(children) = acc.remove(&Some(cur.id)) {
+                    cur.children = children;
+                }
+                // Add the current file to the accumulator based on its parent_id
+                // so that we can later move its children to it if they exist.
+                acc.entry(cur.upload.parent_id)
+                    .and_modify(|entry| entry.push(cur.clone()))
+                    .or_insert_with(|| vec![cur]);
+                acc
+            },
+        )
+        // Files and directories in the root should have a parent_id of None so we remove it from the map
+        // If everything went well, the only key left in the map should be None or the id provided. As
+        // childern are moved to their parents, their parent_id is removed from the map.
+        .into_values()
+        .next()
+        // A user may have no files, so we default to an empty root directory
+        .unwrap_or_default()
+    }
 }
