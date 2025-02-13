@@ -1,4 +1,4 @@
-use std::{collections::HashMap, io::ErrorKind, path::PathBuf};
+use std::{io::ErrorKind, path::PathBuf};
 
 use axum::{
     extract::{Multipart, Path, Query, State},
@@ -18,7 +18,9 @@ use crate::{
     auth::SessionAuth,
     error::{AppError, ErrorResponse},
     state::AppState,
-    success, SuccessResponse, UPLOAD_DIR,
+    success,
+    utils::Hierarchify,
+    SuccessResponse, UPLOAD_DIR,
 };
 
 /// All data for the uploaded file.
@@ -30,25 +32,25 @@ use crate::{
 pub struct UploadMetadata {
     /// The encrypted name of the file to be uploaded
     #[schema(content_encoding = "base64")]
-    encrypted_file_name: String,
+    pub encrypted_file_name: String,
     /// The encrypted mime type of the file to be uploaded
     /// Optional in case the mime type is not known
     #[schema(content_encoding = "base64")]
-    encrypted_mime_type: Option<String>,
+    pub encrypted_mime_type: Option<String>,
     /// The key used to encrypt the file
     /// Should be encrypted by the user's public key
     #[schema(content_encoding = "base64")]
-    encrypted_key: String,
+    pub encrypted_key: String,
     /// The nonce for the file (not encrypted)
     #[schema(content_encoding = "base64")]
-    nonce: String,
+    pub nonce: String,
     /// Whether the file is a directory
     #[serde(default)]
-    is_directory: bool,
+    pub is_directory: bool,
     /// The direct parent id of the file
     /// Should be null if in the root directory
     #[serde(skip_serializing_if = "Option::is_none")]
-    parent_id: Option<Uuid>,
+    pub parent_id: Option<Uuid>,
 }
 
 /// The size and id of the uploaded file
@@ -371,19 +373,19 @@ pub async fn is_owner(pool: &SqlitePool, user: &Uuid, file: &Uuid) -> Result<boo
 #[serde(rename_all = "camelCase")]
 pub struct FileMetadata {
     /// The id of the file or directory
-    id: Uuid,
+    pub id: Uuid,
     #[serde(flatten)]
-    upload: UploadMetadata,
-    created_at: DateTime<Utc>,
-    modified_at: DateTime<Utc>,
-    owner_id: Option<Uuid>,
+    pub upload: UploadMetadata,
+    pub created_at: DateTime<Utc>,
+    pub modified_at: DateTime<Utc>,
+    pub owner_id: Option<Uuid>,
     /// The children of the directory.
     /// Only present if the file is a directory.
     /// This is a recursive definition so it can be used to get the entire directory tree,
     /// the children will also have their children and so on.
     #[schema(no_recursion, example = "Recursive definition...")]
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    children: Vec<FileMetadata>,
+    pub children: Vec<FileMetadata>,
 }
 
 #[derive(Deserialize, IntoParams)]
@@ -432,10 +434,15 @@ pub async fn get_file_metadata(
 ) -> Result<Response, AppError> {
     // Limit the depth to 20 to prevent infinite recursion
     let depth = params.depth.min(20);
-    match (params.id, user) {
-        (Some(id), _) => {
-            let query = sqlx::query!(
-                r#"
+    if params.id.is_none() && user.is_none() {
+        return Err(AppError::UserError((
+            StatusCode::BAD_REQUEST,
+            "No file id or user authorization provided".into(),
+        )));
+    }
+    let user_id = user.map(|user| user.0.id);
+    let query = sqlx::query!(
+        r#"
             WITH RECURSIVE children AS (
                 -- Anchor member (root or specified node)
                 SELECT 
@@ -453,7 +460,8 @@ pub async fn get_file_metadata(
                     modified_at
                 FROM file
                 WHERE 
-                    id = ?
+                owner_id = COALESCE(?, owner_id) AND
+                id = COALESCE(?, id)
                 UNION ALL
                 
                 -- Recursive member
@@ -485,184 +493,47 @@ pub async fn get_file_metadata(
                 encrypted_key, 
                 owner_id AS "owner_id: Uuid",
                 nonce, 
-                is_directory, 
+                is_directory AS "is_directory!",
                 mime,
                 size,
                 created_at,
                 modified_at
             FROM (SELECT * FROM children ORDER BY depth LIMIT ? OFFSET ?) ORDER BY depth DESC
             "#,
-                id,
-                depth,
-                params.limit,
-                params.offset
-            )
-            .fetch_all(&state.pool)
-            .await?;
-            // Convert the query result into a tree structure
-            let root = query
-                .into_iter()
-                .map(|row| FileMetadata {
-                    id: row.id,
-                    created_at: row.created_at.and_utc(),
-                    modified_at: row.modified_at.and_utc(),
-                    owner_id: row.owner_id,
-                    upload: UploadMetadata {
-                        encrypted_file_name: row.encrypted_name,
-                        encrypted_mime_type: row.mime,
-                        encrypted_key: row.encrypted_key,
-                        nonce: row.nonce,
-                        is_directory: row.is_directory.is_some_and(|is_directory| is_directory),
-                        parent_id: row.parent_id,
-                    },
-                    children: Vec::new(),
-                })
-                // Form a file hierarchy by starting at the deepest level of children and working
-                // up row by row. The query is ordered by depth in descending order so the children
-                // are always processed in order.
-                .fold(
-                    HashMap::new(),
-                    |mut acc: HashMap<Option<Uuid>, Vec<FileMetadata>>, mut cur| {
-                        // Check if the current file has children that we have previously
-                        // saved in our accumulator. If so, then we can move those
-                        // children to the current file.
-                        if let Some(children) = acc.remove(&Some(cur.id)) {
-                            cur.children = children;
-                        }
-                        // Add the current file to the accumulator based on its parent_id
-                        // so that we can later move its children to it if they exist.
-                        acc.entry(cur.upload.parent_id)
-                            .and_modify(|entry| entry.push(cur.clone()))
-                            .or_insert_with(|| vec![cur]);
-                        acc
-                    },
-                )
-                // Files and directories in the root should have a parent_id of None so we remove it from the map
-                // If everything went well, the only key left in the map should be None. As
-                // childern are moved to their parents, their parent_id is removed from the map.
-                .into_values()
-                .next()
-                // A user may have no files, so we default to an empty root directory
-                .unwrap_or_default();
-            Ok((StatusCode::OK, Json(root)).into_response())
-        }
-        (_, Some(SessionAuth(user))) => {
-            let query = sqlx::query!(
-                r#"
-            WITH RECURSIVE children AS (
-                -- Anchor member (root or specified node)
-                SELECT 
-                    0 AS depth,
-                    id, 
-                    parent_id, 
-                    encrypted_name, 
-                    encrypted_key, 
-                    nonce, 
-                    owner_id,
-                    is_directory, 
-                    mime,
-                    size,
-                    created_at,
-                    modified_at
-                FROM file
-                WHERE 
-                    parent_id IS NULL AND
-                    owner_id = ?
-                UNION ALL
-                
-                -- Recursive member
-                SELECT 
-                    c.depth + 1,
-                    f.id, 
-                    f.parent_id, 
-                    f.encrypted_name, 
-                    f.encrypted_key, 
-                    f.nonce, 
-                    f.owner_id,
-                    f.is_directory, 
-                    f.mime,
-                    f.size,
-                    f.created_at,
-                    f.modified_at
-                FROM file f
-                JOIN children c ON f.parent_id = c.id
-                WHERE 
-                    c.depth < ?
-                ORDER BY c.depth + 1
-            )
-            SELECT 
-                -- Goofy ahh workaround to get the query to work with sqlx
-                depth AS "depth!: u32",
-                id AS "id: Uuid", 
-                parent_id AS "parent_id: Uuid", 
-                encrypted_name, 
-                encrypted_key, 
-                nonce, 
-                owner_id AS "owner_id: Uuid",
-                is_directory, 
-                mime,
-                size,
-                created_at,
-                modified_at
-            FROM (SELECT * FROM children ORDER BY depth LIMIT ? OFFSET ?) ORDER BY depth DESC
-            "#,
-                user.id,
-                depth,
-                params.limit,
-                params.offset
-            )
-            .fetch_all(&state.pool)
-            .await?;
-            // Convert the query result into a tree structure
-            let root = query
-                .into_iter()
-                .map(|row| FileMetadata {
-                    id: row.id,
-                    created_at: row.created_at.and_utc(),
-                    modified_at: row.modified_at.and_utc(),
-                    owner_id: row.owner_id,
-                    upload: UploadMetadata {
-                        encrypted_file_name: row.encrypted_name,
-                        encrypted_mime_type: row.mime,
-                        encrypted_key: row.encrypted_key,
-                        nonce: row.nonce,
-                        is_directory: row.is_directory.is_some_and(|is_directory| is_directory),
-                        parent_id: row.parent_id,
-                    },
-                    children: Vec::new(),
-                })
-                // Form a file hierarchy by starting at the deepest level of children and working
-                // up row by row. The query is ordered by depth in descending order so the children
-                // are always processed in order.
-                .fold(
-                    HashMap::new(),
-                    |mut acc: HashMap<Option<Uuid>, Vec<FileMetadata>>, mut cur| {
-                        // Check if the current file has children that we have previously
-                        // saved in our accumulator. If so, then we can move those
-                        // children to the current file.
-                        if let Some(children) = acc.remove(&Some(cur.id)) {
-                            cur.children = children;
-                        }
-                        // Add the current file to the accumulator based on its parent_id
-                        // so that we can later move its children to it if they exist.
-                        acc.entry(cur.upload.parent_id)
-                            .and_modify(|entry| entry.push(cur.clone()))
-                            .or_insert_with(|| vec![cur]);
-                        acc
-                    },
-                )
-                // Files and directories in the root should have a parent_id of None so we remove it from the map
-                // If everything went well, the only key left in the map should be None. As
-                // childern are moved to their parents, their parent_id is removed from the map.
-                .remove(&None)
-                // A user may have no files, so we default to an empty root directory
-                .unwrap_or_default();
-            Ok((StatusCode::ACCEPTED, Json(root)).into_response())
-        }
-        _ => Err(AppError::UserError((
-            StatusCode::BAD_REQUEST,
-            "No file id or user authorization provided".into(),
-        ))),
+        user_id,
+        params.id,
+        depth,
+        params.limit,
+        params.offset
+    )
+    .fetch_all(&state.pool)
+    .await?;
+    // Convert the query result into a tree structure
+    let root = query
+        .into_iter()
+        .map(|row| FileMetadata {
+            id: row.id,
+            created_at: row.created_at.and_utc(),
+            modified_at: row.modified_at.and_utc(),
+            owner_id: row.owner_id,
+            upload: UploadMetadata {
+                encrypted_file_name: row.encrypted_name,
+                encrypted_mime_type: row.mime,
+                encrypted_key: row.encrypted_key,
+                nonce: row.nonce,
+                is_directory: row.is_directory,
+                parent_id: row.parent_id,
+            },
+            children: Vec::new(),
+        })
+        .hierarchify();
+    if params.id.is_some() && root.is_empty() {
+        Err(AppError::UserError((
+            StatusCode::NOT_FOUND,
+            "File not found".into(),
+        )))
+    } else {
+        Ok((StatusCode::OK, Json(root)).into_response())
     }
 }
 

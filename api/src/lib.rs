@@ -132,6 +132,7 @@ pub static AVATAR_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
             upload::get_file,
             upload::get_file_metadata,
             share::share_file,
+            share::get_shared_file,
             session::get_sessions,
             session::delete_session,
         ),
@@ -268,6 +269,7 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
         .routes(routes!(upload::update_file))
         .routes(routes!(upload::get_file_metadata))
         .routes(routes!(share::share_file))
+        .routes(routes!(share::get_shared_file))
         .routes(routes!(session::get_sessions))
         .routes(routes!(session::delete_session))
         .layer(cors)
