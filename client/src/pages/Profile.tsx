@@ -1,23 +1,8 @@
 import { useState, useEffect } from 'react'
-
+import AvatarUpload from './ProfileAvatar';
 
 
 function Profile() {
-
-  // Type the state as File or null for file, and string or null for imageUrl
-  
-  /*const [imageUrl, setImageUrl] = useState<string | null>(null);
-
-  function getFile(event: React.ChangeEvent<HTMLInputElement>) {
-    const selectedFile = event.target.files?.[0]; // Make sure there's a file
-    if (selectedFile) {
-      
-      setImageUrl(URL.createObjectURL(selectedFile)); // Create and set the image URL
-    } else {
-      console.log("No file selected!"); // Debugging log
-      setImageUrl(null); // If no file selected, reset the imageUrl state
-    }
-  }*/
 
   const [activeSection, setActiveSection] = useState<string>('profile'); // Tracks the active section
   const [user, setuser] = useState<{ username: string; email: string | null} | null>(null);
@@ -46,17 +31,25 @@ function Profile() {
   
   // Define sections as separate components or elements
   const renderContent = () => {
+    const [avatarUrl, setAvatarUrl] = useState<string>("https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png");
+    // This function updates the avatar URL when the user uploads a new avatar
+    const handleAvatarChange = (newUrl: string) => {
+      setAvatarUrl(newUrl);
+    };
+
     switch (activeSection) {
       case 'profile':
         return( 
         <div>
-            <h3>Profile Information Section</h3>
+            <h3 style={{color: 'black'}}>Profile Information Section</h3>
             {error ? (
                 <p style={{color: "red"}}>Error: {error}</p>
             ) : user ?(
-                <div>
-                    <p><strong>Username:</strong> {user.username} </p>
-                    <p><strong>Email:</strong> {user.email || "No email provided"}</p>
+                <div className='userInfo' style={{color: 'black'}}>
+                    <p style={{color: 'black'}}><strong>Username:</strong> {user.username} </p>
+                    <p style={{color: 'black'}}><strong>Email:</strong> {user.email || "No email provided"}</p>
+                    <h3>Upload your avatar</h3>
+                    <AvatarUpload avatarUrl={avatarUrl} onAvatarChange={handleAvatarChange} />
                 </div>
             ) : (
                 <p>Loading user data...</p>
