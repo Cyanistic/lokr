@@ -215,66 +215,117 @@ pub async fn get_shared_file(
     Query(params): Query<FileQuery>,
 ) -> Result<Response, AppError> {
     let depth = params.depth.min(20);
+    // Check if the user has access to the file
+    if params.id.is_some() {
+        let access_query = sqlx::query_scalar!(
+            r#"
+        WITH RECURSIVE ancestors AS (
+            SELECT
+                id,
+                parent_id
+            FROM file
+            WHERE id = ?  -- the file we're checking
+            UNION ALL
+            SELECT
+                f.id,
+                f.parent_id
+            FROM file f
+            JOIN ancestors a ON f.id = a.parent_id
+        )
+        SELECT COUNT(*)
+        FROM share_user
+        WHERE user_id = ? AND
+        (? IS NULL OR file_id IN (SELECT id FROM ancestors));
+        "#,
+            params.id,
+            user.id,
+            params.id
+        )
+        .fetch_one(&state.pool)
+        .await?;
+        // If the result is 0, then the user does not have access to the file
+        if access_query == 0 {
+            return Err(AppError::UserError((
+                StatusCode::NOT_FOUND,
+                "File not found".into(),
+            )));
+        }
+    }
+    // The query to get the shared files
     let query = sqlx::query!(
         r#"
-                WITH RECURSIVE children AS (
-                    -- Anchor member (root or specified node)
-                    SELECT
-                        0 AS depth,
-                        id,
-                        parent_id,
-                        encrypted_name,
-                        share_user.encrypted_key,
-                        nonce,
-                        owner_id,
-                        is_directory,
-                        mime,
-                        size,
-                        file.created_at,
-                        modified_at
-                    FROM file
-                    JOIN share_user ON file.id = share_user.file_id
-                    WHERE
-                        user_id = ? AND 
-                        id = COALESCE(?, id)
-                    UNION ALL
-
-                    -- Recursive member
-                    SELECT
-                        c.depth + 1,
-                        f.id,
-                        f.parent_id,
-                        f.encrypted_name,
-                        f.encrypted_key,
-                        f.nonce,
-                        f.owner_id,
-                        f.is_directory,
-                        f.mime,
-                        f.size,
-                        f.created_at,
-                        f.modified_at
-                    FROM file f
-                    JOIN children c ON f.parent_id = c.id
-                    WHERE
-                        c.depth < ?
-                    ORDER BY c.depth + 1
-                )
+            WITH RECURSIVE children AS (
+                -- Anchor member (root or specified node)
                 SELECT
-                    -- Goofy ahh workaround to get the query to work with sqlx
-                    depth AS "depth!: u32",
-                    id AS "id: Uuid",
-                    parent_id AS "parent_id: Uuid", 
+                    0 AS depth,
+                    id,
+                    -- Use IFF to only show the parent id if the file is not directly shared with the user
+                    -- This is because files that are directly shared with the user will likely have a parent id
+                    -- that is not shared with the user, therefore leaking info the user should not have access to
+                    IIF(id = share_user.file_id, NULL, parent_id) AS parent_id,
                     encrypted_name,
-                    encrypted_key,
+                    -- If the file is directly shared with the user, then the user need to use their own key to decrypt it
+                    -- so use that key instead of the file's key if it exists, otherwise we know the file is not directly shared
+                    -- with the user so we can use the file's key since the user can decrypt it using the ancestor's key
+                    COALESCE(share_user.encrypted_key, file.encrypted_key) AS encrypted_key,
                     nonce,
-                    owner_id AS "owner_id: Uuid",
+                    owner_id,
                     is_directory,
                     mime,
                     size,
-                    created_at,
+                    file.created_at,
                     modified_at
-                FROM (SELECT * FROM children ORDER BY depth LIMIT ? OFFSET ?) ORDER BY depth DESC
+                FROM file
+                LEFT JOIN share_user ON file.id = share_user.file_id
+                WHERE
+                    -- Don't show files that are shared with other users
+                    (user_id IS NULL OR user_id = ?) AND 
+                    -- Don't show files owned by the user, as they aren't shared
+                    owner_id != ? AND
+                    -- If no file id is provided, then show the root directory
+                    -- We need to use COALESCE to ensure that only files in root directory
+                    -- are shown if the file id is NULL. We can idenfify shared files in the root directory
+                    -- by checking if the file is directly shared with the user
+                    id = COALESCE(?, share_user.file_id)
+                UNION ALL
+
+                -- Recursive member
+                SELECT
+                    c.depth + 1,
+                    f.id,
+                    f.parent_id,
+                    f.encrypted_name,
+                    f.encrypted_key,
+                    f.nonce,
+                    f.owner_id,
+                    f.is_directory,
+                    f.mime,
+                    f.size,
+                    f.created_at,
+                    f.modified_at
+                FROM file f
+                JOIN children c ON f.parent_id = c.id
+                WHERE
+                    c.depth < ?
+                ORDER BY c.depth + 1
+            )
+            SELECT
+                -- Goofy ahh workaround to get the query to work with sqlx
+                depth AS "depth!: u32",
+                id AS "id: Uuid",
+                parent_id AS "parent_id: Uuid", 
+                encrypted_name,
+                encrypted_key,
+                nonce,
+                owner_id AS "owner_id: Uuid",
+                is_directory,
+                mime,
+                size,
+                created_at,
+                modified_at
+            FROM (SELECT * FROM children ORDER BY depth LIMIT ? OFFSET ?) ORDER BY depth DESC
     "#,
+        user.id,
         user.id,
         params.id,
         depth,
