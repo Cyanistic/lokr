@@ -5,8 +5,10 @@ import AvatarUpload from './ProfileAvatar';
 function Profile() {
 
   const [activeSection, setActiveSection] = useState<string>('profile'); // Tracks the active section
-  const [user, setuser] = useState<{ username: string; email: string | null} | null>(null);
+  const [user, setuser] = useState<{ username: string; email: string | null; id: string; avatarExtension: string | null} | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const [avatarUrl, setAvatarUrl] = useState<string>("https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png");
 
   //Fetch User data
   useEffect(() =>{
@@ -21,21 +23,58 @@ function Profile() {
         }
         return response.json();
     })
-    .then ((data) => setuser(data))
+    .then ((data) => {setuser(data); setAvatarUrl(getAvatarUrl(data))})
     .catch((err) => setError(err.message))
   }, []);
 
+  /*const fetchAvatar = async () => {
+    const formData = new FormData();
+    
+    if (user !== null) {
+  
+      formData.append('id', user.id);
+      formData.append('avatarExtension', user.avatarExtension as string);
+  
+      // Proceed with the fetch or any other logic
+    } else {
+      return;
+    }
 
 
+    try {
+      const response = await fetch("http://localhost:6969/api/profile/upload", {
+        method: "GET",
+        body: formData,
+      });
 
+      if (response.ok) {
+        console.log('Avatar returned successfully');
+        //setUploadStatus('File uploaded successfully!');
+      } else {
+        console.log('File upload failed');
+        //setUploadStatus('File upload failed. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error during avatar fetch', error);
+    }
+
+  }*/
+  const getAvatarUrl = (user: { id: string; avatarExtension: string | null }) => {
+    if (user) {
+      return user.avatarExtension
+        ? `http://localhost:6969/api/avatars/${user.id}.${user.avatarExtension}` // Construct the URL using user.id and user.avatarExtension
+        : "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"; // Default avatar URL
+    }
+    return "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"; // Default avatar if user is null
+  };
   
   // Define sections as separate components or elements
   const renderContent = () => {
-    const [avatarUrl, setAvatarUrl] = useState<string>("https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png");
+    
     // This function updates the avatar URL when the user uploads a new avatar
-    const handleAvatarChange = (newUrl: string) => {
+    /*const handleAvatarChange = (newUrl: string) => {
       setAvatarUrl(newUrl);
-    };
+    };*/
 
     switch (activeSection) {
       case 'profile':
@@ -48,8 +87,10 @@ function Profile() {
                 <div className='userInfo' style={{color: 'black'}}>
                     <p style={{color: 'black'}}><strong>Username:</strong> {user.username} </p>
                     <p style={{color: 'black'}}><strong>Email:</strong> {user.email || "No email provided"}</p>
+                    <p style={{color: 'black'}}><strong>User ID:</strong> {user.id}</p>
+                    <p style={{color: 'black'}}><strong>Extension:</strong> {user.avatarExtension || "No extension provided"}</p>
                     <h3>Upload your avatar</h3>
-                    <AvatarUpload avatarUrl={avatarUrl} onAvatarChange={handleAvatarChange} />
+                    <AvatarUpload avatarUrl={avatarUrl} onAvatarChange={(newUrl: string) => setAvatarUrl(newUrl)} />
                 </div>
             ) : (
                 <p>Loading user data...</p>
