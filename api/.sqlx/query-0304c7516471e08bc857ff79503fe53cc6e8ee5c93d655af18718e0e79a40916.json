@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "\n            SELECT user.id AS \"id: _\", username, email\n            FROM user\n            JOIN session ON user.id = session.user_id\n            WHERE session.id = ?\n            AND DATETIME(last_used_at, '+' || idle_duration || ' seconds' ) > CURRENT_TIMESTAMP\n            ",
+  "query": "\n            SELECT user.id AS \"id: _\", username, email\n            FROM user\n            JOIN session ON user.id = session.user_id\n            WHERE session.id = ?\n            AND DATETIME(last_used_at, '+' || idle_duration || ' seconds' ) >= CURRENT_TIMESTAMP\n            ",
   "describe": {
     "columns": [
       {
@@ -28,5 +28,5 @@
       true
     ]
   },
-  "hash": "6134aee0156fbd4221114f001cecf26de1f05857c16c50285e8d897e3b137188"
+  "hash": "0304c7516471e08bc857ff79503fe53cc6e8ee5c93d655af18718e0e79a40916"
 }

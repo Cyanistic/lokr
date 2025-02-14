@@ -27,47 +27,9 @@ where
 
     #[doc = " Perform the extraction."]
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-        let State(state) = State::<AppState>::from_request_parts(parts, state)
+        <Self as axum::extract::OptionalFromRequestParts<S>>::from_request_parts(parts, state)
             .await
-            .map_err(|_| AppError::Generic(anyhow!("Database error")))?;
-        let cookies = parts
-            .headers
-            .get(COOKIE)
-            .ok_or_else(|| AppError::AuthError(anyhow!("No cookies provided")))?;
-        let session: Uuid = Uuid::try_parse(
-            cookies
-                .to_str()?
-                .split(';')
-                .map(str::trim)
-                .find_map(|x| x.strip_prefix("session="))
-                .ok_or_else(|| AppError::AuthError(anyhow!("No session cookie provided")))?,
-        )?;
-        let user = sqlx::query_as!(
-            User,
-            r#"
-            SELECT user.id AS "id: _", username, email
-            FROM user
-            JOIN session ON user.id = session.user_id
-            WHERE session.id = ?
-            AND DATETIME(last_used_at, '+' || idle_duration || ' seconds' ) > CURRENT_TIMESTAMP
-            "#,
-            session
-        )
-        .fetch_optional(&state.pool)
-        .await?
-        .ok_or_else(|| AppError::AuthError(anyhow!("Invalid session")))?;
-        // Update the session's last_used_at timestamp so it doesn't expire
-        sqlx::query!(
-            "
-            UPDATE session
-            SET last_used_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-            ",
-            session
-        )
-        .execute(&state.pool)
-        .await?;
-        Ok(SessionAuth(user))
+            .and_then(|res| res.ok_or(AppError::AuthError(anyhow!("No cookies provided"))))
     }
 }
 
@@ -112,7 +74,7 @@ where
             FROM user
             JOIN session ON user.id = session.user_id
             WHERE session.id = ?
-            AND DATETIME(last_used_at, '+' || idle_duration || ' seconds' ) > CURRENT_TIMESTAMP
+            AND DATETIME(last_used_at, '+' || idle_duration || ' seconds' ) >= CURRENT_TIMESTAMP
             "#,
             session
         )
