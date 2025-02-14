@@ -20,14 +20,16 @@ function Profile() {
   }*/
 
   const [activeSection, setActiveSection] = useState<string>('profile'); // Tracks the active section
-  const [user, setuser] = useState<{ username: string; email: string | null} | null>(null);
+  const [user, setUser] = useState<{ username: string; email: string | null} | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [editingField, setEditingField] = useState<string | null>(null);
+  const [updatedValue, setUpdatedValue] = useState<string>("");
 
   //Fetch User data
   useEffect(() =>{
     fetch("http://localhost:6969/api/profile", {
         credentials: "include",
-        headers: {Cookie: "session=8d45205b-2eb4-4490-a728-654d03d1b67f;"} //Ensures cookies are sent
+        //headers: {Cookie: "session=3feccca1-ea47-45e1-a4a0-727e5ad501af;"} //Ensures cookies are sent
     })
 
     .then((response) => {
@@ -36,9 +38,38 @@ function Profile() {
         }
         return response.json();
     })
-    .then ((data) => setuser(data))
+    .then ((data) => setUser(data))
     .catch((err) => setError(err.message))
   }, []);
+
+  //Start editing a field
+  const handleEdit = (field: string, currentValue: string | null) =>{
+    setEditingField(field);
+    setUpdatedValue(currentValue || "");
+  }
+
+  //Save edit to backend
+  const handleSave = async (field: string) => {
+    try{
+      const response = await fetch("http://localhost:6969/api/profile", {
+        method: "PUT",
+        credentials: "include",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ [field]: updatedValue }),
+    });
+
+    if(!response.ok) {
+        throw new Error("Failed to update ${field}");
+    }
+
+    const updatedUser = await response.json();
+      setUser(updatedUser); // Update UI with the new data
+      setEditingField(null); // Exit edit mode
+    } catch (err) {
+      setError(`Error updating ${field}: ${err}`);
+    }
+  };
+
 
 
 
@@ -55,13 +86,47 @@ function Profile() {
                 <p style={{color: "red"}}>Error: {error}</p>
             ) : user ?(
                 <div>
-                    <p><strong>Username:</strong> {user.username} </p>
-                    <p><strong>Email:</strong> {user.email || "No email provided"}</p>
+                  <p>
+                      <strong>Username:</strong>{" "}
+                      {editingField === "username" ? (
+                      <>
+                        <input
+                          type="text"
+                          value={updatedValue}
+                          onChange={(e) => setUpdatedValue(e.target.value)}
+                        />
+                        <button onClick={() => handleSave("username")}>Save</button>
+                      </>
+                    ) : (
+                      <>
+                        {user.username}{" "}
+                        <button onClick={() => handleEdit("username", user.username)}>Edit</button>
+                      </>
+                    )}
+                  </p>
+                  <p>
+                      <strong>Password:</strong>{" "}
+                      {editingField === "password" ? (
+                      <>
+                        <input
+                          type="password"
+                          placeholder="Enter new password"
+                          value={updatedValue}
+                          onChange={(e) => setUpdatedValue(e.target.value)}
+                        />
+                        <button onClick={() => handleSave("password")}>Save</button>
+                      </>
+                    ) : (
+                      <>
+                        ••••••••{" "}
+                        <button onClick={() => handleEdit("password", "")}>Change Password</button>
+                      </>
+                    )}
+                  </p>
                 </div>
-            ) : (
+              ) : (
                 <p>Loading user data...</p>
-            )
-            }
+              )}
 
         </div>
 
