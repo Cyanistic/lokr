@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
-use crate::upload::FileMetadata;
+use crate::{error::AppError, upload::FileMetadata};
 
 pub fn levenshtien(a: &str, b: &str) -> usize {
     let len_a = a.chars().count();
@@ -82,4 +83,15 @@ impl<T: Iterator<Item = FileMetadata>> Hierarchify for T {
         // A user may have no files, so we default to an empty root directory
         .unwrap_or_default()
     }
+}
+
+/// Clean up the database by removing expired sessions and share links
+pub async fn clean_up(pool: &SqlitePool) -> Result<(), AppError> {
+    sqlx::query!("DELETE FROM session WHERE DATETIME(last_used_at, '+' || idle_duration || ' seconds' ) < CURRENT_TIMESTAMP")
+        .execute(pool)
+        .await?;
+    sqlx::query!("DELETE FROM share_link WHERE expires_at < CURRENT_TIMESTAMP")
+        .execute(pool)
+        .await?;
+    Ok(())
 }

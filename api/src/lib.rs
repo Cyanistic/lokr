@@ -20,7 +20,7 @@ use tower_http::{
     trace::{DefaultMakeSpan, DefaultOnRequest, DefaultOnResponse, TraceLayer},
     LatencyUnit, ServiceBuilderExt,
 };
-use tracing::{info, Level};
+use tracing::{error, info, Level};
 use url::Url;
 use utoipa::{
     openapi::security::{ApiKey, ApiKeyValue, SecurityScheme},
@@ -299,6 +299,19 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
     // run our app with hyper, listening globally on port 6969
     let listener = tokio::net::TcpListener::bind("0.0.0.0:6969").await.unwrap();
 
+    // Start the cleaner task
+    let cleaner_task = tokio::task::spawn({
+        let pool = pool.clone();
+        async move {
+            loop {
+                tokio::time::sleep(Duration::from_secs(300)).await;
+                if let Err(e) = utils::clean_up(&pool).await {
+                    error!("Error cleaning up database: {}", e);
+                }
+            }
+        }
+    });
+
     info!("Server listening on port 6969");
     axum::serve(
         listener,
@@ -311,6 +324,7 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
     })
     .await?;
     pool.close().await;
+    cleaner_task.abort();
     Ok(())
 }
 
