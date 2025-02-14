@@ -173,7 +173,8 @@ function Profile() {
     content: {
       flexGrow: 1,
       padding: '20px',
-      backgroundColor: 'white',
+      backgroundColor: 'white', // Ensure background is white
+      color: 'black', // Force text color to black
       overflowY: 'auto',
     }
   };
