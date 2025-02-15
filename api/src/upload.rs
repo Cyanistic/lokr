@@ -461,7 +461,7 @@ pub async fn get_file_metadata(
                 FROM file
                 WHERE 
                 owner_id = COALESCE(?, owner_id) AND
-                id = COALESCE(?, id)
+                IIF(? IS NULL, parent_id IS NULL, id = ?)
                 UNION ALL
                 
                 -- Recursive member
@@ -501,6 +501,7 @@ pub async fn get_file_metadata(
             FROM (SELECT * FROM children ORDER BY depth LIMIT ? OFFSET ?) ORDER BY depth DESC
             "#,
         user_id,
+        params.id,
         params.id,
         depth,
         params.limit,

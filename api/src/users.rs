@@ -243,18 +243,18 @@ pub async fn create_user(
                 "Failed to decode encrypted private key".into(),
             ))
         })?;
-
     // Salt used for password hashing on the backend, not the one used for the PBKDF2 key derivation function
     // The user provided salt is used for the PBKDF2 key derivation function
     let salt = SaltString::generate(&mut OsRng);
-
-    let password_hash = state
-        .argon2
-        .hash_password(new_user.password.as_bytes(), &salt)
-        .map_err(|_| {
-            AppError::UserError((StatusCode::BAD_REQUEST, "Unable to hash password".into()))
-        })?
-        .to_string();
+    let password_hash = tokio::task::block_in_place(|| {
+        state
+            .argon2
+            .hash_password(new_user.password.as_bytes(), &salt)
+            .map_err(|_| {
+                AppError::UserError((StatusCode::BAD_REQUEST, "Unable to hash password".into()))
+            })
+    })?
+    .to_string();
     let uuid = Uuid::new_v4();
     sqlx::query!(
         "INSERT INTO user (id, username, password_hash, email, iv, encrypted_private_key, public_key, salt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
@@ -661,13 +661,18 @@ pub async fn update_user(
 
             // Hash the new password and store the new hash in the database
             let salt = SaltString::generate(&mut OsRng);
-            let password_hash = state
-                .argon2
-                .hash_password(update.new_value.as_bytes(), &salt)
-                .map_err(|_| {
-                    AppError::UserError((StatusCode::BAD_REQUEST, "Unable to hash password".into()))
-                })?
-                .to_string();
+            let password_hash = tokio::task::block_in_place(|| {
+                state
+                    .argon2
+                    .hash_password(update.new_value.as_bytes(), &salt)
+                    .map_err(|_| {
+                        AppError::UserError((
+                            StatusCode::BAD_REQUEST,
+                            "Unable to hash password".into(),
+                        ))
+                    })
+            })?
+            .to_string();
 
             sqlx::query!(
                 "UPDATE user SET password_hash = ?, encrypted_private_key = ? WHERE id = ?",
