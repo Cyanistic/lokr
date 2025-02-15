@@ -79,9 +79,9 @@ impl<T: Iterator<Item = FileMetadata>> Hierarchify for T {
         // If everything went well, the only key left in the map should be None or the id provided. As
         // childern are moved to their parents, their parent_id is removed from the map.
         .into_values()
-        .next()
+        .flatten()
         // A user may have no files, so we default to an empty root directory
-        .unwrap_or_default()
+        .collect()
     }
 }
 
