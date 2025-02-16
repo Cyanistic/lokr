@@ -52,12 +52,12 @@ pub fn levenshtien(a: &str, b: &str) -> usize {
     cur[len_b - 1]
 }
 
-pub trait Hierarchify {
-    fn hierarchify(self) -> Vec<FileMetadata>;
+pub trait Hierarchify: Iterator {
+    fn hierarchify(self) -> Vec<Self::Item>;
 }
 impl<T: Iterator<Item = FileMetadata>> Hierarchify for T {
     /// Convert rows into a tree like structure that represents the hierarchy of the files
-    fn hierarchify(self) -> Vec<FileMetadata> {
+    fn hierarchify(self) -> Vec<Self::Item> {
         self.fold(
             HashMap::new(),
             |mut acc: HashMap<Option<Uuid>, Vec<FileMetadata>>, mut cur| {
