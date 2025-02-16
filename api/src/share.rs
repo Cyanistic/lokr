@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use anyhow::anyhow;
 use argon2::{
     password_hash::{rand_core::OsRng, PasswordHasher, SaltString},
     PasswordHash, PasswordVerifier,
@@ -10,7 +11,6 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
-use axum_macros::debug_handler;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
@@ -382,10 +382,9 @@ pub async fn get_user_shared_file(
         (status = NOT_FOUND, description = "File not found", body = ErrorResponse),
     ),
     security(
-        ("lokr_session_cookie" = [])
+        ()
     )
 )]
-#[debug_handler]
 pub async fn get_link_shared_file(
     State(state): State<AppState>,
     Query(params): Query<FileQuery>,
@@ -553,12 +552,98 @@ pub async fn get_link_shared_file(
             children: Vec::new(),
         })
         .hierarchify();
-    if params.id.is_some() && root.is_empty() {
-        Err(AppError::UserError((
+
+    // There should always be 1 and only 1 root node.
+    // This is because a link can only be associated with a single file or directory.
+    Ok((
+        StatusCode::OK,
+        Json(
+            root.first()
+                .ok_or(anyhow!("Invariant violated: expected one root node"))?,
+        ),
+    )
+        .into_response())
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/shared/{file_id}/links",
+    description = "Get active links for a file",
+    params(("file_id" = Uuid, Path, description = "The id of the file")),
+    responses(
+        (status = OK, description = "Links successfully retrieved", body = ShareResponse),
+        (status = BAD_REQUEST, description = "Invalid query params", body = ErrorResponse),
+        (status = NOT_FOUND, description = "File not found", body = ErrorResponse),
+    ),
+    security(
+        ("lokr_session_cookie" = [])
+    )
+)]
+pub async fn get_shared_links(
+    State(state): State<AppState>,
+    SessionAuth(user): SessionAuth,
+    Path(file_id): Path<Uuid>,
+) -> Result<Response, AppError> {
+    if !is_owner(&state.pool, &user.id, &file_id).await? {
+        return Err(AppError::UserError((
             StatusCode::NOT_FOUND,
             "File not found".into(),
-        )))
-    } else {
-        Ok((StatusCode::OK, Json(root)).into_response())
+        )));
     }
+    let query = sqlx::query_as!(
+        ShareResponse,
+        r#"
+        SELECT share_link.id AS "link: Uuid", expires_at AS "expires_at: _"
+        FROM share_link 
+        WHERE file_id = ? AND
+        expires_at >= CURRENT_TIMESTAMP
+        "#,
+        file_id
+    )
+    .fetch_all(&state.pool)
+    .await?;
+    Ok((StatusCode::OK, Json(query)).into_response())
+}
+
+#[utoipa::path(
+    delete,
+    path = "/api/shared/link/{link_id}",
+    description = "Delete an active share link for a file",
+    params(("link_id" = Uuid, Path, description = "The id of the link")),
+    responses(
+        (status = OK, description = "Links successfully deleted", body = SuccessResponse),
+        (status = BAD_REQUEST, description = "Invalid query params", body = ErrorResponse),
+        (status = NOT_FOUND, description = "File not found", body = ErrorResponse),
+    ),
+    security(
+        ("lokr_session_cookie" = [])
+    )
+)]
+pub async fn delete_shared_link(
+    State(state): State<AppState>,
+    SessionAuth(user): SessionAuth,
+    Path(link_id): Path<Uuid>,
+) -> Result<Response, AppError> {
+    let rows = sqlx::query!(
+        r#"
+        DELETE FROM share_link
+        WHERE id IN (
+            SELECT share_link.id FROM share_link
+            JOIN file ON file.id = share_link.file_id
+            WHERE share_link.id = ? AND owner_id = ? AND expires_at >= CURRENT_TIMESTAMP
+        )
+        "#,
+        link_id,
+        user.id
+    )
+    .execute(&state.pool)
+    .await?
+    .rows_affected();
+    if rows == 0 {
+        return Err(AppError::UserError((
+            StatusCode::NOT_FOUND,
+            "Link not found".into(),
+        )));
+    }
+    Ok((StatusCode::OK, success!("Links successfully deleted")).into_response())
 }

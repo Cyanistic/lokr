@@ -20,7 +20,7 @@ use tower_http::{
     trace::{DefaultMakeSpan, DefaultOnRequest, DefaultOnResponse, TraceLayer},
     LatencyUnit, ServiceBuilderExt,
 };
-use tracing::{error, info, Level};
+use tracing::{error, info, warn, Level};
 use url::Url;
 use utoipa::{
     openapi::security::{ApiKey, ApiKeyValue, SecurityScheme},
@@ -62,9 +62,7 @@ pub static DATA_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
     let mut path = match dirs::data_dir() {
         Some(dir) => dir,
         None => {
-            eprintln!(
-                "Warning: Could not determine data directory. Attempting to use current directory."
-            );
+            warn!("Could not determine data directory. Attempting to use current directory.");
             current_dir().unwrap()
         }
     };
@@ -81,9 +79,7 @@ pub static CONFIG_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
     let mut path = match dirs::config_dir() {
         Some(dir) => dir,
         None => {
-            eprintln!(
-                "Warning: Could not determine config directory. Attempting to use current directory."
-            );
+            warn!("Could not determine config directory. Attempting to use current directory.");
             current_dir().unwrap()
         }
     };
@@ -134,6 +130,8 @@ pub static AVATAR_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
             share::share_file,
             share::get_user_shared_file,
             share::get_link_shared_file,
+            share::delete_shared_link,
+            share::get_shared_links,
             session::get_sessions,
             session::delete_session,
         ),
@@ -272,6 +270,8 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
         .routes(routes!(share::share_file))
         .routes(routes!(share::get_user_shared_file))
         .routes(routes!(share::get_link_shared_file))
+        .routes(routes!(share::get_shared_links))
+        .routes(routes!(share::delete_shared_link))
         .routes(routes!(session::get_sessions))
         .routes(routes!(session::delete_session))
         .layer(cors)

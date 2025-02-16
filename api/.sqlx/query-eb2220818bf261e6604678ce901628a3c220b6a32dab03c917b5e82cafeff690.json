@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        SELECT share_link.id AS \"link: Uuid\", expires_at AS \"expires_at: _\"\n        FROM share_link \n        WHERE file_id = ? AND\n        expires_at >= CURRENT_TIMESTAMP\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "link: Uuid",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "expires_at: _",
+        "ordinal": 1,
+        "type_info": "Datetime"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "eb2220818bf261e6604678ce901628a3c220b6a32dab03c917b5e82cafeff690"
+}
