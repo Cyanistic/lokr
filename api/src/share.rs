@@ -13,6 +13,7 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use tracing::instrument;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
@@ -27,7 +28,7 @@ use crate::{
 };
 
 /// An enum representing the type of sharing
-#[derive(Deserialize, ToSchema)]
+#[derive(Deserialize, ToSchema, Debug)]
 #[serde(rename_all = "camelCase", tag = "type")]
 pub enum ShareRequestType {
     #[serde(rename_all = "camelCase")]
@@ -42,7 +43,7 @@ pub enum ShareRequestType {
 }
 
 /// A request to share a file with a user or generate a link
-#[derive(Deserialize, ToSchema)]
+#[derive(Deserialize, ToSchema, Debug)]
 pub struct ShareRequest {
     #[serde(flatten)]
     type_: ShareRequestType,
@@ -68,6 +69,7 @@ pub struct ShareResponse {
         (status = NOT_FOUND, description = "File was not found", body = ErrorResponse),
     ),
 )]
+#[instrument(err, skip(state))]
 pub async fn share_file(
     State(state): State<AppState>,
     SessionAuth(user): SessionAuth,
@@ -215,6 +217,7 @@ pub async fn share_with_user(
         ("lokr_session_cookie" = [])
     )
 )]
+#[instrument(err, skip(state))]
 pub async fn get_user_shared_file(
     State(state): State<AppState>,
     SessionAuth(user): SessionAuth,
@@ -385,6 +388,7 @@ pub async fn get_user_shared_file(
         ()
     )
 )]
+#[instrument(err, skip(state, link_request))]
 pub async fn get_link_shared_file(
     State(state): State<AppState>,
     Query(params): Query<FileQuery>,
@@ -433,8 +437,12 @@ pub async fn get_link_shared_file(
     // Check if the password is correct
     if let Some(stored_hash) =
         sqlx::query_scalar!("SELECT password_hash FROM share_link WHERE id = ?", link_id)
-            .fetch_one(&state.pool)
+            .fetch_optional(&state.pool)
             .await?
+            .ok_or(AppError::UserError((
+                StatusCode::NOT_FOUND,
+                "Invalid share link".into(),
+            )))?
     {
         let Some(password) = link_request else {
             return Err(AppError::UserError((
@@ -534,13 +542,6 @@ pub async fn get_link_shared_file(
     .fetch_all(&state.pool)
     .await?;
 
-    if query.is_empty() {
-        return Err(AppError::UserError((
-            StatusCode::NOT_FOUND,
-            "Invalid share link".into(),
-        )));
-    }
-
     // Convert the query result into a tree structure
     let root = query
         .into_iter()
@@ -587,6 +588,7 @@ pub async fn get_link_shared_file(
         ("lokr_session_cookie" = [])
     )
 )]
+#[instrument(err, skip(state))]
 pub async fn get_shared_links(
     State(state): State<AppState>,
     SessionAuth(user): SessionAuth,
@@ -627,6 +629,7 @@ pub async fn get_shared_links(
         ("lokr_session_cookie" = [])
     )
 )]
+#[instrument(err, skip(state))]
 pub async fn delete_shared_link(
     State(state): State<AppState>,
     SessionAuth(user): SessionAuth,
