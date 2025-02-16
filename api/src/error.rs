@@ -8,7 +8,6 @@ use axum::{
     Json,
 };
 use serde::Serialize;
-use tracing::{error, warn};
 use utoipa::ToSchema;
 use validator::Validate;
 
@@ -69,15 +68,16 @@ impl Display for AppError {
 /// Tell axum how to convert `AppError` into a response.
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
-        // Warn about user errors and log them, but error about server errors
-        match self {
-            AppError::JsonRejection(_)
-            | AppError::AuthError(_)
-            | AppError::ValidationError(_)
-            | AppError::SerdeError(_)
-            | AppError::UserError(_) => warn!("{}", self),
-            AppError::SqlxError(_) | AppError::Generic(_) => error!("{}", self),
-        }
+        // // Warn about user errors and log them, but error about server errors
+        // match self {
+        //     AppError::JsonRejection(_)
+        //     | AppError::AuthError(_)
+        //     | AppError::ValidationError(_)
+        //     | AppError::SerdeError(_)
+        //     | AppError::UserError(_) => warn!("{}", self),
+        //     AppError::SqlxError(_) | AppError::Generic(_) => error!("{}", self),
+        // }
+
         let mut headers = HeaderMap::new();
         let (status, message) = match &self {
             AppError::JsonRejection(rejection) => (rejection.status(), rejection.body_text()),

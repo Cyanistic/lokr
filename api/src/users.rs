@@ -18,6 +18,7 @@ use image::{imageops::FilterType, DynamicImage, GenericImageView};
 use serde::{Deserialize, Serialize};
 use serde_inline_default::serde_inline_default;
 use totp_rs::{Algorithm, Secret, TOTP};
+use tracing::instrument;
 use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 use validator::{Validate, ValidateEmail, ValidationError};
@@ -38,7 +39,7 @@ pub const MAX_USERNAME_LENGTH: u64 = 20;
 pub const PUBLIC_KEY_LENGTH: usize = 550; // Length I ended up with after encoding the public key
 
 /// A struct representing a new user to be created
-#[derive(Deserialize, ToSchema, Validate)]
+#[derive(Deserialize, ToSchema, Validate, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateUser {
     /// The name of the user to create
@@ -80,7 +81,7 @@ pub struct CreateUser {
 }
 
 /// A struct representing a user logging in
-#[derive(Serialize, Deserialize, ToSchema, Validate)]
+#[derive(Serialize, Deserialize, ToSchema, Validate, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct LoginUser {
     #[validate(length(min = 3, max = 20), custom(function = "validate_username"))]
@@ -173,6 +174,7 @@ fn validate_password(password: &str) -> Result<(), ValidationError> {
         (status = BAD_REQUEST, description = "Invalid username, email, or password", body = ErrorResponse)
     )
 )]
+#[instrument(err, skip(state))]
 pub async fn create_user(
     State(state): State<AppState>,
     Json(new_user): Json<CreateUser>,
@@ -283,6 +285,7 @@ pub async fn create_user(
         (status = UNAUTHORIZED, description = "Invalid username or password", body = ErrorResponse)
     )
 )]
+#[instrument(err, skip(state))]
 pub async fn authenticate_user(
     State(state): State<AppState>,
     Json(user): Json<LoginUser>,
@@ -359,7 +362,7 @@ pub async fn authenticate_user(
         .into_response())
 }
 
-#[derive(Deserialize, Validate, IntoParams)]
+#[derive(Deserialize, Validate, IntoParams, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct CheckUsage {
     #[validate(length(min = 3, max = 20), custom(function = "validate_username"))]
@@ -383,6 +386,7 @@ pub struct CheckUsage {
         ("lokr_session_cookie" = [])
     )
 )]
+#[instrument(err, skip(state))]
 pub async fn check_usage(
     State(state): State<AppState>,
     user: Option<SessionAuth>,
@@ -482,6 +486,7 @@ pub struct SessionUser {
         ("lokr_session_cookie" = [])
     )
 )]
+#[instrument(err, skip(state))]
 pub async fn get_logged_in_user(
     State(state): State<AppState>,
     SessionAuth(user): SessionAuth,
@@ -496,7 +501,7 @@ pub async fn get_logged_in_user(
 }
 
 /// Update the currently authenticated user's profile
-#[derive(Deserialize, ToSchema)]
+#[derive(Deserialize, ToSchema, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct UserUpdate {
     /// The field to update
@@ -513,7 +518,7 @@ pub struct UserUpdate {
     password: String,
 }
 
-#[derive(Deserialize, ToSchema)]
+#[derive(Deserialize, ToSchema, Debug)]
 #[serde(rename_all = "camelCase", tag = "type")]
 pub enum UserUpdateField {
     Username,
@@ -541,6 +546,7 @@ pub enum UserUpdateField {
         ("lokr_session_cookie" = [])
     )
 )]
+#[instrument(err, skip(state))]
 pub async fn update_user(
     State(state): State<AppState>,
     SessionAuth(user): SessionAuth,
@@ -688,7 +694,7 @@ pub async fn update_user(
     Ok((StatusCode::OK, success!("User updated successfully")).into_response())
 }
 
-#[derive(Deserialize, ToSchema)]
+#[derive(Deserialize, ToSchema, Debug)]
 #[serde(rename_all = "camelCase", tag = "type")]
 /// Request an update to the currently authenticated user's TOTP settings
 pub enum TOTPRequest {
@@ -742,6 +748,7 @@ pub struct TOTPResponse {
         ("lokr_session_cookie" = [])
     )
 )]
+#[instrument(err, skip(state))]
 pub async fn update_totp(
     State(state): State<AppState>,
     SessionAuth(user): SessionAuth,
@@ -867,7 +874,7 @@ pub async fn update_totp(
     }
 }
 
-#[derive(Deserialize, IntoParams)]
+#[derive(Deserialize, IntoParams, Debug)]
 #[into_params(
     parameter_in = Query
 )]
@@ -882,7 +889,7 @@ pub struct UserSearch {
     offset: u32,
 }
 
-#[derive(Deserialize, ToSchema, Default)]
+#[derive(Deserialize, ToSchema, Default, Debug)]
 #[serde(rename_all = "camelCase")]
 pub enum SortOrder {
     #[default]
@@ -924,6 +931,7 @@ pub struct PublicUser {
         (status = NOT_FOUND, description = "No users found", body = ErrorResponse)
     )
 )]
+#[instrument(err, skip(state))]
 pub async fn search_users(
     State(state): State<AppState>,
     Query(params): Query<UserSearch>,
@@ -982,6 +990,7 @@ pub async fn search_users(
         ()
     )
 )]
+#[instrument(err, skip(state))]
 pub async fn get_user(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
@@ -1015,6 +1024,7 @@ pub async fn get_user(
         ("lokr_session_cookie" = [])
     )
 )]
+#[instrument(err, skip(state))]
 pub async fn upload_avatar(
     State(state): State<AppState>,
     SessionAuth(user): SessionAuth,

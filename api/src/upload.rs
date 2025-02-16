@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use serde_inline_default::serde_inline_default;
 use sqlx::SqlitePool;
 use tokio::{fs::File, io::AsyncWriteExt};
+use tracing::instrument;
 use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
@@ -90,6 +91,7 @@ pub struct UploadRequest {
         ("lokr_session_cookie" = [])
     )
 )]
+#[instrument(err, skip(state))]
 pub async fn upload_file(
     State(state): State<AppState>,
     user: Option<SessionAuth>,
@@ -195,6 +197,7 @@ pub async fn upload_file(
         ("lokr_session_cookie" = [])
     )
 )]
+#[instrument(err, skip(state))]
 pub async fn delete_file(
     State(state): State<AppState>,
     SessionAuth(user): SessionAuth,
@@ -242,7 +245,7 @@ pub async fn delete_file(
     Ok((StatusCode::OK, success!("File deleted successfully")).into_response())
 }
 
-#[derive(Deserialize, ToSchema)]
+#[derive(Deserialize, ToSchema, Debug)]
 #[serde(rename_all = "camelCase", tag = "type")]
 pub enum UpdateFile {
     /// Move the file to a new parent
@@ -283,6 +286,7 @@ pub enum UpdateFile {
         ("lokr_session_cookie" = [])
     )
 )]
+#[instrument(err, skip(state))]
 pub async fn update_file(
     State(state): State<AppState>,
     SessionAuth(user): SessionAuth,
@@ -388,7 +392,7 @@ pub struct FileMetadata {
     pub children: Vec<FileMetadata>,
 }
 
-#[derive(Deserialize, IntoParams)]
+#[derive(Deserialize, IntoParams, Debug)]
 #[serde_inline_default]
 pub struct FileQuery {
     /// The id of the file or directory to get.
@@ -427,6 +431,7 @@ pub struct FileQuery {
         ("lokr_session_cookie" = [])
     )
 )]
+#[instrument(err, skip(state))]
 pub async fn get_file_metadata(
     State(state): State<AppState>,
     user: Option<SessionAuth>,
