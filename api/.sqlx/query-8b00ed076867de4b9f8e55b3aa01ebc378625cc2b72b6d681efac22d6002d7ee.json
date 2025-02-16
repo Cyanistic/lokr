@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        DELETE FROM share_link\n        WHERE id IN (\n            SELECT share_link.id FROM share_link\n            JOIN file ON file.id = share_link.file_id\n            WHERE share_link.id = ? AND owner_id = ? AND DATETIME(expires_at) >= CURRENT_TIMESTAMP\n        )\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "8b00ed076867de4b9f8e55b3aa01ebc378625cc2b72b6d681efac22d6002d7ee"
+}

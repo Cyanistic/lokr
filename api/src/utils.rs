@@ -90,7 +90,7 @@ pub async fn clean_up(pool: &SqlitePool) -> Result<(), AppError> {
     sqlx::query!("DELETE FROM session WHERE DATETIME(last_used_at, '+' || idle_duration || ' seconds' ) < CURRENT_TIMESTAMP")
         .execute(pool)
         .await?;
-    sqlx::query!("DELETE FROM share_link WHERE expires_at < CURRENT_TIMESTAMP")
+    sqlx::query!("DELETE FROM share_link WHERE DATETIME(expires_at) < CURRENT_TIMESTAMP")
         .execute(pool)
         .await?;
     Ok(())

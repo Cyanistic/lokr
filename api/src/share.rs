@@ -412,7 +412,7 @@ pub async fn get_link_shared_file(
         SELECT COUNT(*)
         FROM share_link
         WHERE share_link.id = ? AND
-        (expires_at IS NULL OR expires_at >= CURRENT_TIMESTAMP) AND
+        (expires_at IS NULL OR DATETIME(expires_at) >= CURRENT_TIMESTAMP) AND
         (? IS NULL OR file_id IN (SELECT id FROM ancestors));
         "#,
             params.id,
@@ -481,6 +481,7 @@ pub async fn get_link_shared_file(
                 WHERE
                     -- Don't show files that are shared with other links
                     (share_link.id IS NULL OR share_link.id = ?) AND 
+                    DATETIME(expires_at) >= CURRENT_TIMESTAMP AND
                     -- If no file id is provided, then show the root directory
                     -- We need to use COALESCE to ensure that only files in root directory
                     -- are shown if the file id is NULL. We can idenfify shared files in the root directory
@@ -532,6 +533,13 @@ pub async fn get_link_shared_file(
     )
     .fetch_all(&state.pool)
     .await?;
+
+    if query.is_empty() {
+        return Err(AppError::UserError((
+            StatusCode::NOT_FOUND,
+            "Invalid share link".into(),
+        )));
+    }
 
     // Convert the query result into a tree structure
     let root = query
@@ -596,7 +604,7 @@ pub async fn get_shared_links(
         SELECT share_link.id AS "link: Uuid", expires_at AS "expires_at: _"
         FROM share_link 
         WHERE file_id = ? AND
-        expires_at >= CURRENT_TIMESTAMP
+        DATETIME(expires_at) >= CURRENT_TIMESTAMP
         "#,
         file_id
     )
@@ -630,7 +638,7 @@ pub async fn delete_shared_link(
         WHERE id IN (
             SELECT share_link.id FROM share_link
             JOIN file ON file.id = share_link.file_id
-            WHERE share_link.id = ? AND owner_id = ? AND expires_at >= CURRENT_TIMESTAMP
+            WHERE share_link.id = ? AND owner_id = ? AND DATETIME(expires_at) >= CURRENT_TIMESTAMP
         )
         "#,
         link_id,
