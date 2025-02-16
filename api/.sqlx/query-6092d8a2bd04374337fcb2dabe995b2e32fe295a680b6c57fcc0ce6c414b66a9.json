@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM share_link WHERE DATETIME(expires_at) < CURRENT_TIMESTAMP",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": []
+  },
+  "hash": "6092d8a2bd04374337fcb2dabe995b2e32fe295a680b6c57fcc0ce6c414b66a9"
+}
