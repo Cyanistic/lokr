@@ -6,6 +6,7 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use serde::Serialize;
+use tracing::instrument;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
@@ -36,6 +37,7 @@ pub struct Session {
         ("lokr_session_cookie" = [])
     )
 )]
+#[instrument(err, skip(state))]
 pub async fn get_sessions(
     State(state): State<AppState>,
     SessionAuth(user): SessionAuth,
@@ -65,6 +67,7 @@ pub async fn get_sessions(
         ("lokr_session_cookie" = [])
     )
 )]
+#[instrument(err, skip(state))]
 pub async fn delete_session(
     State(state): State<AppState>,
     SessionAuth(user): SessionAuth,

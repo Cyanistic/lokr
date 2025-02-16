@@ -3,16 +3,19 @@ use axum::{
     extract::{FromRequestParts, OptionalFromRequestParts, State},
     http::{header::COOKIE, request::Parts},
 };
+use tracing::{instrument, Level};
 use uuid::Uuid;
 
 use crate::{error::AppError, state::AppState};
 
+#[derive(Debug)]
 pub struct User {
     pub id: Uuid,
     pub username: String,
     pub email: Option<String>,
 }
 
+#[derive(Debug)]
 pub struct SessionAuth(pub User);
 
 /// Attempt to extract the user from the request's session cookie.
@@ -26,6 +29,7 @@ where
     type Rejection = AppError;
 
     #[doc = " Perform the extraction."]
+    #[instrument(err(level = Level::WARN), skip(parts, state), name = "session_handler", level = "warn")]
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         <Self as axum::extract::OptionalFromRequestParts<S>>::from_request_parts(parts, state)
             .await
@@ -45,6 +49,7 @@ where
     type Rejection = AppError;
 
     #[doc = " Perform the extraction."]
+    #[instrument(err(level = Level::WARN), skip(parts, state), name = "session_handler")]
     async fn from_request_parts(
         parts: &mut Parts,
         state: &S,

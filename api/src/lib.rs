@@ -222,7 +222,7 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
             TraceLayer::new_for_http()
                 .make_span_with(
                     DefaultMakeSpan::new()
-                        .level(Level::TRACE)
+                        .level(Level::DEBUG)
                         .include_headers(true),
                 )
                 .on_request(DefaultOnRequest::new().level(Level::TRACE))
@@ -231,7 +231,19 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
                         .level(Level::TRACE)
                         .include_headers(true)
                         .latency_unit(LatencyUnit::Micros),
-                ),
+                )
+                .on_failure(()), // .make_span_with(|req: &Request| {
+                                 //     let method = req.method();
+                                 //     let uri = req.uri();
+                                 //
+                                 //     // axum automatically adds this extension.
+                                 //     let matched_path = req
+                                 //         .extensions()
+                                 //         .get::<MatchedPath>()
+                                 //         .map(|matched_path| matched_path.as_str());
+                                 //
+                                 //     tracing::debug_span!("request", %method, %uri, matched_path)
+                                 // }),
         )
         .sensitive_response_headers(sensitive_headers)
         // GovernorLayer is a rate limiter that limits the number of requests a user can make
