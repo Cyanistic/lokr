@@ -16,3 +16,5 @@ CREATE TABLE share_link (
     password_hash TEXT, -- NULL for no password
     FOREIGN KEY (file_id) REFERENCES file(id) ON DELETE CASCADE
 );
+
+CREATE INDEX idx_share_link_file_id ON share_link(file_id);
