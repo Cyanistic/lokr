@@ -296,7 +296,7 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
         // Serve uploaded files from the uploads directory
         // These files are encrypted so they can't be accessed directly,
         // but they can be downloaded by the user who uploaded them.
-        .nest_service("/api/files/data/", ServeDir::new(&*UPLOAD_DIR))
+        .nest_service("/api/file/data/", ServeDir::new(&*UPLOAD_DIR))
         .nest_service("/api/avatars/", ServeDir::new(&*AVATAR_DIR))
         // Serve the client files from the `../client/dist` directory
         // We use a fallback `ServeDir` for this because we send all the requests to the same file and
