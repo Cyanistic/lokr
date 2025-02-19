@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id AS \"id: _\", username, email, iv, public_key, encrypted_private_key, salt, avatar AS avatar_extension FROM user WHERE id = ?",
+  "query": "SELECT id AS \"id: _\", username, email,\n            iv, public_key, encrypted_private_key, salt,\n            avatar AS avatar_extension, totp_enabled, totp_verified\n            FROM user WHERE id = ?",
   "describe": {
     "columns": [
       {
@@ -42,6 +42,16 @@
         "name": "avatar_extension",
         "ordinal": 7,
         "type_info": "Text"
+      },
+      {
+        "name": "totp_enabled",
+        "ordinal": 8,
+        "type_info": "Bool"
+      },
+      {
+        "name": "totp_verified",
+        "ordinal": 9,
+        "type_info": "Bool"
       }
     ],
     "parameters": {
@@ -55,8 +65,10 @@
       false,
       false,
       false,
-      true
+      true,
+      false,
+      false
     ]
   },
-  "hash": "734fdb6e7730f22b08d07ce24f4b64466ea9d7985adcb5784d76d734e773eff2"
+  "hash": "324da6ec12272bc6001f0d9b9201a99cc5fdb132d1c9241c31b80bd13142addd"
 }

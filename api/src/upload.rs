@@ -127,6 +127,21 @@ pub async fn upload_file(
         )));
     };
 
+    if let Some(parent_file) = sqlx::query!(
+        r#"SELECT is_directory AS "is_directory!" FROM file WHERE id = ?"#,
+        metadata.parent_id
+    )
+    .fetch_optional(&state.pool)
+    .await?
+    {
+        if !parent_file.is_directory {
+            return Err(AppError::UserError((
+                StatusCode::BAD_REQUEST,
+                "Parent file is not a directory".into(),
+            )));
+        }
+    }
+
     let file_size = if !metadata.is_directory {
         let Some(file_path) = file_path else {
             return Err(AppError::UserError((
