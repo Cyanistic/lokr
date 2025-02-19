@@ -1011,13 +1011,18 @@ pub async fn get_user(
     Ok((StatusCode::OK, Json(query)).into_response())
 }
 
+#[derive(Serialize, ToSchema)]
+pub struct AvatarResponse {
+    extension: String,
+}
+
 #[utoipa::path(
     put,
     path = "/api/profile/upload",
     description = "Upload a profile image",
     request_body(content = String, description = "The image to upload", content_type = "application/octet-stream"),
     responses(
-        (status = OK, description = "Image uploaded successfully", body = SuccessResponse),
+        (status = OK, description = "Image uploaded successfully", body = AvatarResponse),
         (status = BAD_REQUEST, description = "Invalid image", body = ErrorResponse)
     ),
     security(
@@ -1061,8 +1066,10 @@ pub async fn upload_avatar(
     .execute(&state.pool)
     .await?;
     Ok((
-        StatusCode::OK,
-        success!("Avatar image uploaded successfully"),
+        StatusCode::CREATED,
+        Json(AvatarResponse {
+            extension: (*file_extension).into(),
+        }),
     )
         .into_response())
 }
