@@ -472,6 +472,10 @@ pub struct SessionUser {
     #[serde(skip_serializing_if = "Option::is_none")]
     /// The file extension for the user's avatar
     avatar_extension: Option<String>,
+    /// Whether the user has TOTP enabled
+    totp_enabled: bool,
+    /// Whether the user has verified their TOTP key
+    totp_verified: bool,
 }
 
 #[utoipa::path(
@@ -491,12 +495,16 @@ pub async fn get_logged_in_user(
     State(state): State<AppState>,
     SessionAuth(user): SessionAuth,
 ) -> Result<Response, AppError> {
-    let query = sqlx::query_as!(SessionUser,
-            r#"SELECT id AS "id: _", username, email, iv, public_key, encrypted_private_key, salt, avatar AS avatar_extension FROM user WHERE id = ?"#,
-            user.id
-        )
-        .fetch_one(&state.pool)
-        .await?;
+    let query = sqlx::query_as!(
+        SessionUser,
+        r#"SELECT id AS "id: _", username, email,
+            iv, public_key, encrypted_private_key, salt,
+            avatar AS avatar_extension, totp_enabled, totp_verified
+            FROM user WHERE id = ?"#,
+        user.id
+    )
+    .fetch_one(&state.pool)
+    .await?;
     Ok(Json(query).into_response())
 }
 
