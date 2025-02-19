@@ -89,7 +89,7 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({ avatarUrl, onAvatarChange }
       setError(err.message || "An unknown error occurred.");
     }
     
-    onAvatarChange(getAvatarUrl(user!.id, file.type.split("/")[1]))
+    onAvatarChange(`${getAvatarUrl(user!.id, file.type.split("/")[1])}?v=${Math.random()}`)
   };
 
   return (
