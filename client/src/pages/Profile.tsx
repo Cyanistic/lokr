@@ -5,26 +5,26 @@ import AvatarUpload from './ProfileAvatar';
 function Profile() {
 
   const [activeSection, setActiveSection] = useState<string>('profile'); // Tracks the active section
-  const [user, setuser] = useState<{ username: string; email: string | null; id: string; avatarExtension: string | null} | null>(null);
+  const [user, setuser] = useState<{ username: string; email: string | null; id: string; avatarExtension: string | null } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [avatarUrl, setAvatarUrl] = useState<string>("https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png");
 
   //Fetch User data
-  useEffect(() =>{
+  useEffect(() => {
     fetch("http://localhost:6969/api/profile", {
-        credentials: "include",
-        headers: {Cookie: "session=8d45205b-2eb4-4490-a728-654d03d1b67f;"} //Ensures cookies are sent
+      credentials: "include",
+      headers: { Cookie: "session=8d45205b-2eb4-4490-a728-654d03d1b67f;" } //Ensures cookies are sent
     })
 
-    .then((response) => {
-        if (!response.ok){
-            throw new Error("Failed to fetch user data");
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error("Failed to fetch user data");
         }
         return response.json();
-    })
-    .then ((data) => {setuser(data); setAvatarUrl(getAvatarUrl(data))})
-    .catch((err) => setError(err.message))
+      })
+      .then((data) => { setuser(data); setAvatarUrl(getAvatarUrl(data)) })
+      .catch((err) => setError(err.message))
   }, []);
 
   /*const fetchAvatar = async () => {
@@ -59,7 +59,7 @@ function Profile() {
     }
 
   }*/
-  const getAvatarUrl = (user: { id: string; avatarExtension: string | null }) => {
+  const getAvatarUrl = (user: { id: string; avatarExtension: string }) => {
     if (user) {
       return user.avatarExtension
         ? `http://localhost:6969/api/avatars/${user.id}.${user.avatarExtension}` // Construct the URL using user.id and user.avatarExtension
@@ -67,10 +67,10 @@ function Profile() {
     }
     return "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"; // Default avatar if user is null
   };
-  
+
   // Define sections as separate components or elements
   const renderContent = () => {
-    
+
     // This function updates the avatar URL when the user uploads a new avatar
     /*const handleAvatarChange = (newUrl: string) => {
       setAvatarUrl(newUrl);
@@ -78,26 +78,30 @@ function Profile() {
 
     switch (activeSection) {
       case 'profile':
-        return( 
-        <div>
-            <h3 style={{color: 'black'}}>Profile Information Section</h3>
+        return (
+          <div>
+            <h3 style={{ color: 'black' }}>Profile Information Section</h3>
             {error ? (
-                <p style={{color: "red"}}>Error: {error}</p>
-            ) : user ?(
-                <div className='userInfo' style={{color: 'black'}}>
-                    <p style={{color: 'black'}}><strong>Username:</strong> {user.username} </p>
-                    <p style={{color: 'black'}}><strong>Email:</strong> {user.email || "No email provided"}</p>
-                    <p style={{color: 'black'}}><strong>User ID:</strong> {user.id}</p>
-                    <p style={{color: 'black'}}><strong>Extension:</strong> {user.avatarExtension || "No extension provided"}</p>
-                    <h3>Upload your avatar</h3>
-                    <AvatarUpload avatarUrl={avatarUrl} onAvatarChange={(newUrl: string) => setAvatarUrl(newUrl)} />
-                </div>
+              <p style={{ color: "red" }}>Error: {error}</p>
+            ) : user ? (
+              <div className='userInfo' style={{ color: 'black' }}>
+                <p style={{ color: 'black' }}><strong>Username:</strong> {user.username} </p>
+                <p style={{ color: 'black' }}><strong>Email:</strong> {user.email || "No email provided"}</p>
+                <p style={{ color: 'black' }}><strong>User ID:</strong> {user.id}</p>
+                <p style={{ color: 'black' }}><strong>Extension:</strong> {user.avatarExtension || "No extension provided"}</p>
+                <h3>Upload your avatar</h3>
+                <AvatarUpload avatarUrl={avatarUrl} onAvatarChange={(newExt: string) => {
+                  setuser({ ...user!, avatarExtension: newExt })
+                  setAvatarUrl(`${getAvatarUrl({ id: user.id, avatarExtension: newExt })}?v=${Math.random()}`)
+                }
+                } />
+              </div>
             ) : (
-                <p>Loading user data...</p>
+              <p>Loading user data...</p>
             )
             }
 
-        </div>
+          </div>
 
         );
       case 'security':
@@ -147,46 +151,46 @@ function Profile() {
     }
   };
 
-  return(
+  return (
 
     <div className='main'>
       <h2>Profile</h2>
-        <div style={styles.container}>
+      <div style={styles.container}>
         {/* Left Sidebar with buttons */}
-          <div style={styles.sidebar}>
-            <button
-              style={{
-                ...styles.button,
-                ...(activeSection === 'profile' ? styles.active : {}),
-              }}
-              onClick={() => setActiveSection('profile')}
-            >
-              Profile Information
-            </button>
-            <button
-              style={{
-                ...styles.button,
-                ...(activeSection === 'security' ? styles.active : {}),
-              }}
-              onClick={() => setActiveSection('security')}
-            >
-              Security and Privacy
-            </button>
-            <button
-              style={{
-                ...styles.button,
-                ...(activeSection === 'notifications' ? styles.active : {}),
-              }}
-              onClick={() => setActiveSection('notifications')}
-            >
-              Notifications
-            </button>
-          </div>
+        <div style={styles.sidebar}>
+          <button
+            style={{
+              ...styles.button,
+              ...(activeSection === 'profile' ? styles.active : {}),
+            }}
+            onClick={() => setActiveSection('profile')}
+          >
+            Profile Information
+          </button>
+          <button
+            style={{
+              ...styles.button,
+              ...(activeSection === 'security' ? styles.active : {}),
+            }}
+            onClick={() => setActiveSection('security')}
+          >
+            Security and Privacy
+          </button>
+          <button
+            style={{
+              ...styles.button,
+              ...(activeSection === 'notifications' ? styles.active : {}),
+            }}
+            onClick={() => setActiveSection('notifications')}
+          >
+            Notifications
+          </button>
+        </div>
 
-          {/* Right content area */}
-          <div style={styles.content}>
-            {renderContent()}
-          </div>
+        {/* Right content area */}
+        <div style={styles.content}>
+          {renderContent()}
+        </div>
       </div>
       <div className='profileBody'>
         <div className='profilePicBody'>
@@ -197,7 +201,7 @@ function Profile() {
             <p>No image selected</p> // Optional message when no image is selected
           )*/}
         </div>
-        
+
       </div>
     </div>
 
