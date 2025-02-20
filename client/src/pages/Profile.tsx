@@ -27,38 +27,6 @@ function Profile() {
       .catch((err) => setError(err.message))
   }, []);
 
-  /*const fetchAvatar = async () => {
-    const formData = new FormData();
-    
-    if (user !== null) {
-  
-      formData.append('id', user.id);
-      formData.append('avatarExtension', user.avatarExtension as string);
-  
-      // Proceed with the fetch or any other logic
-    } else {
-      return;
-    }
-
-
-    try {
-      const response = await fetch("http://localhost:6969/api/profile/upload", {
-        method: "GET",
-        body: formData,
-      });
-
-      if (response.ok) {
-        console.log('Avatar returned successfully');
-        //setUploadStatus('File uploaded successfully!');
-      } else {
-        console.log('File upload failed');
-        //setUploadStatus('File upload failed. Please try again.');
-      }
-    } catch (error) {
-      console.error('Error during avatar fetch', error);
-    }
-
-  }*/
   const getAvatarUrl = (user: { id: string; avatarExtension: string }) => {
     if (user) {
       return user.avatarExtension
@@ -71,10 +39,6 @@ function Profile() {
   // Define sections as separate components or elements
   const renderContent = () => {
 
-    // This function updates the avatar URL when the user uploads a new avatar
-    /*const handleAvatarChange = (newUrl: string) => {
-      setAvatarUrl(newUrl);
-    };*/
 
     switch (activeSection) {
       case 'profile':
