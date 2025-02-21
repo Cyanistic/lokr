@@ -80,7 +80,7 @@ function Profile() {
     switch (activeSection) {
       case 'profile':
         return( 
-        <div>
+        <div className= "profileInfo">
             <h3>Profile Information Section</h3>
             {error ? (
                 <p style={{color: "red"}}>Error: {error}</p>
