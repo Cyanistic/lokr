@@ -5,6 +5,35 @@ export default function FileExplorer() {
     const [sortBy, setSortBy] = useState<"name" | "size" | "uploadDate">("name");
     const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
 
+// Function to handle file download
+const handleDownload = async (fileId: string) => {
+    try {
+        const response = await fetch(`http://localhost:6969/api/file/data/${fileId}`, {
+            method: "GET",
+            credentials: "include", // Ensures cookies are sent if needed
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to download file: ${response.statusText}`);
+        }
+
+        // Convert response to a Blob
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+
+        // Create a temporary link to trigger download
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "FILE"; // Use the actual file name (or a default)
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+    } catch (error) {
+        console.error("Error downloading file:", error);
+    }
+};
+
     const handleSort = (column: "name" | "size" | "uploadDate") => {
         if (sortBy === column) {
             setSortOrder(sortOrder === "asc" ? "desc" : "asc");
@@ -32,6 +61,10 @@ export default function FileExplorer() {
                 onChange={(e) => setSearch(e.target.value)}
                 style={styles.searchBar}
             />
+
+                                    <button onClick={() => handleDownload("0195270f-37e5-7123-aca7-670e3c4579f2")}>
+                                        Download Test File
+                                    </button>
 
             <table style={styles.table}>
                 <thead>
@@ -66,6 +99,7 @@ export default function FileExplorer() {
                                 <td>{file.size}</td>
                                 <td>{file.uploadDate.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}</td>
                                 <td>{file.fileType}</td>
+
                             </tr>
                         ))}
                 </tbody>
