@@ -10,7 +10,7 @@ const handleDownload = async (fileId: string) => {
     try {
         const response = await fetch(`http://localhost:6969/api/file/data/${fileId}`, {
             method: "GET",
-            credentials: "include", // Ensures cookies are sent if needed
+            credentials: "include", 
         });
 
         if (!response.ok) {
@@ -24,7 +24,7 @@ const handleDownload = async (fileId: string) => {
         // Create a temporary link to trigger download
         const link = document.createElement("a");
         link.href = url;
-        link.download = "FILE"; // Use the actual file name (or a default)
+        link.download = "FILE"; // Temporary name for the file
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -61,7 +61,7 @@ const handleDownload = async (fileId: string) => {
                 onChange={(e) => setSearch(e.target.value)}
                 style={styles.searchBar}
             />
-
+                                    //Test download button
                                     <button onClick={() => handleDownload("0195270f-37e5-7123-aca7-670e3c4579f2")}>
                                         Download Test File
                                     </button>
