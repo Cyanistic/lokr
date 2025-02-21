@@ -61,7 +61,7 @@ const handleDownload = async (fileId: string) => {
                 onChange={(e) => setSearch(e.target.value)}
                 style={styles.searchBar}
             />
-                                    //Test download button
+                                    {/*Test download button*/}
                                     <button onClick={() => handleDownload("0195270f-37e5-7123-aca7-670e3c4579f2")}>
                                         Download Test File
                                     </button>
