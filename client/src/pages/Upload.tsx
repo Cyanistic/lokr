@@ -90,7 +90,7 @@ export default function Upload() {
     const encryptFileWithAES = async (aesKey: CryptoKey, file: File): Promise<Blob> => {
       const fileArrayBuffer = await file.arrayBuffer();
       const nonce = window.crypto.getRandomValues(new Uint8Array(12)); // 12-byte nonce for AES-GCM
-
+    
       const encryptedFile = await window.crypto.subtle.encrypt(
         {
           name: 'AES-GCM',
@@ -99,10 +99,14 @@ export default function Upload() {
         aesKey,
         fileArrayBuffer
       );
-
-      // We also need to send the nonce, so we return it as part of the Blob.
-      const blobWithNonce = new Blob([new Uint8Array(encryptedFile), nonce]);
-      return blobWithNonce;
+    
+      // Combine the encrypted content with the nonce
+      const encryptedArray = new Uint8Array(encryptedFile);
+      const combinedArray = new Uint8Array(encryptedArray.length + nonce.length);
+      combinedArray.set(encryptedArray, 0);
+      combinedArray.set(nonce, encryptedArray.length);
+    
+      return new Blob([combinedArray]);
     };
 
     // Encrypt the AES key with the user's public key
@@ -114,6 +118,21 @@ export default function Upload() {
         aesKeyExported
       );
       return new Uint8Array(encryptedKey);
+    };
+
+    // Function to encrypt the nonce with the user's public key
+    const encryptNonceWithPublicKey = async (publicKey: CryptoKey, encryptedFile: Blob): Promise<Uint8Array> => {
+      const fileArrayBuffer = await encryptedFile.arrayBuffer();
+      const nonce = new Uint8Array(fileArrayBuffer.slice(-12)); // Last 12 bytes are the nonce
+    
+      // Encrypt the nonce with the user's public key
+      const encrypted = await window.crypto.subtle.encrypt(
+        { name: "RSA-OAEP" },
+        publicKey,
+        nonce
+      );
+    
+      return new Uint8Array(encrypted);
     };
       
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -182,13 +201,16 @@ export default function Upload() {
           // Encrypt the AES key using the user's public RSA key
           const encryptedAESKey = await encryptAESKeyWithPublicKey(userPublicKey, aesKey);
 
+          // Extract the nonce and encrypt it with the user's public key
+          const encryptedNonce = await encryptNonceWithPublicKey(userPublicKey, encryptedFile);
+
           const metadata = {
             fileName: file.name,
             encryptedFileName: btoa(String.fromCharCode(...encryptedFileName)),
             encryptedKey: btoa(String.fromCharCode(...encryptedAESKey)),
             encryptedMimeType: btoa(String.fromCharCode(...encryptedMimeType)),
             isDirectory: fileMeta.find(meta => meta.name === file.name)?.isDirectory || false,
-            nonce: "c3RyaW5n",
+            nonce: btoa(String.fromCharCode(...encryptedNonce)),
             parentId: null
           };
           const formData = new FormData();
