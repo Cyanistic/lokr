@@ -7,7 +7,7 @@ function fromBase64(base64: string): Uint8Array {
 
 //  Convert Base64 to ArrayBuffer
 function base64ToArrayBuffer(base64: string): ArrayBuffer {
-    return fromBase64(base64).buffer;  
+    return fromBase64(base64).buffer;
 }
 
 //  Generate AES-GCM Key (General Use, Not Password-Based)
@@ -83,7 +83,7 @@ export async function generateRSAKeyPair(): Promise<CryptoKeyPair> {
             hash: "SHA-256",
         },
         true,
-        ["encrypt", "decrypt"]
+        ["encrypt", "decrypt", "wrapKey", "unwrapKey"]
     );
 }
 
