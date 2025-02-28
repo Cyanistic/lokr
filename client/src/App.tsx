@@ -5,6 +5,7 @@ import Profile from './pages/Profile'
 import FileExplorer from './pages/FileExplorer'
 import Login from './pages/Login'
 import Upload from './pages/Upload'
+import TestPage from "./pages/TestPage"
 
 function App() {
 
@@ -22,6 +23,7 @@ function App() {
       <Route path="/register" element = {<Register />}/>
       <Route path="/profile" element = {<Profile/>}/>
       <Route path="/files" element = {<FileExplorer/>}/>
+      <Route path="/test" element={<TestPage />} />
       </Routes>
 
     </BrowserRouter>
@@ -53,108 +55,6 @@ function Home(){
 
 }
 
-/* //Login page(old)
-function Login_old() {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-
-  const handleLogin = (e: { preventDefault: () => void }) => {
-    e.preventDefault();
-
-    if (!username || !password) {
-      setError('Username and password are required.');
-    } else {
-      setError('');
-      console.log('Logged in with:', { username, password });
-      alert('Login successful!');
-    }
-  };
-
-  return (
-    <div className = 'main'>
-      <h1>Log In Page</h1>
-      <form onSubmit={handleLogin} className="register_main">
-        <input
-          type="username"
-          placeholder="Enter Your Username"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          required
-        />
-        <input
-          type="password"
-          placeholder="Enter Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
-        {error && <p style={{ color: 'red' }}>{error}</p>}
-        <button type="submit">Log In</button>
-        <Link to="/register">Register</Link>
-      </form>
-    </div>
-  );
-} */
-
-/* //Register page(old)
-function Register_Old() {
-  const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-
-  const handleLogin = (e: { preventDefault: () => void }) => {
-    e.preventDefault();
-
-    const emailRegex = /^\S+@\S+\.\S+$/;
-
-    if (!username || !password) {
-      setError('Username and password are required.');
-    } else if (email && !emailRegex.test(email)) {
-      setError('Please enter a valid email address.');
-    } else {
-      setError('');
-      console.log('Registered with:', { username, password });
-      alert('Registration was successful!');
-    }
-  };
-
-  return (
-    <div className = 'main'>
-      <h1>Registration Page</h1>
-      <form onSubmit={handleLogin} className="register_main">
-      <input
-          type="username"
-          placeholder="Enter Your Username"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          required
-        />
-        <input
-          type="password"
-          placeholder="Enter Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
-        <input
-          type="email"
-          placeholder="Enter Your Email (optional)"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-        {error && <p style={{ color: 'red' }}>{error}</p>}
-        <Link to="/profile" type="submit">Register</Link>
-        <Link to="/login">Log In</Link>
-      </form>
-    </div>
-    
-  );
-  
-}
- */
-
 //About us page
 function About() {
   return (
@@ -180,4 +80,4 @@ function Downloads() {
 
 
 
-export default App
+export default App;

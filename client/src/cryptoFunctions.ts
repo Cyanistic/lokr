@@ -149,3 +149,4 @@ export async function loadKeys(password: string) {
 
     return { privateKey, publicKey };
 }
+
