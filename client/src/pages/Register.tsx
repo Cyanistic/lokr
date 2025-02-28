@@ -21,7 +21,9 @@ export default function Register() {
     const [email, setEmail] = useState("");
     const [message, setMessage] = useState("");
 
-    async function handleRegister() {
+    async function handleRegister(event?: React.FormEvent<HTMLFormElement>) {
+        if (event) event.preventDefault(); // Prevent page reload
+
         try {
             setMessage("");
 
@@ -50,6 +52,7 @@ export default function Register() {
 
             // Step 3: Encrypt Private Key using AES-GCM
             const { iv, encrypted } = await encryptPrivateKey(privateKey, masterKey);
+            
             // Convert all binary data to Base64 for JSON transmission
             const saltBase64 = toBase64(salt);
             const ivBase64 = toBase64(iv);
@@ -103,10 +106,29 @@ export default function Register() {
         <div>
             <h1>Register</h1>
             {message && <p>{message}</p>}
-            <input type="text" placeholder="Username" value={username} onChange={e => setUsername(e.target.value)} />
-            <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} />
-            <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} />
-            <button onClick={handleRegister}>Register</button>
+            <form onSubmit={handleRegister}>
+                <input 
+                    type="text" 
+                    placeholder="Username" 
+                    value={username} 
+                    onChange={e => setUsername(e.target.value)} 
+                    required
+                />
+                <input 
+                    type="email" 
+                    placeholder="Email" 
+                    value={email} 
+                    onChange={e => setEmail(e.target.value)} 
+                />
+                <input 
+                    type="password" 
+                    placeholder="Password" 
+                    value={password} 
+                    onChange={e => setPassword(e.target.value)} 
+                    required
+                />
+                <button type="submit">Register</button>
+            </form>
         </div>
     );
 }
