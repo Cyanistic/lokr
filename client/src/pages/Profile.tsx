@@ -50,31 +50,54 @@ function Profile() {
 
   //Save edit to backend
   const handleSave = async (field: string) => {
-    try{
-      const response = await fetch("http://localhost:6969/api/profile", {
-        method: "PUT",
-        credentials: "include",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({ [field]: updatedValue }),
-    });
+    try {
+        const requestBody: any = {
+            type:  field.charAt(0).toLowerCase() + field.slice(1) , // Convert "username" to "Username"
+            newValue: updatedValue,
+            password: prompt("Enter your current password to confirm change"),
+        };
 
-    if(!response.ok) {
-        throw new Error("Failed to update ${field}");
-    }
+        if (!requestBody.password) {
+            throw new Error("Password confirmation is required.");
+        }
 
-    const updatedUser = await response.json();
-      setUser(updatedUser); // Update UI with the new data
-      setEditingField(null); // Exit edit mode
+        if (field === "password") {
+            const encryptedPrivateKey = prompt("Enter your encrypted private key");
+            if (!encryptedPrivateKey) {
+                throw new Error("Encrypted private key is required for password change.");
+            }
+            requestBody.encryptedPrivateKey = btoa(encryptedPrivateKey) ;
+        }
+
+        console.log("🚀 Sending request:", JSON.stringify(requestBody, null, 2)); // Log formatted request
+
+        const response = await fetch("http://localhost:6969/api/profile", {
+            method: "PUT",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(requestBody),
+        });
+
+        console.log("🔁 Response status:", response.status); // Log response status
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            console.error("❌ Server Response:", errorData);
+            throw new Error(`Failed to update ${field}: ${errorData.message || response.statusText}`);
+        }
+
+        const updatedUser = await response.json();
+        console.log("✅ Updated user data:", updatedUser); //Log updated user data
+        setUser(updatedUser);
+        setEditingField(null);
     } catch (err) {
-      setError(`Error updating ${field}: ${err}`);
+        console.error("❌ Error:", err);
+        setError(`Error updating ${field}: ${err instanceof Error ? err.message : "Unknown error"}`);
     }
-  };
+};
 
 
 
-
-
-  
   // Define sections as separate components or elements
   const renderContent = () => {
     switch (activeSection) {
