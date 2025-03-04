@@ -4,11 +4,34 @@ import AvatarUpload from './ProfileAvatar';
 
 function Profile() {
 
+  // Type the state as File or null for file, and string or null for imageUrl
+  
+  /*const [imageUrl, setImageUrl] = useState<string | null>(null);
+
+  function getFile(event: React.ChangeEvent<HTMLInputElement>) {
+    const selectedFile = event.target.files?.[0]; // Make sure there's a file
+    if (selectedFile) {
+      
+      setImageUrl(URL.createObjectURL(selectedFile)); // Create and set the image URL
+    } else {
+      console.log("No file selected!"); // Debugging log
+      setImageUrl(null); // If no file selected, reset the imageUrl state
+    }
+  }*/
+
+  type RegenerateTOTPRequest = { type: "regenerate"; password: string };
+  type VerifyTOTPRequest = { type: "verify"; code: string };
+  type EnableTOTPRequest = { type: "enable"; enable: boolean; password: string };
+  
   const [activeSection, setActiveSection] = useState<string>('profile'); // Tracks the active section
   const [user, setUser] = useState<{ username: string; email: string | null; id: string; avatarExtension: string | null } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editingField, setEditingField] = useState<string | null>(null);
   const [updatedValue, setUpdatedValue] = useState<string>("");
+  const [qrCode, setQrCode] = useState<string | null>(null);
+  const [totpStatus, setTotpStatus] = useState<boolean | null>(null);
+  const [loading, setLoading] = useState(true); // Loading state for fetching user data
+
 
   const [avatarUrl, setAvatarUrl] = useState<string>("https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png");
 
@@ -24,8 +47,14 @@ function Profile() {
         }
         return response.json();
       })
-      .then((data) => { setUser(data); setAvatarUrl(getAvatarUrl(data)) })
+      .then((data) => { 
+        setUser(data); setAvatarUrl(getAvatarUrl(data)) 
+        if (data.totpEnabled !== undefined) {
+          setTotpStatus(data.totpEnabled); //Store TOTP status
+      }
+      })
       .catch((err) => setError(err.message))
+      .finally(() => setLoading(false));
   }, []);
 
   const getAvatarUrl = (user: { id: string; avatarExtension: string }) => {
@@ -36,6 +65,126 @@ function Profile() {
     }
     return "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"; // Default avatar if user is null
   };
+
+//Regenerate TOTP
+const handleRegenerateTOTP = async () => {
+  try {
+      const password = prompt("Enter your current password:");
+      if (!password) {
+          alert("Password is required!");
+          return;
+      }
+
+      const requestBody: RegenerateTOTPRequest = { type: "regenerate", password };
+      console.log("Sending TOTP Regenerate Request:", JSON.stringify(requestBody, null, 2));
+
+      const response = await fetch("http://localhost:6969/api/totp", {
+          method: "PUT",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(requestBody),
+      });
+
+      console.log("Response status:", response.status);
+
+      if (!response.ok) {
+          const errorText = await response.text();
+          console.error("Server Error:", errorText);
+          alert(`Error: ${errorText}`);
+          return;
+      }
+
+      const responseData = await response.json();
+      console.log("TOTP Regenerate Response:", responseData);
+
+      // Ensure the QR code has the correct format
+      let qrCode = responseData.qrCode;
+      if (!qrCode.startsWith("data:image/png;base64,")) {
+          console.warn("QR Code missing base64 prefix, fixing it...");
+          qrCode = `data:image/png;base64,${qrCode}`; // Manually add prefix
+      }
+
+      console.log("Final QR Code URL:", qrCode);
+
+      setQrCode(qrCode);
+
+  } catch (err) {
+      console.error("Error regenerating TOTP:", err);
+      alert("Failed to regenerate TOTP.");
+  }
+};
+
+
+
+//Verify TOTP
+const handleVerifyTOTP = async () => {
+  try {
+      const code = prompt("Enter the 6-digit TOTP code:");
+      if (!code) {
+          alert("TOTP code is required!");
+          return;
+      }
+
+      const requestBody: VerifyTOTPRequest = { type: "verify", code };
+      console.log("Verifying TOTP:", JSON.stringify(requestBody, null, 2));
+
+      const response = await fetch("http://localhost:6969/api/totp", {
+          method: "PUT",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(requestBody),
+      });
+
+      console.log("Response status:", response.status);
+      if (!response.ok) throw new Error(await response.text());
+
+      alert("TOTP verified successfully! You can now enable TOTP.");
+  } catch (err) {
+      console.error("Error verifying TOTP:", err);
+      alert("Failed to verify TOTP. Please check the code and try again.");
+  }
+};
+
+
+
+//Enable/Disable TOTP
+  const handleEnableTOTP = async () => {
+    try {
+        const password = prompt("Enter your current password:");
+        if (!password) {
+            alert("Password is required!");
+            return;
+        }
+
+        const enable = !totpStatus;
+        const requestBody: EnableTOTPRequest = { type: "enable", enable, password };
+
+        console.log(`Sending TOTP ${enable ? "Enable" : "Disable"} Request:`, JSON.stringify(requestBody, null, 2));
+
+        const response = await fetch("http://localhost:6969/api/totp", {
+            method: "PUT",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(requestBody),
+        });
+
+        console.log("Response status:", response.status);
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error("Server Error:", errorText);
+          alert(`Error: ${errorText}`);
+          return;
+      }
+
+        alert(`TOTP ${enable ? "enabled" : "disabled"} successfully!`);
+        setTotpStatus(enable); //Updates status UI
+    } catch (err) {
+        console.error("Error toggling TOTP:", err);
+        alert("Failed to update TOTP settings.");
+    }
+};
+
 
   //Start editing a field
   const handleEdit = (field: string, currentValue: string | null) => {
@@ -81,13 +230,19 @@ function Profile() {
         throw new Error(`Failed to update ${field}: ${errorData.message || response.statusText}`);
       }
 
-      const updatedUser = await response.json();
-      console.log("✅ Updated user data:", updatedUser); //Log updated user data
-      setUser(updatedUser);
-      setEditingField(null);
+        if (!response.ok) {
+            const errorData = await response.json();
+            console.error("Server Response:", errorData);
+            throw new Error(`Failed to update ${field}: ${errorData.message || response.statusText}`);
+        }
+
+        const updatedUser = await response.json();
+        console.log("Updated user data:", updatedUser); //Log updated user data
+        setUser(updatedUser);
+        setEditingField(null);
     } catch (err) {
-      console.error("❌ Error:", err);
-      setError(`Error updating ${field}: ${err instanceof Error ? err.message : "Unknown error"}`);
+        console.error("Error:", err);
+        setError(`Error updating ${field}: ${err instanceof Error ? err.message : "Unknown error"}`);
     }
   };
 
@@ -162,8 +317,45 @@ function Profile() {
           </div >
 
         );
-      case 'security':
-  return <div>Security and Privacy Section</div>;
+        case 'security':
+          return (
+              <div className = "profileInfo">
+                  <h3>Security and Privacy Section</h3>
+      
+                  {/* Handle Loading and Errors */}
+                  {loading ? (
+                      <p>Loading user data...</p>
+                  ) : error ? (
+                      <p style={{ color: "red" }}>Error: {error}</p>
+                  ) : (
+                      <>
+                          {/* Display TOTP Status */}
+                          <p>
+                              TOTP is currently: <strong>{totpStatus ? "Enabled" : "Disabled"}</strong>
+                          </p>
+      
+                          <button onClick={handleRegenerateTOTP}>Regenerate TOTP</button>
+      
+                          {/* Modal for displaying QR code */}
+                          {qrCode && (
+                              <div className="modal">
+                                  <div className="modal-content">
+                                      <h3>Scan the QR code</h3>
+                                      <img src={qrCode} alt="TOTP QR Code" style={{ width: "250px", height: "250px" }} />
+                                      <button onClick={() => setQrCode(null)}>Close</button>
+                                  </div>
+                              </div>
+                          )}
+      
+                          <button onClick={handleVerifyTOTP}>Verify TOTP</button>
+      
+                          <button onClick={handleEnableTOTP}>
+                              {totpStatus ? "Disable TOTP" : "Enable TOTP"}
+                          </button>
+                      </>
+                  )}
+              </div>
+          );
       case 'notifications':
   return <div>Notifications Settings Section</div>;
       default:
@@ -171,44 +363,45 @@ function Profile() {
 }
   };
 
-// Inline styles
-const styles: { [key: string]: React.CSSProperties } = {
-  container: {
-    display: 'flex',
-    height: '100vh',
-    backgroundColor: '#f5f5f5',
-  },
-  sidebar: {
-    width: '250px',
-    backgroundColor: '#333',
-    padding: '20px',
-    color: 'white',
-    display: 'flex',
-    flexDirection: 'column' as 'column',
-  },
-  button: {
-    backgroundColor: '#444',
-    color: 'white',
-    border: 'none',
-    padding: '15px',
-    marginBottom: '10px',
-    textAlign: 'left',
-    fontSize: '16px',
-    cursor: 'pointer',
-    borderRadius: '5px',
-    transition: 'background-color 0.3s',
-  },
-  active: {
-    backgroundColor: '#0066cc', // Highlight the active button
-  },
-  content: {
-    flexGrow: 1,
-    padding: '20px',
-    backgroundColor: 'white', // Ensure background is white
-    color: 'black', // Force text color to black
-    overflowY: 'auto',
-  }
-};
+  // Inline styles
+  const styles: { [key: string]: React.CSSProperties } = {
+    container: {
+      display: 'flex',
+      height: '100vh',
+      backgroundColor: '#f5f5f5',
+    },
+    sidebar: {
+      width: '250px',
+      backgroundColor: '#333',
+      padding: '20px',
+      color: 'white',
+      display: 'flex',
+      flexDirection: 'column' as 'column',
+    },
+    button: {
+      backgroundColor: '#444',
+      color: 'white',
+      border: 'none',
+      padding: '15px',
+      marginBottom: '10px',
+      textAlign: 'left',
+      fontSize: '16px',
+      cursor: 'pointer',
+      borderRadius: '5px',
+      transition: 'background-color 0.3s',
+    },
+    active: {
+      backgroundColor: '#0066cc', // Highlight the active button
+    },
+    content: {
+      flexGrow: 1,
+      padding: '20px',
+      backgroundColor: 'white', // Ensure background is white
+      color: 'black', // Force text color to black
+      overflowY: 'auto',
+    }
+    
+  };
 
 return (
 
