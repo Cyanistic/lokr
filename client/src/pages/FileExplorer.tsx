@@ -40,6 +40,35 @@ const getFileIcon = (fileType: string) => {
 
   return icons[fileType] || <FaFileAlt />;
 };
+// Function to handle file download
+// @ts-ignore
+const handleDownload = async (fileId: string) => {
+    try {
+        const response = await fetch(`http://localhost:6969/api/file/data/${fileId}`, {
+            method: "GET",
+            credentials: "include", 
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to download file: ${response.statusText}`);
+        }
+
+        // Convert response to a Blob
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+
+        // Create a temporary link to trigger download
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "FILE"; // Temporary name for the file
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+    } catch (error) {
+        console.error("Error downloading file:", error);
+    }
+};
 
 interface File {
   id: number;
