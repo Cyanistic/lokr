@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import localforage from "localforage";
-import { Link } from "react-router-dom";
-import {Button, useTheme} from '@mui/material';
+import { Button, useTheme } from '@mui/material';
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 const Login: React.FC = () => {
   const [username, setUsername] = useState("");
@@ -10,6 +10,8 @@ const Login: React.FC = () => {
   const [userSuggestions, setUserSuggestions] = useState<string[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const [searchParams,] = useSearchParams();
+  const navigate = useNavigate();
 
   // Fetch user suggestions when username changes
   useEffect(() => {
@@ -115,9 +117,8 @@ const Login: React.FC = () => {
       localforage.setItem("encryptedPrivateKey", responseData.encryptedPrivateKey);
       localforage.setItem("salt", responseData.salt);
 
-      setErrorMessage("Login successful!");
-      alert("Login successful!");
-      window.location.href = "/home"; // Redirect after login
+      // Navigate to the redirect URL or the root page if none exists
+      navigate(searchParams.get("redirect") ?? "/");
     } catch (error) {
       console.error("Login error:", error);
       setErrorMessage("Login failed. Please try again.");
@@ -127,7 +128,7 @@ const Login: React.FC = () => {
   const theme = useTheme();
 
   return (
-    <div style={{ textAlign: "center", padding: "20px"}}>
+    <div style={{ textAlign: "center", padding: "20px" }}>
       <h2>Login</h2>
       {errorMessage && <p style={{ color: "red" }}>{errorMessage}</p>}
 
@@ -209,12 +210,12 @@ const Login: React.FC = () => {
           Login
         </button>*/}
         <Button type="submit" variant="contained" style={
-          { 
-            marginTop: "10px", 
-            padding: "8px 20px", 
+          {
+            marginTop: "10px",
+            padding: "8px 20px",
             cursor: "pointer",
-            backgroundColor: theme.palette.mode === 'dark' ? '#2f27ce': '#3a31d8', 
-            color: theme.palette.mode === 'dark' ? '#050316' : '#eae9fc' 
+            backgroundColor: theme.palette.mode === 'dark' ? '#2f27ce' : '#3a31d8',
+            color: theme.palette.mode === 'dark' ? '#050316' : '#eae9fc'
           }
         }>Login</Button>
       </form>
