@@ -9,7 +9,7 @@ use axum::{
     body::{Body, HttpBody},
     extract::{Path, Query, State},
     http::{header::SET_COOKIE, StatusCode},
-    response::{IntoResponse, Response},
+    response::{AppendHeaders, IntoResponse, Response},
     Json,
 };
 use base64::{engine::general_purpose, Engine};
@@ -280,7 +280,8 @@ pub async fn create_user(
     description = "Authenticate a user with the backend",
     request_body(content = LoginUser, description = "User to authenticate"),
     responses(
-        (status = OK, description = "User successfully authenticated", body = LoginResponse, headers(("Set-Cookie" = String, description = "`session` cookie containing the authenticated user's session id"))),
+        (status = OK, description = "User successfully authenticated", body = LoginResponse, headers(
+            ("Set-Cookie" = String, description = "`session` cookie containing the authenticated user's session id. This is HttpOnly so the client does not have access.\n `authenticated` cookie that tells the frontend if a user is authenticated, since the `session` cookie is HttpOnly."))),
         (status = TEMPORARY_REDIRECT, description = "Username and password are correct, but TOTP is missing. Login parameters are returned to allow for easier reuse", body = LoginUser),
         (status = UNAUTHORIZED, description = "Invalid username or password", body = ErrorResponse)
     )
@@ -328,7 +329,7 @@ pub async fn authenticate_user(
             db_user
                 .email
                 .clone()
-                .unwrap_or_else(|| "placeholder@lokr.com".to_string()),
+                .unwrap_or_else(|| format!("{}@lokr.com", user.username)),
         );
         if !totp.check_current(&totp_code)? {
             return Err(AppError::UserError((
@@ -356,8 +357,35 @@ pub async fn authenticate_user(
     .await?;
     Ok((
         StatusCode::OK,
-        [(SET_COOKIE, format!("session={uuid}; HttpOnly"))],
+        [(SET_COOKIE, format!("session={uuid}; HttpOnly; Max-Age=34560000"))],
+        AppendHeaders([(SET_COOKIE, "authenticated=true; Max-Age=34560000; Path=/".to_string())]),
         Json(login_body),
+    )
+        .into_response())
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/logout",
+    description = "Logout a user from the backend",
+    responses(
+        (status = OK, description = "User successfully logged out", body = LoginResponse, headers(("Set-Cookie" = String, description = "Deletes the `session` and `authenticated` cookies"))),
+        (status = UNAUTHORIZED, description = "User is not logged in", body = ErrorResponse)
+    )
+)]
+/// Utilizes the `State` and `SessionAuth` extractors to ensure the user is actually logged in
+/// Can't start the variables with an underscore because the `utoipa::path` macro will have a
+/// stroke and refuse to compile
+#[allow(unused_variables)]
+pub async fn logout(
+    State(state): State<AppState>,
+    SessionAuth(user): SessionAuth,
+) -> Result<Response, AppError> {
+    Ok((
+        StatusCode::OK,
+        [(SET_COOKIE, "session=; HttpOnly; Max-Age=0")],
+        AppendHeaders([(SET_COOKIE, "authenticated=; Path=/; Max-Age=0".to_string())]),
+        success!("User successfully logged out"),
     )
         .into_response())
 }
@@ -826,7 +854,7 @@ pub async fn update_totp(
                 Some("Lokr".to_string()),
                 user.email
                     .clone()
-                    .unwrap_or_else(|| "placeholder@lokr.com".to_string()),
+                    .unwrap_or_else(|| format!("{}@lokr.com", user.username)),
             );
             sqlx::query!(
                 "UPDATE user SET totp_secret = ?, totp_verified = false WHERE id = ?",
@@ -865,7 +893,7 @@ pub async fn update_totp(
                 Some("Lokr".to_string()),
                 user.email
                     .clone()
-                    .unwrap_or_else(|| "placeholder@lokr.com".to_string()),
+                    .unwrap_or_else(|| format!("{}@lokr.com", user.username)),
             );
             // Check the TOTP code provided by the user at the current time
             if !totp.check_current(&code)? {

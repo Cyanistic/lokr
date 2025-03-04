@@ -114,6 +114,7 @@ pub static AVATAR_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
         paths(
             users::create_user,
             users::authenticate_user,
+            users::logout,
             users::check_usage,
             users::get_logged_in_user,
             users::update_user,
@@ -268,6 +269,7 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
     let (api_router, open_api): (Router, _) = OpenApiRouter::with_openapi(ApiDoc::openapi())
         .routes(routes!(users::create_user))
         .routes(routes!(users::authenticate_user))
+        .routes(routes!(users::logout))
         .routes(routes!(users::check_usage))
         .routes(routes!(users::get_logged_in_user))
         .routes(routes!(users::update_user))

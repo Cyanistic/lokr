@@ -86,10 +86,8 @@ impl IntoResponse for AppError {
                 (StatusCode::BAD_REQUEST, sonic_rs::to_string(&e).unwrap())
             }
             AppError::AuthError(e) => {
-                headers.insert(
-                    SET_COOKIE,
-                    "session=; HttpOnly; Max-Age=0;".parse().unwrap(),
-                );
+                headers.append(SET_COOKIE, "session=; HttpOnly; Max-Age=0".parse().unwrap());
+                headers.append(SET_COOKIE, "authenticated=; Path=/; Max-Age=0".parse().unwrap());
                 (StatusCode::UNAUTHORIZED, e.to_string())
             }
             AppError::UserError((code, e)) => (*code, e.to_string()),
