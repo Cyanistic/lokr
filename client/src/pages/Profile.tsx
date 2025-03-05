@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import AvatarUpload from './ProfileAvatar';
+import { BASE_URL } from '../utils';
 
 
 function Profile() {
@@ -37,7 +38,7 @@ function Profile() {
 
   //Fetch User data
   useEffect(() => {
-    fetch("http://localhost:6969/api/profile", {
+    fetch(`${BASE_URL}/api/profile`, {
       credentials: "include",
     })
 
@@ -60,7 +61,7 @@ function Profile() {
   const getAvatarUrl = (user: { id: string; avatarExtension: string }) => {
     if (user) {
       return user.avatarExtension
-        ? `http://localhost:6969/api/avatars/${user.id}.${user.avatarExtension}` // Construct the URL using user.id and user.avatarExtension
+        ? `${BASE_URL}/api/avatars/${user.id}.${user.avatarExtension}` // Construct the URL using user.id and user.avatarExtension
         : "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"; // Default avatar URL
     }
     return "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"; // Default avatar if user is null
@@ -215,7 +216,7 @@ const handleVerifyTOTP = async () => {
 
       console.log("🚀 Sending request:", JSON.stringify(requestBody, null, 2)); // Log formatted request
 
-      const response = await fetch("http://localhost:6969/api/profile", {
+      const response = await fetch("${BASE_URL}/api/profile", {
         method: "PUT",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
