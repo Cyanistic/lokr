@@ -4,7 +4,6 @@ import Cookies from 'js-cookie';
  * */
 export function isAuthenticated(): boolean {
     const res = Cookies.get("authenticated");
-    console.log(document.cookie);
     return Boolean(res);
 }
 
@@ -14,3 +13,8 @@ export async function logout(): Promise<boolean> {
     const res = await fetch("/api/logout", { method: "POST" });
     return res.ok;
 }
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export function validateEmail(email: string) {
+    return EMAIL_REGEX.test(email);
+};
