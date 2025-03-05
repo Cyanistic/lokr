@@ -1,10 +1,13 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import {
     deriveKeyFromPassword,
     encryptPrivateKey,
     generateRSAKeyPair
 } from "../cryptoFunctions";
 import {Button, useTheme} from '@mui/material';
+import { LoginUser } from "../types";
+import { useDebouncedCallback } from "use-debounce";
+import { validateEmail } from "../utils";
 
 // Helper function to convert Uint8Array to Base64 safely
 function toBase64(bytes: Uint8Array): string {
@@ -17,43 +20,121 @@ function bufferToBase64(buffer: ArrayBuffer): string {
 }
 
 export default function Register() {
-    const [username, setUsername] = useState("");
-    const [password, setPassword] = useState("");
-    const [email, setEmail] = useState("");
+    const [user, setUser] = useState<LoginUser>({
+        username: "",
+        email: "",
+        password: ""
+    });
+    const [error, setError] = useState<LoginUser>({
+        username: "",
+        email: "",
+        password: ""
+    });
+
     const [message, setMessage] = useState("");
+
+    // Only debounce server side checks
+    const debounceCheck = useDebouncedCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+        switch (event.target.name) {
+            case "username":
+                const usernameRes = await fetch(`http://localhost:6969/api/check?username=${event.target.value}`);
+                if (usernameRes.ok) {
+                    setError({ ...error, username: null });
+                } else {
+                    setError({ ...error, username: "Username is already in use!" });
+                }
+                break;
+
+            case "email":
+                const emailRes = await fetch(`http://localhost:6969/api/check?email=${event.target.value}`);
+                if (emailRes.ok) {
+                    setError({ ...error, email: null });
+                } else {
+                    setError({ ...error, email: "Email is already in use!" });
+                }
+                break;
+        }
+    }, 700);
+
+    function localCheck(key: string, value: string): boolean {
+        switch (key) {
+            case "username":
+                if (!value) {
+                    setError({ ...error, username: "" });
+                    return false;
+                }
+                if (value.length < 3 || value.length > 20) {
+                    setError({ ...error, username: "Username must be 3-20 characters long." });
+                    return false;
+                }
+                break;
+
+            case "email":
+                if (!value) {
+                    setError({ ...error, email: null });
+                    return true;
+                }
+                if (!validateEmail(value)) {
+                    setError({ ...error, email: "Invalid email!" });
+                    return false;
+                }
+                break;
+            case "password":
+                if (!value) {
+                    setError({ ...error, password: "" });
+                    return false;
+                }
+                if (value.length < 8) {
+                    setError({ ...error, password: "Password must be at least 8 characters long." });
+                    return false
+                }
+                setError({ ...error, password: null });
+        }
+        return true;
+    }
+    async function handleChange(event: React.ChangeEvent<HTMLInputElement>) {
+        setUser({ ...user, [event.target.name]: event.target.value });
+        if (!localCheck(event.target.name, event.target.value)) {
+            debounceCheck.cancel();
+            return;
+        }
+        debounceCheck(event);
+    }
 
     async function handleRegister(event?: React.FormEvent<HTMLFormElement>) {
         if (event) event.preventDefault(); // Prevent page reload
-
         try {
             setMessage("");
-
-            // Validation checks
-            if (!username || !password) {
-                setMessage("Username and password are required.");
+            if (!user.username) {
+                setError({ ...error, username: "Username is required" });
                 return;
             }
 
-            if (username.length < 3 || username.length > 20) {
-                setMessage("Username must be 3-20 characters long.");
+            if (!user.password) {
+                setError({ ...error, password: "Password is required" });
                 return;
             }
 
-            if (password.length < 8) {
-                setMessage("Password must be at least 8 characters long.");
+            // Check the proper invariants
+            let valid = true;
+            for (const [key, value] of Object.entries(user)) {
+                valid &&= localCheck(key, value);
+            }
+
+            if (!valid) {
                 return;
             }
 
             // Step 1: Generate Salt for PBKDF2
             const salt = crypto.getRandomValues(new Uint8Array(16));
-            const masterKey = await deriveKeyFromPassword(password, salt);
+            const masterKey = await deriveKeyFromPassword(user.password, salt);
 
             // Step 2: Generate Ed25519 Key Pair
             const { publicKey, privateKey } = await generateRSAKeyPair();
 
             // Step 3: Encrypt Private Key using AES-GCM
             const { iv, encrypted } = await encryptPrivateKey(privateKey, masterKey);
-            
+
             // Convert all binary data to Base64 for JSON transmission
             const saltBase64 = toBase64(salt);
             const ivBase64 = toBase64(iv);
@@ -66,9 +147,9 @@ export default function Register() {
 
             // Prepare Request Data
             const body = JSON.stringify({
-                username,
-                email: email || null,
-                password, // 🔹 Backend requires this field
+                username: user.username,
+                email: user.email?.length === 0 ? null : user.email,
+                password: user.password, // 🔹 Backend requires this field
                 salt: saltBase64,
                 encryptedPrivateKey: encryptedPrivateKeyBase64, // Encrypted private key
                 iv: ivBase64, // IV for decryption
@@ -107,8 +188,12 @@ export default function Register() {
     return (
         <div style={{ textAlign: "center", padding: "20px"}}>
             <h1>Register</h1>
-            {message && <p>{message}</p>}
+            <p>{message}</p>
+            {Object.entries(error).filter(([_, value]) => Boolean(value)).map(([k, value]) => {
+                return <p key={`error.${k}`}><b>{k}:</b> {value}</p>
+            })}
             <form onSubmit={handleRegister}>
+<<<<<<< HEAD
                 <div style={{ position: "relative", display: "inline-block" }}>
                     <input 
                         type="text" 
@@ -147,6 +232,32 @@ export default function Register() {
                     }>Register</Button>
 
                 </div>
+=======
+                <input
+                    type="text"
+                    placeholder="Username"
+                    name="username"
+                    value={user.username ?? ""}
+                    onChange={handleChange}
+                    required
+                />
+                <input
+                    type="email"
+                    name="email"
+                    placeholder="Email"
+                    value={user.email ?? ""}
+                    onChange={handleChange}
+                />
+                <input
+                    type="password"
+                    placeholder="Password"
+                    name="password"
+                    value={user.password ?? ""}
+                    onChange={handleChange}
+                    required
+                />
+                <button type="submit">Register</button>
+>>>>>>> f1f271e (improved register page to report errors on change)
             </form>
         </div>
     );
