@@ -1,4 +1,5 @@
 import Cookies from 'js-cookie';
+import { PublicUser } from './types';
 
 /* Whether the user is authenticated
  * */
@@ -17,4 +18,11 @@ export async function logout(): Promise<boolean> {
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export function validateEmail(email: string) {
     return EMAIL_REGEX.test(email);
+};
+
+// Fetch usernames from the API
+export async function fetchUsernames(query: string, limit: number, offset: number): Promise<PublicUser> {
+    const response = await fetch(`http://localhost:6969/api/users/search/${query}?limit=${limit}&offset=${offset}`);
+    if (!response.ok) throw new Error(`Failed to fetch usernames: ${await response.text()}`);
+    return await response.json();
 };

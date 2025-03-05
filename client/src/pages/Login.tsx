@@ -1,57 +1,20 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState } from "react";
 import localforage from "localforage";
 import { Button, useTheme } from '@mui/material';
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { LoginUser } from "../types";
+import { deriveKeyFromPassword, unwrapPrivateKey } from "../cryptoFunctions";
 
 const Login: React.FC = () => {
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+  const [user, setUser] = useState<LoginUser>({
+    username: "",
+    email: "",
+    password: "",
+  });
   const [totpCode, setTotpCode] = useState(""); // Optional for 2FA users
-  const [userSuggestions, setUserSuggestions] = useState<string[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
   const [searchParams,] = useSearchParams();
   const navigate = useNavigate();
-
-  // Fetch user suggestions when username changes
-  useEffect(() => {
-    if (username.length >= 3) {
-      fetchUsernames(username);
-    } else {
-      setUserSuggestions([]); // Clear dropdown if input is too short
-    }
-  }, [username]);
-
-  // Close dropdown if clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setUserSuggestions([]);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  // Fetch usernames from the API
-  const fetchUsernames = async (query: string) => {
-    try {
-      const response = await fetch(`http://localhost:6969/api/users/search/${query}?limit=10&offset=0`);
-      if (!response.ok) throw new Error(`Failed to fetch usernames: ${await response.text()}`);
-
-      const data = await response.json();
-      setUserSuggestions(data.length > 0 ? data.map((user: { username: string }) => user.username) : []);
-    } catch (error: any) {
-      console.error("Error fetching usernames:", error.message);
-      setErrorMessage(error.message);
-    }
-  };
-
-  // Handle username selection
-  const handleSelectUsername = (selectedUsername: string) => {
-    setUsername(selectedUsername);
-    setUserSuggestions([]); // Close dropdown immediately
-  };
 
   // Handle login submission
   const handleLogin = async (e: React.FormEvent) => {
@@ -61,37 +24,26 @@ const Login: React.FC = () => {
     try {
       console.log("Starting login process...");
 
-      if (!username || !password) {
+      if (!user.username || !user.password) {
         setErrorMessage("Username and password are required.");
         console.log("Missing username or password.");
         return;
       }
 
-      // Check if the username exists
-      console.log("Checking username:", username);
-      const checkResponse = await fetch(`http://localhost:6969/api/check?username=${username}`, {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-      });
-
-      console.log("Username check response:", checkResponse.status);
-
-      if (checkResponse.status === 409) {
-        console.log("Username exists, proceeding to login...");
-      } else if (checkResponse.status === 200) {
-        console.log("Username does not exist.");
-        setErrorMessage("Username does not exist.");
+      if (user.username.length < 3 || user.username.length > 20) {
+        setErrorMessage("Username must be 3-20 characters long.");
         return;
-      } else {
-        throw new Error("Failed to check username availability.");
       }
 
-      // Proceed with login request if username exists
-      console.log("Sending login request...");
+      if (user.password.length < 8) {
+        setErrorMessage("Password must be at least 8 characters long.");
+        return;
+      }
+
       const loginResponse = await fetch("http://localhost:6969/api/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password, totpCode: totpCode || undefined }),
+        body: JSON.stringify({ ...user, totpCode: totpCode || undefined }),
       });
 
       console.log("Login Response Status:", loginResponse.status);
@@ -112,13 +64,17 @@ const Login: React.FC = () => {
 
       // Save session data
       console.log("Login successful! Saving session data...");
+
+      const masterKey = await deriveKeyFromPassword(user.password, responseData.salt);
+      const privateKey = await unwrapPrivateKey(responseData.encryptedPrivateKey, masterKey, responseData.iv);
       localforage.setItem("iv", responseData.iv);
       localforage.setItem("publicKey", responseData.publicKey);
       localforage.setItem("encryptedPrivateKey", responseData.encryptedPrivateKey);
       localforage.setItem("salt", responseData.salt);
+      localforage.setItem("privateKey", privateKey);
 
-      // Navigate to the redirect URL or the root page if none exists
-      navigate(searchParams.get("redirect") ?? "/");
+      // Navigate to the redirect URL or the files page if none exists
+      navigate(searchParams.get("redirect") ?? "/files");
     } catch (error) {
       console.error("Login error:", error);
       setErrorMessage("Login failed. Please try again.");
@@ -133,59 +89,22 @@ const Login: React.FC = () => {
       {errorMessage && <p style={{ color: "red" }}>{errorMessage}</p>}
 
       <form onSubmit={handleLogin}>
-        {/* Username Input with Dropdown */}
-        <div ref={dropdownRef} style={{ position: "relative", display: "inline-block" }}>
-          <input
-            type="text"
-            placeholder="Username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            required
-            style={{ padding: "8px", width: "200px" }}
-          />
-          {userSuggestions.length > 0 && (
-            <ul
-              style={{
-                position: "absolute",
-                backgroundColor: "white",
-                color: "black",
-                listStyle: "none",
-                padding: 0,
-                margin: 0,
-                border: "1px solid gray",
-                width: "200px",
-                maxHeight: "150px",
-                overflowY: "auto",
-                zIndex: 10,
-              }}
-            >
-              {userSuggestions.map((user, index) => (
-                <li
-                  key={index}
-                  onMouseDown={(e) => {
-                    e.preventDefault(); // Prevents input from losing focus
-                    handleSelectUsername(user);
-                  }}
-                  style={{
-                    padding: "8px",
-                    cursor: "pointer",
-                    borderBottom: "1px solid #ddd",
-                  }}
-                >
-                  {user}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        <input
+          type="text"
+          placeholder="Username"
+          value={user.username ?? ""}
+          onChange={(e) => setUser({ ...user, username: e.target.value })}
+          required
+          style={{ padding: "8px", width: "200px" }}
+        />
 
         <br />
 
         <input
           type="password"
           placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          value={user.password ?? ""}
+          onChange={(e) => setUser({ ...user, password: e.target.value })}
           required
           style={{ padding: "8px", width: "200px", marginTop: "10px" }}
         />
