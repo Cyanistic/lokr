@@ -4,6 +4,7 @@ import { Button, useTheme } from '@mui/material';
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { LoginUser } from "../types";
 import { deriveKeyFromPassword, unwrapPrivateKey } from "../cryptoFunctions";
+import { BASE_URL } from "../utils";
 
 const Login: React.FC = () => {
   const [user, setUser] = useState<LoginUser>({
@@ -40,8 +41,9 @@ const Login: React.FC = () => {
         return;
       }
 
-      const loginResponse = await fetch("http://localhost:6969/api/login", {
+      const loginResponse = await fetch(`${BASE_URL}/api/login`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...user, totpCode: totpCode || undefined }),
       });

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { fetchUsernames } from "../utils";
 
 interface ShareModalProps {
   open: boolean;
@@ -15,7 +16,7 @@ const ShareModal: React.FC<ShareModalProps> = ({ open, onClose }) => {
   // Fetch usernames from API for autocomplete
   useEffect(() => {
     if (username.length >= 3) {
-      fetchUsernames(username);
+      fetchUsernames(username, 10, 0);
     } else {
       setFilteredUsers([]); // Clear dropdown if input is too short
     }
@@ -31,19 +32,6 @@ const ShareModal: React.FC<ShareModalProps> = ({ open, onClose }) => {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-
-  // Fetch usernames from the API (Reused from Login.tsx)
-  const fetchUsernames = async (query: string) => {
-    try {
-      const response = await fetch(`http://localhost:6969/api/users/search/${query}?limit=10&offset=0`);
-      if (!response.ok) throw new Error(`Failed to fetch usernames: ${await response.text()}`);
-
-      const data = await response.json();
-      setFilteredUsers(data.length > 0 ? data.map((user: { username: string }) => user.username) : []);
-    } catch (error: any) {
-      console.error("Error fetching usernames:", error.message);
-    }
-  };
 
   // Handle username selection
   const handleSelectUsername = (selectedUsername: string) => {

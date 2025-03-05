@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {Button, useTheme} from '@mui/material';
 import { Fab, Tooltip } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
+import {BASE_URL} from '../utils';
 
 export default function Upload() {
 
@@ -19,7 +20,7 @@ export default function Upload() {
   // Function to fetch the user's profile (including the public key) from the server
   const fetchUserProfile = async () => {
     try {
-      const response = await fetch('http://localhost:6969/api/profile', {
+      const response = await fetch('${BASE_URL}/api/profile', {
         method: 'GET',
       });
 
@@ -197,7 +198,7 @@ export default function Upload() {
       formData.append('metadata', metadataJSON);
 
       try {
-        const response = await fetch('http://localhost:6969/api/upload', {
+        const response = await fetch(`${BASE_URL}/api/upload`, {
           method: 'POST',
           body: formData,
         });
