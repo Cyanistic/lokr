@@ -6,7 +6,7 @@ import {
 } from "../cryptoFunctions";
 import { LoginUser } from "../types";
 import { useDebouncedCallback } from "use-debounce";
-import { validateEmail } from "../utils";
+import { BASE_URL, validateEmail } from "../utils";
 
 // Helper function to convert Uint8Array to Base64 safely
 function toBase64(bytes: Uint8Array): string {
@@ -36,7 +36,7 @@ export default function Register() {
     const debounceCheck = useDebouncedCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
         switch (event.target.name) {
             case "username":
-                const usernameRes = await fetch(`http://localhost:6969/api/check?username=${event.target.value}`);
+                const usernameRes = await fetch(`${BASE_URL}/api/check?username=${event.target.value}`);
                 if (usernameRes.ok) {
                     setError({ ...error, username: null });
                 } else {
@@ -45,7 +45,7 @@ export default function Register() {
                 break;
 
             case "email":
-                const emailRes = await fetch(`http://localhost:6969/api/check?email=${event.target.value}`);
+                const emailRes = await fetch(`${BASE_URL}/api/check?email=${event.target.value}`);
                 if (emailRes.ok) {
                     setError({ ...error, email: null });
                 } else {
@@ -158,7 +158,7 @@ export default function Register() {
             console.log("Sending payload:", body);
 
             // Send request to backend
-            const response = await fetch("http://localhost:6969/api/register", {
+            const response = await fetch(`${BASE_URL}/api/register`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body

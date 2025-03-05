@@ -357,8 +357,14 @@ pub async fn authenticate_user(
     .await?;
     Ok((
         StatusCode::OK,
-        [(SET_COOKIE, format!("session={uuid}; HttpOnly; Max-Age=34560000"))],
-        AppendHeaders([(SET_COOKIE, "authenticated=true; Max-Age=34560000; Path=/".to_string())]),
+        [(
+            SET_COOKIE,
+            format!("session={uuid}; HttpOnly; Max-Age=34560000"),
+        )],
+        AppendHeaders([(
+            SET_COOKIE,
+            "authenticated=true; Max-Age=34560000; Path=/".to_string(),
+        )]),
         Json(login_body),
     )
         .into_response())
