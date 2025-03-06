@@ -6,7 +6,7 @@ import {
 } from "../cryptoFunctions";
 import {Button, useTheme} from '@mui/material';
 import { LoginUser } from "../types";
-import { useDebouncedCallback } from "use-debounce";
+import { DebouncedState, useDebouncedCallback } from "use-debounce";
 import { BASE_URL, validateEmail } from "../utils";
 
 // Helper function to convert Uint8Array to Base64 safely
@@ -34,27 +34,30 @@ export default function Register() {
     const [message, setMessage] = useState("");
 
     // Only debounce server side checks
-    const debounceCheck = useDebouncedCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
-        switch (event.target.name) {
-            case "username":
-                const usernameRes = await fetch(`${BASE_URL}/api/check?username=${event.target.value}`);
-                if (usernameRes.ok) {
-                    setError({ ...error, username: null });
-                } else {
-                    setError({ ...error, username: "Username is already in use!" });
-                }
-                break;
-
-            case "email":
-                const emailRes = await fetch(`${BASE_URL}/api/check?email=${event.target.value}`);
-                if (emailRes.ok) {
-                    setError({ ...error, email: null });
-                } else {
-                    setError({ ...error, email: "Email is already in use!" });
-                }
-                break;
+    // Use a different callback function for each input field so that they fire independently 
+    // of each other.
+    const debounceCheck: { [key in keyof LoginUser]: (DebouncedState<(value: string) => Promise<void>>) | null } =
+    {
+        username: useDebouncedCallback(async (value: string) => {
+            const usernameRes = await fetch(`${BASE_URL}/api/check?username=${value}`);
+            if (usernameRes.ok) {
+                setError({ ...error, username: null });
+            } else {
+                setError({ ...error, username: "Username is already in use!" });
+            }
         }
-    }, 700);
+            , 700),
+        password: null,
+        email: useDebouncedCallback(async (value: string) => {
+            const emailRes = await fetch(`${BASE_URL}/api/check?email=${value}`);
+            if (emailRes.ok) {
+                setError({ ...error, email: null });
+            } else {
+                setError({ ...error, email: "Email is already in use!" });
+            }
+        }, 700),
+    };
+
 
     function localCheck(key: string, value: string): boolean {
         switch (key) {
@@ -93,12 +96,16 @@ export default function Register() {
         return true;
     }
     async function handleChange(event: React.ChangeEvent<HTMLInputElement>) {
-        setUser({ ...user, [event.target.name]: event.target.value });
+        setUser({ ...user, [event.target.name]: event.target.value || null });
+
+        const check: (DebouncedState<(value: string) => Promise<void>>) | null = debounceCheck[event.target.name as keyof LoginUser];
         if (!localCheck(event.target.name, event.target.value)) {
-            debounceCheck.cancel();
+            check?.cancel();
             return;
         }
-        debounceCheck(event);
+        if (check) {
+            check(event.target.value);
+        }
     }
 
     async function handleRegister(event?: React.FormEvent<HTMLFormElement>) {

@@ -20,7 +20,7 @@ export default function Upload() {
   // Function to fetch the user's profile (including the public key) from the server
   const fetchUserProfile = async () => {
     try {
-      const response = await fetch('${BASE_URL}/api/profile', {
+      const response = await fetch(`${BASE_URL}/api/profile`, {
         method: 'GET',
       });
 
