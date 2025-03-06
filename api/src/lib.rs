@@ -14,7 +14,7 @@ use tower::ServiceBuilder;
 use tower_governor::governor::GovernorConfigBuilder;
 use tower_governor::GovernorLayer;
 use tower_http::{
-    cors::{self, AllowOrigin, CorsLayer},
+    cors::{AllowOrigin, CorsLayer},
     services::{ServeDir, ServeFile},
     timeout::TimeoutLayer,
     trace::{DefaultMakeSpan, DefaultOnRequest, DefaultOnResponse, TraceLayer},
@@ -177,11 +177,13 @@ macro_rules! success {
 /// on port 6969.
 pub async fn start_server(pool: SqlitePool) -> Result<()> {
     let origin_regex = Regex::new(r"^https?://localhost:\d+/?$").unwrap();
-    let cors = CorsLayer::new()
-        .allow_origin(AllowOrigin::predicate(move |origin: &HeaderValue, _: _| {
-            origin_regex.is_match(origin.to_str().unwrap_or_default())
+    let cors = CorsLayer::very_permissive()
+        .allow_origin(AllowOrigin::predicate({
+            let origin_regex = origin_regex.clone();
+            move |origin: &HeaderValue, _: _| {
+                origin_regex.is_match(origin.to_str().unwrap_or_default())
+            }
         }))
-        .allow_methods(cors::Any)
         .allow_headers([
             AUTHORIZATION,
             CONTENT_TYPE,
