@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { BASE_URL } from "../utils";
 
 type AvatarUploadProps = {
   avatarUrl: string;
@@ -31,7 +32,7 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({ avatarUrl, onAvatarChange }
     }
 
     try {
-      const response = await fetch("http://localhost:6969/api/profile/upload", {
+      const response = await fetch(`${BASE_URL}/api/profile/upload`, {
         method: "PUT",
         body: file,
       });

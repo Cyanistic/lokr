@@ -15,6 +15,7 @@ import {
   FaFileArchive,
   FaFileCode,
 } from "react-icons/fa";
+import { BASE_URL } from "../utils";
 
 // Returns the appropriate icon for a given file type.
 const getFileIcon = (fileType: string) => {
@@ -44,7 +45,7 @@ const getFileIcon = (fileType: string) => {
 // @ts-ignore
 const handleDownload = async (fileId: string) => {
     try {
-        const response = await fetch(`http://localhost:6969/api/file/data/${fileId}`, {
+        const response = await fetch(`${BASE_URL}/api/file/data/${fileId}`, {
             method: "GET",
             credentials: "include", 
         });

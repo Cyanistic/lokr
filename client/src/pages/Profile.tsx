@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import AvatarUpload from './ProfileAvatar';
 import { BASE_URL } from '../utils';
+import DefaultProfile from "/default-profile.webp";
 
 
 function Profile() {
@@ -11,7 +12,7 @@ function Profile() {
   const [editingField, setEditingField] = useState<string | null>(null);
   const [updatedValue, setUpdatedValue] = useState<string>("");
 
-  const [avatarUrl, setAvatarUrl] = useState<string>("https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png");
+  const [avatarUrl, setAvatarUrl] = useState<string>(DefaultProfile);
 
   //Fetch User data
   useEffect(() => {
@@ -33,9 +34,9 @@ function Profile() {
     if (user) {
       return user.avatarExtension
         ? `${BASE_URL}/api/avatars/${user.id}.${user.avatarExtension}` // Construct the URL using user.id and user.avatarExtension
-        : "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"; // Default avatar URL
+        : DefaultProfile; // Default avatar URL
     }
-    return "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"; // Default avatar if user is null
+    return DefaultProfile; // Default avatar if user is null
   };
 
   //Start editing a field
@@ -67,7 +68,7 @@ function Profile() {
 
       console.log("🚀 Sending request:", JSON.stringify(requestBody, null, 2)); // Log formatted request
 
-      const response = await fetch("${BASE_URL}/api/profile", {
+      const response = await fetch(`${BASE_URL}/api/profile`, {
         method: "PUT",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
