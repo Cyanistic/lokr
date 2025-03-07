@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import AvatarUpload from './ProfileAvatar';
 import { BASE_URL } from '../utils';
 import DefaultProfile from "/default-profile.webp";
+import { bufferToBase64, deriveKeyFromPassword, encryptPrivateKey } from '../cryptoFunctions';
+import localforage from 'localforage';
 
 
 function Profile() {
@@ -46,10 +48,10 @@ function Profile() {
   }
 
   //Save edit to backend
-  const handleSave = async (field: string) => {
+  const handleSave = async (field: "username" | "password" | "email") => {
     try {
       const requestBody: any = {
-        type: field.charAt(0).toLowerCase() + field.slice(1), // Convert "username" to "Username"
+        type: field,
         newValue: updatedValue,
         password: prompt("Enter your current password to confirm change"),
       };
@@ -59,11 +61,22 @@ function Profile() {
       }
 
       if (field === "password") {
-        const encryptedPrivateKey = prompt("Enter your encrypted private key");
-        if (!encryptedPrivateKey) {
-          throw new Error("Encrypted private key is required for password change.");
+        // Encrypt the user's private key with their new password
+        const salt: string | undefined | null = await localforage.getItem("salt");
+        const privateKey: CryptoKey | undefined | null = await localforage.getItem("privateKey");
+        const iv: string | undefined | null = await localforage.getItem("iv");
+        if (!salt) {
+          throw new Error("Could not find master key salt");
         }
-        requestBody.encryptedPrivateKey = btoa(encryptedPrivateKey);
+        if (!privateKey) {
+          throw new Error("Could not find private key");
+        }
+        if (!iv) {
+          throw new Error("Could not find iv");
+        }
+        const masterKey = await deriveKeyFromPassword(updatedValue, salt);
+        const { iv: _, encrypted: encryptedPrivateKey } = await encryptPrivateKey(privateKey, masterKey, iv);
+        requestBody.encryptedPrivateKey = bufferToBase64(encryptedPrivateKey);
       }
 
       console.log("🚀 Sending request:", JSON.stringify(requestBody, null, 2)); // Log formatted request
@@ -83,9 +96,7 @@ function Profile() {
         throw new Error(`Failed to update ${field}: ${errorData.message || response.statusText}`);
       }
 
-      const updatedUser = await response.json();
-      console.log("✅ Updated user data:", updatedUser); //Log updated user data
-      setUser(updatedUser);
+      setUser({ ...user!, [field]: updatedValue});
       setEditingField(null);
     } catch (err) {
       console.error("❌ Error:", err);
@@ -101,172 +112,172 @@ function Profile() {
 
     switch (activeSection) {
       case 'profile':
-        return( 
-        <div className= "profileInfo">
+        return (
+          <div className="profileInfo">
             <h3>Profile Information Section</h3>
             {error ? (
-                <p style={{color: "red"}}>Error: {error}</p>
-            ) : user ?(
-                <div>
-              <div className='userInfo' style={{ color: 'black' }}>
-                <p style={{ color: 'black' }}><strong>Username:</strong> {user.username} </p>
-                <p style={{ color: 'black' }}><strong>Email:</strong> {user.email || "No email provided"}</p>
-                <p style={{ color: 'black' }}><strong>User ID:</strong> {user.id}</p>
-                <p style={{ color: 'black' }}><strong>Extension:</strong> {user.avatarExtension || "No extension provided"}</p>
-                <h3>Upload your avatar</h3>
-                <AvatarUpload avatarUrl={avatarUrl} onAvatarChange={(newExt: string) => {
-                  setUser({ ...user!, avatarExtension: newExt })
-                  setAvatarUrl(`${getAvatarUrl({ id: user.id, avatarExtension: newExt })}?v=${Math.random()}`)
-                }
-                } />
-              </div>
-                  <p>
-                      <strong>Username:</strong>{" "}
-                      {editingField === "username" ? (
-                      <>
-                        <input
-                          type="text"
-                          value={updatedValue}
-                          onChange={(e) => setUpdatedValue(e.target.value)}
-                        />
-                        <button onClick={() => handleSave("username")}>Save</button>
-                      </>
-                    ) : (
-                      <>
-                        {user.username}{" "}
-                        <button onClick={() => handleEdit("username", user.username)}>Edit</button>
-                      </>
-                    )}
-                  </p>
-                  <p>
-                      <strong>Password:</strong>{" "}
-                      {editingField === "password" ? (
-                      <>
-                        <input
-                          type="password"
-                          placeholder="Enter new password"
-                          value={updatedValue}
-                          onChange={(e) => setUpdatedValue(e.target.value)}
-                        />
-                        <button onClick={() => handleSave("password")}>Save</button>
-                      </>
-                    ) : (
-                      <>
-                        ••••••••{" "}
-                        <button onClick={() => handleEdit("password", "")}>Change Password</button>
-                      </>
-                    )}
-                  </p>
+              <p style={{ color: "red" }}>Error: {error}</p>
+            ) : user ? (
+              <div>
+                <div className='userInfo' style={{ color: 'black' }}>
+                  <p style={{ color: 'black' }}><strong>Username:</strong> {user.username} </p>
+                  <p style={{ color: 'black' }}><strong>Email:</strong> {user.email || "No email provided"}</p>
+                  <p style={{ color: 'black' }}><strong>User ID:</strong> {user.id}</p>
+                  <p style={{ color: 'black' }}><strong>Extension:</strong> {user.avatarExtension || "No extension provided"}</p>
+                  <h3>Upload your avatar</h3>
+                  <AvatarUpload avatarUrl={avatarUrl} onAvatarChange={(newExt: string) => {
+                    setUser({ ...user!, avatarExtension: newExt })
+                    setAvatarUrl(`${getAvatarUrl({ id: user.id, avatarExtension: newExt })}?v=${Math.random()}`)
+                  }
+                  } />
                 </div>
-              ) : (
-                <p>Loading user data...</p>
-              )}
+                <p>
+                  <strong>Username:</strong>{" "}
+                  {editingField === "username" ? (
+                    <>
+                      <input
+                        type="text"
+                        value={updatedValue}
+                        onChange={(e) => setUpdatedValue(e.target.value)}
+                      />
+                      <button onClick={() => handleSave("username")}>Save</button>
+                    </>
+                  ) : (
+                    <>
+                      {user.username}{" "}
+                      <button onClick={() => handleEdit("username", user.username)}>Edit</button>
+                    </>
+                  )}
+                </p>
+                <p>
+                  <strong>Password:</strong>{" "}
+                  {editingField === "password" ? (
+                    <>
+                      <input
+                        type="password"
+                        placeholder="Enter new password"
+                        value={updatedValue}
+                        onChange={(e) => setUpdatedValue(e.target.value)}
+                      />
+                      <button onClick={() => handleSave("password")}>Save</button>
+                    </>
+                  ) : (
+                    <>
+                      ••••••••{" "}
+                      <button onClick={() => handleEdit("password", "")}>Change Password</button>
+                    </>
+                  )}
+                </p>
+              </div>
+            ) : (
+              <p>Loading user data...</p>
+            )}
           </div >
 
         );
       case 'security':
-  return <div>Security and Privacy Section</div>;
+        return <div>Security and Privacy Section</div>;
       case 'notifications':
-  return <div>Notifications Settings Section</div>;
+        return <div>Notifications Settings Section</div>;
       default:
-  return <div>Profile Information Section</div>;
-}
+        return <div>Profile Information Section</div>;
+    }
   };
 
-// Inline styles
-const styles: { [key: string]: React.CSSProperties } = {
-  container: {
-    display: 'flex',
-    height: '100vh',
-    backgroundColor: '#f5f5f5',
-  },
-  sidebar: {
-    width: '250px',
-    backgroundColor: '#333',
-    padding: '20px',
-    color: 'white',
-    display: 'flex',
-    flexDirection: 'column' as 'column',
-  },
-  button: {
-    backgroundColor: '#444',
-    color: 'white',
-    border: 'none',
-    padding: '15px',
-    marginBottom: '10px',
-    textAlign: 'left',
-    fontSize: '16px',
-    cursor: 'pointer',
-    borderRadius: '5px',
-    transition: 'background-color 0.3s',
-  },
-  active: {
-    backgroundColor: '#0066cc', // Highlight the active button
-  },
-  content: {
-    flexGrow: 1,
-    padding: '20px',
-    backgroundColor: 'white', // Ensure background is white
-    color: 'black', // Force text color to black
-    overflowY: 'auto',
-  }
-};
+  // Inline styles
+  const styles: { [key: string]: React.CSSProperties } = {
+    container: {
+      display: 'flex',
+      height: '100vh',
+      backgroundColor: '#f5f5f5',
+    },
+    sidebar: {
+      width: '250px',
+      backgroundColor: '#333',
+      padding: '20px',
+      color: 'white',
+      display: 'flex',
+      flexDirection: 'column' as 'column',
+    },
+    button: {
+      backgroundColor: '#444',
+      color: 'white',
+      border: 'none',
+      padding: '15px',
+      marginBottom: '10px',
+      textAlign: 'left',
+      fontSize: '16px',
+      cursor: 'pointer',
+      borderRadius: '5px',
+      transition: 'background-color 0.3s',
+    },
+    active: {
+      backgroundColor: '#0066cc', // Highlight the active button
+    },
+    content: {
+      flexGrow: 1,
+      padding: '20px',
+      backgroundColor: 'white', // Ensure background is white
+      color: 'black', // Force text color to black
+      overflowY: 'auto',
+    }
+  };
 
-return (
+  return (
 
-  <div className='main'>
-    <h2>Profile</h2>
-    <div style={styles.container}>
-      {/* Left Sidebar with buttons */}
-      <div style={styles.sidebar}>
-        <button
-          style={{
-            ...styles.button,
-            ...(activeSection === 'profile' ? styles.active : {}),
-          }}
-          onClick={() => setActiveSection('profile')}
-        >
-          Profile Information
-        </button>
-        <button
-          style={{
-            ...styles.button,
-            ...(activeSection === 'security' ? styles.active : {}),
-          }}
-          onClick={() => setActiveSection('security')}
-        >
-          Security and Privacy
-        </button>
-        <button
-          style={{
-            ...styles.button,
-            ...(activeSection === 'notifications' ? styles.active : {}),
-          }}
-          onClick={() => setActiveSection('notifications')}
-        >
-          Notifications
-        </button>
+    <div className='main'>
+      <h2>Profile</h2>
+      <div style={styles.container}>
+        {/* Left Sidebar with buttons */}
+        <div style={styles.sidebar}>
+          <button
+            style={{
+              ...styles.button,
+              ...(activeSection === 'profile' ? styles.active : {}),
+            }}
+            onClick={() => setActiveSection('profile')}
+          >
+            Profile Information
+          </button>
+          <button
+            style={{
+              ...styles.button,
+              ...(activeSection === 'security' ? styles.active : {}),
+            }}
+            onClick={() => setActiveSection('security')}
+          >
+            Security and Privacy
+          </button>
+          <button
+            style={{
+              ...styles.button,
+              ...(activeSection === 'notifications' ? styles.active : {}),
+            }}
+            onClick={() => setActiveSection('notifications')}
+          >
+            Notifications
+          </button>
+        </div>
+
+        {/* Right content area */}
+        <div style={styles.content}>
+          {renderContent()}
+        </div>
       </div>
-
-      {/* Right content area */}
-      <div style={styles.content}>
-        {renderContent()}
-      </div>
-    </div>
-    <div className='profileBody'>
-      <div className='profilePicBody'>
-        {/*<input type="file" onChange={getFile}> </input>*/}
-        {/*imageUrl ? (
+      <div className='profileBody'>
+        <div className='profilePicBody'>
+          {/*<input type="file" onChange={getFile}> </input>*/}
+          {/*imageUrl ? (
             <img src={imageUrl} alt="Profile" style={{ maxWidth: '200px', maxHeight: '200px', marginTop: '10px' }} />
           ) : (
             <p>No image selected</p> // Optional message when no image is selected
           )*/}
+        </div>
+
       </div>
-
     </div>
-  </div>
 
-)
+  )
 
 }
 
