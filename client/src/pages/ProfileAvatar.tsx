@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import Button from '@mui/material/Button';
 
 type AvatarUploadProps = {
   avatarUrl: string;
@@ -67,7 +68,7 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({ avatarUrl, onAvatarChange }
         />
       </div>
       {error && <p style={{ color: "red", marginBottom: "20px" }}>{error}</p>} {/* Error spacing */}
-      <button
+      {/*<button
         onClick={handleUpload}
         style={{
           padding: "10px 20px",
@@ -77,7 +78,18 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({ avatarUrl, onAvatarChange }
         }}
       >
         Upload Avatar
-      </button>
+      </button>*/}
+      <Button variant="contained" 
+        onClick={handleUpload} 
+        style={{padding: "10px 20px",
+          fontSize: "16px",
+          cursor: "pointer",
+          marginTop: "10px", 
+          backgroundColor: 'black', 
+          color: 'white',
+          textTransform: 'none'}}
+        >Upload Avatar
+      </Button>
     </div>
   );
 };

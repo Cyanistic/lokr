@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import localforage from "localforage";
 import { Link } from "react-router-dom";
+import Button from '@mui/material/Button';
 
 const Login: React.FC = () => {
   const [username, setUsername] = useState("");
@@ -202,9 +203,10 @@ const Login: React.FC = () => {
 
         <br />
 
-        <button type="submit" style={{ marginTop: "10px", padding: "8px 20px", cursor: "pointer" }}>
+        {/*<button type="submit" style={{ marginTop: "10px", padding: "8px 20px", cursor: "pointer" }}>
           Login
-        </button>
+        </button>*/}
+        <Button type="submit" variant="contained" style={{ marginTop: "10px", padding: "8px 20px", cursor: "pointer", backgroundColor: 'black', color: 'white' }}>Login</Button>
       </form>
 
       <p>

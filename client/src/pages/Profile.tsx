@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import AvatarUpload from './ProfileAvatar';
+import Button from '@mui/material/Button';
 
 
 function Profile() {
@@ -282,12 +283,14 @@ const handleVerifyTOTP = async () => {
                           value={updatedValue}
                           onChange={(e) => setUpdatedValue(e.target.value)}
                         />
-                        <button onClick={() => handleSave("username")}>Save</button>
+                        {/*<button onClick={() => handleSave("username")}>Save</button>*/}
+                        <Button variant="contained" onClick={() => handleSave("username")} style={{ backgroundColor: 'black', color: 'white', textTransform: 'none'}}>Save</Button>
                       </>
                     ) : (
                       <>
                         {user.username}{" "}
-                        <button onClick={() => handleEdit("username", user.username)}>Edit</button>
+                        {/*<button onClick={() => handleEdit("username", user.username)}>Edit</button>*/}
+                        <Button variant="contained" onClick={() => handleEdit("username", user.username)} style={{ backgroundColor: 'black', color: 'white', textTransform: 'none'}}>Edit</Button>
                       </>
                     )}
                   </p>
@@ -301,12 +304,14 @@ const handleVerifyTOTP = async () => {
                           value={updatedValue}
                           onChange={(e) => setUpdatedValue(e.target.value)}
                         />
-                        <button onClick={() => handleSave("password")}>Save</button>
+                        {/*<button onClick={() => handleSave("password")}>Save</button>*/}
+                        <Button variant="contained" onClick={() => handleSave("password")} style={{ backgroundColor: 'black', color: 'white', textTransform: 'none'}}>Save</Button>
                       </>
                     ) : (
                       <>
                         ••••••••{" "}
-                        <button onClick={() => handleEdit("password", "")}>Change Password</button>
+                        {/*<button onClick={() => handleEdit("password", "")}>Change Password</button>*/}
+                        <Button variant="contained" onClick={() => handleEdit("password", "")} style={{ backgroundColor: 'black', color: 'white', textTransform: 'none'}}>Change Password</Button>
                       </>
                     )}
                   </p>

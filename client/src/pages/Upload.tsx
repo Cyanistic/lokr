@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import Button from '@mui/material/Button';
 
 export default function Upload() {
 
@@ -235,7 +236,8 @@ export default function Upload() {
               </ul>
             </div>
           )}
-          <button onClick={handleSubmit}>Upload</button>
+          {/*<button onClick={handleSubmit}>Upload</button>*/}
+          <Button variant="contained" onClick={handleSubmit} style={{ backgroundColor: 'black', color: 'white' }}>Upload</Button>
 
           {/* Display the upload status */}
           {uploadStatus && <p>{uploadStatus}</p>}
