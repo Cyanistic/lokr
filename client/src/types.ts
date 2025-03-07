@@ -10,4 +10,12 @@ export interface PublicUser {
     id: string;
     publicKey: string;
     username: string;
+    passwordSalt: string | null | undefined;
+}
+
+export interface UserUpdate {
+    type: string;
+    newValue: string;
+    password: string;
+    encryptedPrivateKey?: string | null | undefined;
 }

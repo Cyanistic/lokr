@@ -2,7 +2,7 @@ use std::{cmp::Ordering, fs::File, io::BufWriter, ops::ControlFlow};
 
 use anyhow::anyhow;
 use argon2::{
-    password_hash::{rand_core::OsRng, PasswordHasher, SaltString},
+    password_hash::{rand_core::OsRng, PasswordHasher, Salt, SaltString},
     PasswordHash, PasswordVerifier,
 };
 use axum::{
@@ -33,7 +33,7 @@ use crate::{
 };
 
 pub const MIN_PASSWORD_LENGTH: u64 = 8;
-pub const MAX_PASSWORD_LENGTH: u64 = 64;
+pub const MAX_PASSWORD_LENGTH: u64 = 256;
 pub const MIN_USERNAME_LENGTH: u64 = 3;
 pub const MAX_USERNAME_LENGTH: u64 = 20;
 pub const PUBLIC_KEY_LENGTH: usize = 550; // Length I ended up with after encoding the public key
@@ -49,7 +49,7 @@ pub struct CreateUser {
     username: String,
     /// The new user's password
     /// Should be hashed using Argon2 before being sent to the backend
-    #[validate(length(min = MIN_PASSWORD_LENGTH, max = MAX_PASSWORD_LENGTH), custom(function = "validate_password"))]
+    #[validate(length(min = MIN_PASSWORD_LENGTH, max = MAX_PASSWORD_LENGTH))]
     #[schema(
         min_length = 8,
         max_length = 64,
@@ -84,10 +84,10 @@ pub struct CreateUser {
 #[derive(Serialize, Deserialize, ToSchema, Validate, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct LoginUser {
-    #[validate(length(min = 3, max = 20), custom(function = "validate_username"))]
+    #[validate(length(min = MIN_USERNAME_LENGTH, max = MAX_USERNAME_LENGTH), custom(function = "validate_username"))]
     #[schema(example = "sussyman")]
     username: String,
-    #[validate(length(min = 8, max = 64), custom(function = "validate_password"))]
+    #[validate(length(min = MIN_PASSWORD_LENGTH, max = MAX_PASSWORD_LENGTH))]
     #[schema(
         example = "$argon2id$v=19$m=16,t=2,p=1$aUtKY1JKZjdmd3RPNmVzdA$/XFnfdBI9vbMEPNeCqlGbw"
     )]
@@ -152,14 +152,16 @@ pub fn validate_username(username: &str) -> Result<(), ValidationError> {
     }
 }
 
-/// Verify that the password only contains ASCII characters
-fn validate_password(password: &str) -> Result<(), ValidationError> {
-    if !password.is_ascii() {
+fn validate_password(password: &str) -> Result<Option<Salt<'_>>, ValidationError> {
+    if let Ok(hashed_password) = PasswordHash::new(password) {
+        return Ok(hashed_password.salt);
+    }
+    if password.is_ascii() {
+        Ok(None)
+    } else {
         Err(ValidationError::new(
             r#"must only contain alphanumeric characters and ASCII symbols"#,
         ))
-    } else {
-        Ok(())
     }
 }
 
@@ -181,6 +183,8 @@ pub async fn create_user(
 ) -> Result<Response, AppError> {
     // New user has a valid email, username, and password
     new_user.app_validate()?;
+
+    let password_salt = validate_password(&new_user.password)?.map(|salt| salt.as_str());
 
     if sqlx::query!("SELECT * FROM user WHERE username = ?", new_user.username)
         .fetch_optional(&state.pool)
@@ -259,7 +263,7 @@ pub async fn create_user(
     .to_string();
     let uuid = Uuid::new_v4();
     sqlx::query!(
-        "INSERT INTO user (id, username, password_hash, email, iv, encrypted_private_key, public_key, salt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO user (id, username, password_hash, email, iv, encrypted_private_key, public_key, salt, password_salt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         uuid,
         new_user.username,
         password_hash,
@@ -267,7 +271,8 @@ pub async fn create_user(
         new_user.iv,
         new_user.encrypted_private_key,
         new_user.public_key,
-        new_user.salt
+        new_user.salt,
+        password_salt
     )
     .execute(&state.pool)
     .await?;
@@ -691,12 +696,16 @@ pub async fn update_user(
                     .into(),
                 )));
             }
-            if validate_password(&update.new_value).is_err() {
-                return Err(AppError::UserError((
-                    StatusCode::BAD_REQUEST,
-                    "Invalid password".into(),
-                )));
-            }
+
+            let password_salt = match validate_password(&update.new_value) {
+                Ok(salt) => salt.map(|salt| salt.as_str()),
+                Err(_) => {
+                    return Err(AppError::UserError((
+                        StatusCode::BAD_REQUEST,
+                        "Invalid password".into(),
+                    )))
+                }
+            };
 
             general_purpose::STANDARD
                 .decode(&*encrypted_private_key)
@@ -723,9 +732,10 @@ pub async fn update_user(
             .to_string();
 
             sqlx::query!(
-                "UPDATE user SET password_hash = ?, encrypted_private_key = ? WHERE id = ?",
+                "UPDATE user SET password_hash = ?, encrypted_private_key = ?, password_salt = ? WHERE id = ?",
                 password_hash,
                 encrypted_private_key,
+                password_salt, 
                 user.id
             )
             .execute(&state.pool)
@@ -960,6 +970,9 @@ pub struct PublicUser {
     #[serde(skip_serializing_if = "Option::is_none")]
     /// The file extension for the user's avatar
     avatar_extension: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// The password salt used when registering
+    password_salt: Option<String>,
 }
 
 #[utoipa::path(
@@ -993,7 +1006,7 @@ pub async fn search_users(
     }
     let mut all_users = sqlx::query_as!(
         PublicUser,
-        r#"SELECT id AS "id: _", username, email, public_key, avatar AS avatar_extension FROM user"#
+        r#"SELECT id AS "id: _", username, email, public_key, avatar AS avatar_extension, password_salt FROM user"#
     )
     .fetch_all(&state.pool)
     .await?;
@@ -1039,7 +1052,7 @@ pub async fn get_user(
 ) -> Result<Response, AppError> {
     let Some(query) = sqlx::query_as!(
         PublicUser,
-        r#"SELECT id AS "id: _", username, email, public_key, avatar AS avatar_extension FROM user WHERE id = ?"#,
+        r#"SELECT id AS "id: _", username, email, public_key, avatar AS avatar_extension, password_salt FROM user WHERE id = ?"#,
         id
     )
     .fetch_optional(&state.pool)
