@@ -34,8 +34,11 @@ export async function encryptData(key: CryptoKey, data: string): Promise<{ iv: U
 }
 
 // Encrypt Private Key using AES-GCM
-export async function encryptPrivateKey(privateKey: CryptoKey, masterKey: CryptoKey): Promise<{ iv: Uint8Array; encrypted: ArrayBuffer }> {
-    const iv = crypto.getRandomValues(new Uint8Array(12));
+export async function encryptPrivateKey(privateKey: CryptoKey, masterKey: CryptoKey, iv: Uint8Array | string | null = null): Promise<{ iv: Uint8Array; encrypted: ArrayBuffer }> {
+    iv = typeof iv === "string" ? fromBase64(iv) : iv;
+    if (!iv) {
+        iv = crypto.getRandomValues(new Uint8Array(12));
+    }
 
     const encrypted = await crypto.subtle.wrapKey(
         "pkcs8",
@@ -150,3 +153,8 @@ export async function loadKeys(password: string) {
     return { privateKey, publicKey };
 }
 
+
+// Helper function to safely Base64-encode an `ArrayBuffer`
+export function bufferToBase64(buffer: ArrayBuffer): string {
+    return btoa(String.fromCharCode(...new Uint8Array(buffer)));
+}

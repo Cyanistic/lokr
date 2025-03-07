@@ -1,10 +1,11 @@
 import React, { useState } from "react";
 import {
+    bufferToBase64,
     deriveKeyFromPassword,
     encryptPrivateKey,
     generateRSAKeyPair
 } from "../cryptoFunctions";
-import {Button, useTheme} from '@mui/material';
+import { Button, useTheme } from '@mui/material';
 import { LoginUser } from "../types";
 import { DebouncedState, useDebouncedCallback } from "use-debounce";
 import { BASE_URL, validateEmail } from "../utils";
@@ -12,11 +13,6 @@ import { BASE_URL, validateEmail } from "../utils";
 // Helper function to convert Uint8Array to Base64 safely
 function toBase64(bytes: Uint8Array): string {
     return btoa(String.fromCharCode(...bytes));
-}
-
-// Helper function to safely Base64-encode an `ArrayBuffer`
-function bufferToBase64(buffer: ArrayBuffer): string {
-    return btoa(String.fromCharCode(...new Uint8Array(buffer)));
 }
 
 export default function Register() {
@@ -193,37 +189,39 @@ export default function Register() {
     const theme = useTheme();
 
     return (
-        <div style={{ textAlign: "center", padding: "20px"}}>
+        <div style={{ textAlign: "center", padding: "20px" }}>
             <h1>Register</h1>
             <p>{message}</p>
             {Object.entries(error).filter(([_, value]) => Boolean(value)).map(([k, value]) => {
                 return <p key={`error.${k}`}><b>{k}:</b> {value}</p>
             })}
             <form onSubmit={handleRegister}>
-<<<<<<< HEAD
                 <div style={{ position: "relative", display: "inline-block" }}>
-                    <input 
-                        type="text" 
-                        placeholder="Username" 
-                        value={username} 
-                        onChange={e => setUsername(e.target.value)} 
+                    <input
+                        type="text"
+                        name="username"
+                        placeholder="Username"
+                        value={user.username ?? ""}
+                        onChange={handleChange}
                         required
                         style={{ padding: "8px", width: "200px" }}
                     />
                     <br />
-                    <input 
-                        type="email" 
-                        placeholder="Email" 
-                        value={email} 
-                        onChange={e => setEmail(e.target.value)} 
+                    <input
+                        type="email"
+                        name="email"
+                        placeholder="Email"
+                        value={user.email ?? ""}
+                        onChange={handleChange}
                         style={{ padding: "8px", width: "200px", marginTop: "10px" }}
                     />
                     <br />
-                    <input 
-                        type="password" 
-                        placeholder="Password" 
-                        value={password} 
-                        onChange={e => setPassword(e.target.value)} 
+                    <input
+                        type="password"
+                        name="password"
+                        placeholder="Password"
+                        value={user.password ?? ""}
+                        onChange={handleChange}
                         required
                         style={{ padding: "8px", width: "200px", marginTop: "10px" }}
                     />
@@ -231,40 +229,13 @@ export default function Register() {
                     <br />
                     {/*<button type="submit">Register</button>*/}
                     <Button type="submit" variant="contained" style={
-                        {  
-                            textTransform: 'none', 
-                            backgroundColor: theme.palette.mode === 'dark' ? '#2f27ce': '#3a31d8', 
-                            color: theme.palette.mode === 'dark' ? '#050316' : '#eae9fc' 
+                        {
+                            textTransform: 'none',
+                            backgroundColor: theme.palette.mode === 'dark' ? '#2f27ce' : '#3a31d8',
+                            color: theme.palette.mode === 'dark' ? '#050316' : '#eae9fc'
                         }
                     }>Register</Button>
-
                 </div>
-=======
-                <input
-                    type="text"
-                    placeholder="Username"
-                    name="username"
-                    value={user.username ?? ""}
-                    onChange={handleChange}
-                    required
-                />
-                <input
-                    type="email"
-                    name="email"
-                    placeholder="Email"
-                    value={user.email ?? ""}
-                    onChange={handleChange}
-                />
-                <input
-                    type="password"
-                    placeholder="Password"
-                    name="password"
-                    value={user.password ?? ""}
-                    onChange={handleChange}
-                    required
-                />
-                <button type="submit">Register</button>
->>>>>>> f1f271e (improved register page to report errors on change)
             </form>
         </div>
     );

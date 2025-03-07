@@ -1,16 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import AvatarUpload from './ProfileAvatar';
-import {Button, useTheme} from '@mui/material';
+import { useTheme} from '@mui/material';
 import { BASE_URL } from '../utils';
 import DefaultProfile from "/default-profile.webp";
+import { bufferToBase64, deriveKeyFromPassword, encryptPrivateKey } from '../cryptoFunctions';
+import localforage from 'localforage';
 
 
 function Profile() {
-
   type RegenerateTOTPRequest = { type: "regenerate"; password: string };
   type VerifyTOTPRequest = { type: "verify"; code: string };
   type EnableTOTPRequest = { type: "enable"; enable: boolean; password: string };
-  
+
   const [activeSection, setActiveSection] = useState<string>('profile'); // Tracks the active section
   const [user, setUser] = useState<{ username: string; email: string | null; id: string; avatarExtension: string | null } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -35,11 +36,11 @@ function Profile() {
         }
         return response.json();
       })
-      .then((data) => { 
-        setUser(data); setAvatarUrl(getAvatarUrl(data)) 
+      .then((data) => {
+        setUser(data); setAvatarUrl(getAvatarUrl(data))
         if (data.totpEnabled !== undefined) {
           setTotpStatus(data.totpEnabled); //Store TOTP status
-      }
+        }
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -54,124 +55,123 @@ function Profile() {
     return DefaultProfile; // Default avatar if user is null
   };
 
-//Regenerate TOTP
-const handleRegenerateTOTP = async () => {
-  try {
+  //Regenerate TOTP
+  const handleRegenerateTOTP = async () => {
+    try {
       const password = prompt("Enter your current password:");
       if (!password) {
-          alert("Password is required!");
-          return;
+        alert("Password is required!");
+        return;
       }
 
       const requestBody: RegenerateTOTPRequest = { type: "regenerate", password };
       console.log("Sending TOTP Regenerate Request:", JSON.stringify(requestBody, null, 2));
 
       const response = await fetch("http://localhost:6969/api/totp", {
-          method: "PUT",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(requestBody),
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestBody),
       });
 
       console.log("Response status:", response.status);
 
       if (!response.ok) {
-          const errorText = await response.text();
-          console.error("Server Error:", errorText);
-          alert(`Error: ${errorText}`);
-          return;
+        const errorText = await response.text();
+        console.error("Server Error:", errorText);
+        alert(`Error: ${errorText}`);
+        return;
       }
-
       const responseData = await response.json();
       console.log("TOTP Regenerate Response:", responseData);
 
       // Ensure the QR code has the correct format
       let qrCode = responseData.qrCode;
       if (!qrCode.startsWith("data:image/png;base64,")) {
-          console.warn("QR Code missing base64 prefix, fixing it...");
-          qrCode = `data:image/png;base64,${qrCode}`; // Manually add prefix
+        console.warn("QR Code missing base64 prefix, fixing it...");
+        qrCode = `data:image/png;base64,${qrCode}`; // Manually add prefix
       }
 
       console.log("Final QR Code URL:", qrCode);
 
       setQrCode(qrCode);
 
-  } catch (err) {
+    } catch (err) {
       console.error("Error regenerating TOTP:", err);
       alert("Failed to regenerate TOTP.");
-  }
-};
+    }
+  };
 
 
 
-//Verify TOTP
-const handleVerifyTOTP = async () => {
-  try {
+  //Verify TOTP
+  const handleVerifyTOTP = async () => {
+    try {
       const code = prompt("Enter the 6-digit TOTP code:");
       if (!code) {
-          alert("TOTP code is required!");
-          return;
+        alert("TOTP code is required!");
+        return;
       }
 
       const requestBody: VerifyTOTPRequest = { type: "verify", code };
       console.log("Verifying TOTP:", JSON.stringify(requestBody, null, 2));
 
       const response = await fetch("http://localhost:6969/api/totp", {
-          method: "PUT",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(requestBody),
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestBody),
       });
 
       console.log("Response status:", response.status);
       if (!response.ok) throw new Error(await response.text());
 
       alert("TOTP verified successfully! You can now enable TOTP.");
-  } catch (err) {
+    } catch (err) {
       console.error("Error verifying TOTP:", err);
       alert("Failed to verify TOTP. Please check the code and try again.");
-  }
-};
+    }
+  };
 
 
 
-//Enable/Disable TOTP
+  //Enable/Disable TOTP
   const handleEnableTOTP = async () => {
     try {
-        const password = prompt("Enter your current password:");
-        if (!password) {
-            alert("Password is required!");
-            return;
-        }
-
-        const enable = !totpStatus;
-        const requestBody: EnableTOTPRequest = { type: "enable", enable, password };
-
-        console.log(`Sending TOTP ${enable ? "Enable" : "Disable"} Request:`, JSON.stringify(requestBody, null, 2));
-
-        const response = await fetch("http://localhost:6969/api/totp", {
-            method: "PUT",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(requestBody),
-        });
-
-        console.log("Response status:", response.status);
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error("Server Error:", errorText);
-          alert(`Error: ${errorText}`);
-          return;
+      const password = prompt("Enter your current password:");
+      if (!password) {
+        alert("Password is required!");
+        return;
       }
 
-        alert(`TOTP ${enable ? "enabled" : "disabled"} successfully!`);
-        setTotpStatus(enable); //Updates status UI
+      const enable = !totpStatus;
+      const requestBody: EnableTOTPRequest = { type: "enable", enable, password };
+
+      console.log(`Sending TOTP ${enable ? "Enable" : "Disable"} Request:`, JSON.stringify(requestBody, null, 2));
+
+      const response = await fetch("http://localhost:6969/api/totp", {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestBody),
+      });
+
+      console.log("Response status:", response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Server Error:", errorText);
+        alert(`Error: ${errorText}`);
+        return;
+      }
+
+      alert(`TOTP ${enable ? "enabled" : "disabled"} successfully!`);
+      setTotpStatus(enable); //Updates status UI
     } catch (err) {
-        console.error("Error toggling TOTP:", err);
-        alert("Failed to update TOTP settings.");
+      console.error("Error toggling TOTP:", err);
+      alert("Failed to update TOTP settings.");
     }
-};
+  };
 
 
   //Start editing a field
@@ -181,10 +181,10 @@ const handleVerifyTOTP = async () => {
   }
 
   //Save edit to backend
-  const handleSave = async (field: string) => {
+  const handleSave = async (field: "username" | "password" | "email") => {
     try {
       const requestBody: any = {
-        type: field.charAt(0).toLowerCase() + field.slice(1), // Convert "username" to "Username"
+        type: field,
         newValue: updatedValue,
         password: prompt("Enter your current password to confirm change"),
       };
@@ -194,11 +194,22 @@ const handleVerifyTOTP = async () => {
       }
 
       if (field === "password") {
-        const encryptedPrivateKey = prompt("Enter your encrypted private key");
-        if (!encryptedPrivateKey) {
-          throw new Error("Encrypted private key is required for password change.");
+        // Encrypt the user's private key with their new password
+        const salt: string | undefined | null = await localforage.getItem("salt");
+        const privateKey: CryptoKey | undefined | null = await localforage.getItem("privateKey");
+        const iv: string | undefined | null = await localforage.getItem("iv");
+        if (!salt) {
+          throw new Error("Could not find master key salt");
         }
-        requestBody.encryptedPrivateKey = btoa(encryptedPrivateKey);
+        if (!privateKey) {
+          throw new Error("Could not find private key");
+        }
+        if (!iv) {
+          throw new Error("Could not find iv");
+        }
+        const masterKey = await deriveKeyFromPassword(updatedValue, salt);
+        const { iv: _, encrypted: encryptedPrivateKey } = await encryptPrivateKey(privateKey, masterKey, iv);
+        requestBody.encryptedPrivateKey = bufferToBase64(encryptedPrivateKey);
       }
 
       console.log("🚀 Sending request:", JSON.stringify(requestBody, null, 2)); // Log formatted request
@@ -218,19 +229,11 @@ const handleVerifyTOTP = async () => {
         throw new Error(`Failed to update ${field}: ${errorData.message || response.statusText}`);
       }
 
-        if (!response.ok) {
-            const errorData = await response.json();
-            console.error("Server Response:", errorData);
-            throw new Error(`Failed to update ${field}: ${errorData.message || response.statusText}`);
-        }
-
-        const updatedUser = await response.json();
-        console.log("Updated user data:", updatedUser); //Log updated user data
-        setUser(updatedUser);
-        setEditingField(null);
+      setUser({ ...user!, [field]: updatedValue});
+      setEditingField(null);
     } catch (err) {
-        console.error("Error:", err);
-        setError(`Error updating ${field}: ${err instanceof Error ? err.message : "Unknown error"}`);
+      console.error("Error:", err);
+      setError(`Error updating ${field}: ${err instanceof Error ? err.message : "Unknown error"}`);
     }
   };
 
@@ -242,141 +245,111 @@ const handleVerifyTOTP = async () => {
 
     switch (activeSection) {
       case 'profile':
-        return( 
-        <div className= "profileInfo">
+        return (
+          <div className="profileInfo">
             <h3>Profile Information Section</h3>
             {error ? (
-                <p style={{color: "red"}}>Error: {error}</p>
-            ) : user ?(
-                <div>
-              <div className='userInfo' style={{ color: 'black' }}>
-                <p style={{ color: 'black' }}><strong>Username:</strong> {user.username} </p>
-                <p style={{ color: 'black' }}><strong>Email:</strong> {user.email || "No email provided"}</p>
-                <p style={{ color: 'black' }}><strong>User ID:</strong> {user.id}</p>
-                <p style={{ color: 'black' }}><strong>Extension:</strong> {user.avatarExtension || "No extension provided"}</p>
-                <h3>Upload your avatar</h3>
-                <AvatarUpload avatarUrl={avatarUrl} onAvatarChange={(newExt: string) => {
-                  setUser({ ...user!, avatarExtension: newExt })
-                  setAvatarUrl(`${getAvatarUrl({ id: user.id, avatarExtension: newExt })}?v=${Math.random()}`)
-                }
-                } />
-              </div>
-                  <p>
-                      <strong>Username:</strong>{" "}
-                      {editingField === "username" ? (
-                      <>
-                        <input
-                          type="text"
-                          value={updatedValue}
-                          onChange={(e) => setUpdatedValue(e.target.value)}
-                        />
-                        {/*<button onClick={() => handleSave("username")}>Save</button>*/}
-                        <Button variant="contained" onClick={() => handleSave("username")} style={
-                          {
-                            backgroundColor: theme.palette.mode === 'dark' ? '#2f27ce': '#3a31d8', 
-                            color: theme.palette.mode === 'dark' ? '#050316' : '#eae9fc', 
-                            textTransform: 'none'
-                          }
-                        }>Save</Button>
-                      </>
-                    ) : (
-                      <>
-                        {user.username}{" "}
-                        {/*<button onClick={() => handleEdit("username", user.username)}>Edit</button>*/}
-                        <Button variant="contained" onClick={() => handleEdit("username", user.username)} style={
-                          {
-                            backgroundColor: theme.palette.mode === 'dark' ? '#2f27ce': '#3a31d8', 
-                            color: theme.palette.mode === 'dark' ? '#050316' : '#eae9fc', 
-                            textTransform: 'none'
-                          }
-                        }>Edit</Button>
-                      </>
-                    )}
-                  </p>
-                  <p>
-                      <strong>Password:</strong>{" "}
-                      {editingField === "password" ? (
-                      <>
-                        <input
-                          type="password"
-                          placeholder="Enter new password"
-                          value={updatedValue}
-                          onChange={(e) => setUpdatedValue(e.target.value)}
-                        />
-                        {/*<button onClick={() => handleSave("password")}>Save</button>*/}
-                        <Button variant="contained" onClick={() => handleSave("password")} style={
-                          {
-                            backgroundColor: theme.palette.mode === 'dark' ? '#2f27ce': '#3a31d8', 
-                            color: theme.palette.mode === 'dark' ? '#050316' : '#eae9fc', 
-                            textTransform: 'none'
-                          }
-                        }>Save</Button>
-                      </>
-                    ) : (
-                      <>
-                        ••••••••{" "}
-                        {/*<button onClick={() => handleEdit("password", "")}>Change Password</button>*/}
-                        <Button variant="contained" onClick={() => handleEdit("password", "")} style={
-                          {
-                            backgroundColor: theme.palette.mode === 'dark' ? '#2f27ce': '#3a31d8', 
-                            color: theme.palette.mode === 'dark' ? '#050316' : '#eae9fc', 
-                            textTransform: 'none'
-                          }
-                        }>Change Password</Button>
-                      </>
-                    )}
-                  </p>
+              <div>
+                <div className='userInfo' style={{ color: 'black' }}>
+                  <p style={{ color: 'black' }}><strong>Username:</strong> {user!.username} </p>
+                  <p style={{ color: 'black' }}><strong>Email:</strong> {user!.email || "No email provided"}</p>
+                  <p style={{ color: 'black' }}><strong>User ID:</strong> {user!.id}</p>
+                  <p style={{ color: 'black' }}><strong>Extension:</strong> {user!.avatarExtension || "No extension provided"}</p>
+                  <h3>Upload your avatar</h3>
+                  <AvatarUpload avatarUrl={avatarUrl} onAvatarChange={(newExt: string) => {
+                    setUser({ ...user!, avatarExtension: newExt })
+                    setAvatarUrl(`${getAvatarUrl({ id: user!.id, avatarExtension: newExt })}?v=${Math.random()}`)
+                  }
+                  } />
                 </div>
-              ) : (
-                <p>Loading user data...</p>
-              )}
+                <p>
+                  <strong>Username:</strong>{" "}
+                  {editingField === "username" ? (
+                    <>
+                      <input
+                        type="text"
+                        value={updatedValue}
+                        onChange={(e) => setUpdatedValue(e.target.value)}
+                      />
+                      <button onClick={() => handleSave("username")}>Save</button>
+                    </>
+                  ) : (
+                    <>
+                      {user!.username}{" "}
+                      <button onClick={() => handleEdit("username", user!.username)}>Edit</button>
+                    </>
+                  )}
+                </p>
+                <p>
+                  <strong>Password:</strong>{" "}
+                  {editingField === "password" ? (
+                    <>
+                      <input
+                        type="password"
+                        placeholder="Enter new password"
+                        value={updatedValue}
+                        onChange={(e) => setUpdatedValue(e.target.value)}
+                      />
+                      <button onClick={() => handleSave("password")}>Save</button>
+                    </>
+                  ) : (
+                    <>
+                      ••••••••{" "}
+                      <button onClick={() => handleEdit("password", "")}>Change Password</button>
+                    </>
+                  )}
+                </p>
+              </div>
+            ) : (
+              <p>Loading user data...</p>
+            )}
           </div >
 
         );
-        case 'security':
-          return (
-              <div className = "profileInfo">
-                  <h3>Security and Privacy Section</h3>
-      
-                  {/* Handle Loading and Errors */}
-                  {loading ? (
-                      <p>Loading user data...</p>
-                  ) : error ? (
-                      <p style={{ color: "red" }}>Error: {error}</p>
-                  ) : (
-                      <>
-                          {/* Display TOTP Status */}
-                          <p>
-                              TOTP is currently: <strong>{totpStatus ? "Enabled" : "Disabled"}</strong>
-                          </p>
-      
-                          <button onClick={handleRegenerateTOTP}>Regenerate TOTP</button>
-      
-                          {/* Modal for displaying QR code */}
-                          {qrCode && (
-                              <div className="modal">
-                                  <div className="modal-content">
-                                      <h3>Scan the QR code</h3>
-                                      <img src={qrCode} alt="TOTP QR Code" style={{ width: "250px", height: "250px" }} />
-                                      <button onClick={() => setQrCode(null)}>Close</button>
-                                  </div>
-                              </div>
-                          )}
-      
-                          <button onClick={handleVerifyTOTP}>Verify TOTP</button>
-      
-                          <button onClick={handleEnableTOTP}>
-                              {totpStatus ? "Disable TOTP" : "Enable TOTP"}
-                          </button>
-                      </>
-                  )}
-              </div>
-          );
+      case 'security':
+        return (
+          <div className="profileInfo">
+            <h3>Security and Privacy Section</h3>
+
+            {/* Handle Loading and Errors */}
+            {loading ? (
+              <p>Loading user data...</p>
+            ) : error ? (
+              <p style={{ color: "red" }}>Error: {error}</p>
+            ) : (
+              <>
+                {/* Display TOTP Status */}
+                <p>
+                  TOTP is currently: <strong>{totpStatus ? "Enabled" : "Disabled"}</strong>
+                </p>
+
+                <button onClick={handleRegenerateTOTP}>Regenerate TOTP</button>
+
+                {/* Modal for displaying QR code */}
+                {qrCode && (
+                  <div className="modal">
+                    <div className="modal-content">
+                      <h3>Scan the QR code</h3>
+                      <img src={qrCode} alt="TOTP QR Code" style={{ width: "250px", height: "250px" }} />
+                      <button onClick={() => setQrCode(null)}>Close</button>
+                    </div>
+                  </div>
+                )}
+
+                <button onClick={handleVerifyTOTP}>Verify TOTP</button>
+
+                <button onClick={handleEnableTOTP}>
+                  {totpStatus ? "Disable TOTP" : "Enable TOTP"}
+                </button>
+              </>
+            )}
+          </div>
+        );
       case 'notifications':
-  return <div>Notifications Settings Section</div>;
+        return <div>Notifications Settings Section</div>;
       default:
-  return <div>Profile Information Section</div>;
-}
+        return <div>Profile Information Section</div>;
+    }
   };
 
   // Inline styles
@@ -416,64 +389,61 @@ const handleVerifyTOTP = async () => {
       color: 'black', // Force text color to black
       overflowY: 'auto',
     }
-    
   };
 
-return (
-
-  <div className='main' style={{margin: 0}}>
-    {/*<h2>Profile</h2>*/}
-    <div style={styles.container}>
-      {/* Left Sidebar with buttons */}
-      <div style={styles.sidebar}>
-        <button
-          style={{
-            ...styles.button,
-            ...(activeSection === 'profile' ? styles.active : {}),
-          }}
-          onClick={() => setActiveSection('profile')}
-        >
-          Profile Information
-        </button>
-        <button
-          style={{
-            ...styles.button,
-            ...(activeSection === 'security' ? styles.active : {}),
-          }}
-          onClick={() => setActiveSection('security')}
-        >
-          Security and Privacy
-        </button>
-        <button
-          style={{
-            ...styles.button,
-            ...(activeSection === 'notifications' ? styles.active : {}),
-          }}
-          onClick={() => setActiveSection('notifications')}
-        >
-          Notifications
-        </button>
+  return (
+    <div className='main'>
+      <h2>Profile</h2>
+      <div style={styles.container}>
+        {/* Left Sidebar with buttons */}
+        <div style={styles.sidebar}>
+          <button
+            style={{
+              ...styles.button,
+              ...(activeSection === 'profile' ? styles.active : {}),
+            }}
+            onClick={() => setActiveSection('profile')}
+          >
+            Profile Information
+          </button>
+          <button
+            style={{
+              ...styles.button,
+              ...(activeSection === 'security' ? styles.active : {}),
+            }}
+            onClick={() => setActiveSection('security')}
+          >
+            Security and Privacy
+          </button>
+          <button
+            style={{
+              ...styles.button,
+              ...(activeSection === 'notifications' ? styles.active : {}),
+            }}
+            onClick={() => setActiveSection('notifications')}
+          >
+            Notifications
+          </button>
+        </div>
+        {/* Right content area */}
+        <div style={styles.content}>
+          {renderContent()}
+        </div>
       </div>
-
-      {/* Right content area */}
-      <div style={styles.content}>
-        {renderContent()}
-      </div>
-    </div>
-    <div className='profileBody'>
-      <div className='profilePicBody'>
-        {/*<input type="file" onChange={getFile}> </input>*/}
-        {/*imageUrl ? (
+      <div className='profileBody'>
+        <div className='profilePicBody'>
+          {/*<input type="file" onChange={getFile}> </input>*/}
+          {/*imageUrl ? (
             <img src={imageUrl} alt="Profile" style={{ maxWidth: '200px', maxHeight: '200px', marginTop: '10px' }} />
           ) : (
             <p>No image selected</p> // Optional message when no image is selected
           )*/}
+        </div>
+
       </div>
-
     </div>
-  </div>
 
-)
+  )
 
 }
 
