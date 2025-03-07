@@ -1,18 +1,20 @@
 import { useState, useEffect } from 'react';
 import AvatarUpload from './ProfileAvatar';
-import { useTheme} from '@mui/material';
-import { BASE_URL } from '../utils';
+import { useTheme } from '@mui/material';
+import { BASE_URL, isValidValue } from '../utils';
 import DefaultProfile from "/default-profile.webp";
 import { bufferToBase64, deriveKeyFromPassword, encryptPrivateKey } from '../cryptoFunctions';
 import localforage from 'localforage';
+import { useSearchParams } from 'react-router-dom';
 
+// Valid profile sections 
+const Sections = ["profile", "security", "notifications"] as const;
 
 function Profile() {
   type RegenerateTOTPRequest = { type: "regenerate"; password: string };
   type VerifyTOTPRequest = { type: "verify"; code: string };
   type EnableTOTPRequest = { type: "enable"; enable: boolean; password: string };
 
-  const [activeSection, setActiveSection] = useState<string>('profile'); // Tracks the active section
   const [user, setUser] = useState<{ username: string; email: string | null; id: string; avatarExtension: string | null } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editingField, setEditingField] = useState<string | null>(null);
@@ -20,9 +22,9 @@ function Profile() {
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [totpStatus, setTotpStatus] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true); // Loading state for fetching user data
-
-
+  const [params, setParams] = useSearchParams();
   const [avatarUrl, setAvatarUrl] = useState<string>(DefaultProfile);
+  const activeSection = isValidValue(params.get("section"), Sections) ?? "profile";
 
   //Fetch User data
   useEffect(() => {
@@ -229,7 +231,7 @@ function Profile() {
         throw new Error(`Failed to update ${field}: ${errorData.message || response.statusText}`);
       }
 
-      setUser({ ...user!, [field]: updatedValue});
+      setUser({ ...user!, [field]: updatedValue });
       setEditingField(null);
     } catch (err) {
       console.error("Error:", err);
@@ -402,7 +404,10 @@ function Profile() {
               ...styles.button,
               ...(activeSection === 'profile' ? styles.active : {}),
             }}
-            onClick={() => setActiveSection('profile')}
+            onClick={() => setParams(prev => {
+              prev.set("section", 'profile');
+              return prev
+            })}
           >
             Profile Information
           </button>
@@ -411,7 +416,10 @@ function Profile() {
               ...styles.button,
               ...(activeSection === 'security' ? styles.active : {}),
             }}
-            onClick={() => setActiveSection('security')}
+            onClick={() => setParams(prev => {
+              prev.set("section", 'security');
+              return prev
+            })}
           >
             Security and Privacy
           </button>
@@ -420,7 +428,10 @@ function Profile() {
               ...styles.button,
               ...(activeSection === 'notifications' ? styles.active : {}),
             }}
-            onClick={() => setActiveSection('notifications')}
+            onClick={() => setParams(prev => {
+              prev.set("section", 'notifications');
+              return prev
+            })}
           >
             Notifications
           </button>
