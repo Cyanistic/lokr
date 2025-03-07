@@ -2,9 +2,23 @@ import React, { useState } from "react";
 import localforage from "localforage";
 import { Button, useTheme } from '@mui/material';
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { LoginUser } from "../types";
-import { deriveKeyFromPassword, unwrapPrivateKey } from "../cryptoFunctions";
+import { LoginUser, PublicUser } from "../types";
+import { deriveKeyFromPassword, hashPassword, unwrapPrivateKey } from "../cryptoFunctions";
 import { BASE_URL } from "../utils";
+
+async function getPasswordSalt(username: string): Promise<string | null>{
+    const response = await fetch(`${BASE_URL}/api/users/search/${username}?limit=1&offset=0`);
+    if (response.status >= 500){
+        throw new Error("Server error");
+    } else if (response.status >= 400){
+        throw new Error("User does not exist");
+    }
+    const json: PublicUser[] = await response.json();
+    if (json.length == 0) {
+        throw new Error("User does not exist");
+    }
+    return json[0].passwordSalt || null;
+}
 
 const Login: React.FC = () => {
   const [user, setUser] = useState<LoginUser>({
@@ -41,11 +55,15 @@ const Login: React.FC = () => {
         return;
       }
 
+      const passwordSalt = await getPasswordSalt(user.username);
+      const passwordSaltUint8Array = passwordSalt ? Uint8Array.from(atob(passwordSalt), c => c.charCodeAt(0)) : null;
+      const password = await hashPassword(user.password, passwordSaltUint8Array);
+
       const loginResponse = await fetch(`${BASE_URL}/api/login`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...user, totpCode: totpCode || undefined }),
+        body: JSON.stringify({ ...user, password, totpCode: totpCode || undefined }),
       });
 
       console.log("Login Response Status:", loginResponse.status);
@@ -74,6 +92,7 @@ const Login: React.FC = () => {
       localforage.setItem("encryptedPrivateKey", responseData.encryptedPrivateKey);
       localforage.setItem("salt", responseData.salt);
       localforage.setItem("privateKey", privateKey);
+      localforage.setItem("passwordSalt", passwordSaltUint8Array);
 
       // Navigate to the redirect URL or the files page if none exists
       navigate(searchParams.get("redirect") ?? "/files");

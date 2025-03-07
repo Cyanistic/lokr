@@ -3,7 +3,8 @@ import {
     bufferToBase64,
     deriveKeyFromPassword,
     encryptPrivateKey,
-    generateRSAKeyPair
+    generateRSAKeyPair,
+    hashPassword
 } from "../cryptoFunctions";
 import { Button, useTheme } from '@mui/material';
 import { LoginUser } from "../types";
@@ -130,10 +131,15 @@ export default function Register() {
 
             // Step 1: Generate Salt for PBKDF2
             const salt = crypto.getRandomValues(new Uint8Array(16));
-            const masterKey = await deriveKeyFromPassword(user.password, salt);
 
-            // Step 2: Generate Ed25519 Key Pair
-            const { publicKey, privateKey } = await generateRSAKeyPair();
+            // Step 2: Generate promises for deriving the master key,
+            // generating the RSA key pair, and hashing the password
+            const masterKeyPromise = deriveKeyFromPassword(user.password, salt);
+            const keyPairPromise = generateRSAKeyPair();
+            const hashedPasswordPromise = hashPassword(user.password, null, true);
+
+            // Run all promises in parallel to speed up registration
+            const [masterKey, { publicKey, privateKey }, hashedPassword] = await Promise.all([masterKeyPromise, keyPairPromise, hashedPasswordPromise]);
 
             // Step 3: Encrypt Private Key using AES-GCM
             const { iv, encrypted } = await encryptPrivateKey(privateKey, masterKey);
@@ -151,13 +157,14 @@ export default function Register() {
             // Prepare Request Data
             const body = JSON.stringify({
                 username: user.username,
-                email: user.email?.length === 0 ? null : user.email,
-                password: user.password, // 🔹 Backend requires this field
+                email: user.email || null,
+                password: hashedPassword,
                 salt: saltBase64,
                 encryptedPrivateKey: encryptedPrivateKeyBase64, // Encrypted private key
                 iv: ivBase64, // IV for decryption
                 publicKey: publicKeyBase64 // Public key (plaintext)
             });
+            console.log(body);
 
             console.log("Sending payload:", body);
 

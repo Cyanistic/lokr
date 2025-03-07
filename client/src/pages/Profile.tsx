@@ -3,9 +3,10 @@ import AvatarUpload from './ProfileAvatar';
 import { useTheme } from '@mui/material';
 import { BASE_URL, isValidValue } from '../utils';
 import DefaultProfile from "/default-profile.webp";
-import { bufferToBase64, deriveKeyFromPassword, encryptPrivateKey } from '../cryptoFunctions';
+import { bufferToBase64, deriveKeyFromPassword, encryptPrivateKey, hashPassword } from '../cryptoFunctions';
 import localforage from 'localforage';
 import { useSearchParams } from 'react-router-dom';
+import { UserUpdate } from '../types';
 
 // Valid profile sections 
 const Sections = ["profile", "security", "notifications"] as const;
@@ -185,10 +186,11 @@ function Profile() {
   //Save edit to backend
   const handleSave = async (field: "username" | "password" | "email") => {
     try {
-      const requestBody: any = {
+      const passwordSalt: Uint8Array | null = await localforage.getItem("passwordSalt") as Uint8Array | null;
+      const requestBody: UserUpdate = {
         type: field,
         newValue: updatedValue,
-        password: prompt("Enter your current password to confirm change"),
+        password: await hashPassword(prompt("Enter your current password to confirm change")!, passwordSalt),
       };
 
       if (!requestBody.password) {
@@ -212,6 +214,8 @@ function Profile() {
         const masterKey = await deriveKeyFromPassword(updatedValue, salt);
         const { iv: _, encrypted: encryptedPrivateKey } = await encryptPrivateKey(privateKey, masterKey, iv);
         requestBody.encryptedPrivateKey = bufferToBase64(encryptedPrivateKey);
+        // Hash the new password for the backend
+        requestBody.newValue = await hashPassword(requestBody.newValue, passwordSalt); 
       }
 
       console.log("🚀 Sending request:", JSON.stringify(requestBody, null, 2)); // Log formatted request
