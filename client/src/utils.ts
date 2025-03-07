@@ -31,3 +31,13 @@ export async function fetchUsernames(query: string, limit: number, offset: numbe
     if (!response.ok) throw new Error(`Failed to fetch usernames: ${await response.text()}`);
     return await response.json();
 };
+
+// Check if a value is in a list of valid values
+export function isValidValue<T extends string>(value: string | null, validValues: readonly T[]): string | null {
+  if (validValues.includes(value as T)) {
+    return value;
+  } else {
+    return null;
+  }
+}
+
