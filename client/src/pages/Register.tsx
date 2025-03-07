@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import {
+    bufferToBase64,
     deriveKeyFromPassword,
     encryptPrivateKey,
     generateRSAKeyPair
@@ -11,11 +12,6 @@ import { BASE_URL, validateEmail } from "../utils";
 // Helper function to convert Uint8Array to Base64 safely
 function toBase64(bytes: Uint8Array): string {
     return btoa(String.fromCharCode(...bytes));
-}
-
-// Helper function to safely Base64-encode an `ArrayBuffer`
-function bufferToBase64(buffer: ArrayBuffer): string {
-    return btoa(String.fromCharCode(...new Uint8Array(buffer)));
 }
 
 export default function Register() {
