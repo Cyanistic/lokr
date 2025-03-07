@@ -1,3 +1,4 @@
+import { argon2id } from "hash-wasm";
 import localforage from "localforage";
 
 //  Convert Base64 String to Uint8Array
@@ -157,4 +158,21 @@ export async function loadKeys(password: string) {
 // Helper function to safely Base64-encode an `ArrayBuffer`
 export function bufferToBase64(buffer: ArrayBuffer): string {
     return btoa(String.fromCharCode(...new Uint8Array(buffer)));
+}
+
+// Helper function to hash a password for the backend
+export async function hashPassword(password: string, salt: Uint8Array | null = null, generate: boolean = false): Promise<string> {
+    if (generate) {
+        salt = new Uint8Array(16);
+        crypto.getRandomValues(salt);
+    }
+    return await argon2id({
+        password,
+        salt,
+        parallelism: 1,
+        iterations: 256,
+        memorySize: 512, // use 512KB memory
+        hashLength: 32, // output size = 32 bytes
+        outputType: "encoded", // return standard encoded string containing parameters needed to verify the key
+    })
 }
