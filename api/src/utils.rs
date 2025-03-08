@@ -1,9 +1,10 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
-use sqlx::SqlitePool;
+use anyhow::Result;
+use sqlx::{QueryBuilder, Sqlite, SqlitePool};
 use uuid::Uuid;
 
-use crate::{error::AppError, upload::FileMetadata};
+use crate::{error::AppError, upload::FileMetadata, users::PublicUser};
 
 pub fn levenshtien(a: &str, b: &str) -> usize {
     let len_a = a.chars().count();
@@ -52,36 +53,20 @@ pub fn levenshtien(a: &str, b: &str) -> usize {
     cur[len_b - 1]
 }
 
-pub trait Hierarchify: Iterator {
-    fn hierarchify(self) -> Vec<Self::Item>;
+pub trait Normalize: Iterator {
+    fn normalize(self) -> (HashMap<Uuid, Self::Item>, Vec<Uuid>);
 }
-impl<T: Iterator<Item = FileMetadata>> Hierarchify for T {
+impl<T: Iterator<Item = FileMetadata>> Normalize for T {
     /// Convert rows into a tree like structure that represents the hierarchy of the files
-    fn hierarchify(self) -> Vec<Self::Item> {
-        self.fold(
-            HashMap::new(),
-            |mut acc: HashMap<Option<Uuid>, Vec<FileMetadata>>, mut cur| {
-                // Check if the current file has children that we have previously
-                // saved in our accumulator. If so, then we can move those
-                // children to the current file.
-                if let Some(children) = acc.remove(&Some(cur.id)) {
-                    cur.children = children;
-                }
-                // Add the current file to the accumulator based on its parent_id
-                // so that we can later move its children to it if they exist.
-                acc.entry(cur.upload.parent_id)
-                    .and_modify(|entry| entry.push(cur.clone()))
-                    .or_insert_with(|| vec![cur]);
-                acc
-            },
-        )
-        // Files and directories in the root should have a parent_id of None so we remove it from the map
-        // If everything went well, the only key left in the map should be None or the id provided. As
-        // childern are moved to their parents, their parent_id is removed from the map.
-        .into_values()
-        .flatten()
-        // A user may have no files, so we default to an empty root directory
-        .collect()
+    fn normalize(self) -> (HashMap<Uuid, Self::Item>, Vec<Uuid>) {
+        self.fold((HashMap::new(), Vec::new()), |(mut map, mut root), cur| {
+            let uuid = cur.id;
+            if cur.upload.parent_id.is_none() {
+                root.push(uuid);
+            }
+            map.insert(uuid, cur);
+            (map, root)
+        })
     }
 }
 
@@ -94,4 +79,32 @@ pub async fn clean_up(pool: &SqlitePool) -> Result<(), AppError> {
         .execute(pool)
         .await?;
     Ok(())
+}
+
+/// Get the user ids referenced by a map of files
+pub async fn get_file_users(
+    pool: &SqlitePool,
+    files: &HashMap<Uuid, FileMetadata>,
+) -> Result<HashMap<Uuid, PublicUser>> {
+    let owner_set = files.iter().fold(HashSet::new(), |mut acc, cur| {
+        if let Some(owner_id) = cur.1.owner_id {
+            acc.insert(owner_id);
+        }
+        acc
+    });
+    let mut builder: QueryBuilder<'_, Sqlite> = QueryBuilder::new("SELECT id, username, email, public_key, avatar AS avatar_extension FROM user WHERE id IN (");
+    let mut separated = builder.separated(", ");
+    for owner in &owner_set {
+        separated.push_bind(owner);
+    }
+    separated.push_unseparated(")");
+    let query = builder.build_query_as::<PublicUser>();
+    Ok(query
+        .fetch_all(pool)
+        .await?
+        .into_iter()
+        .fold(HashMap::new(), |mut acc, cur| {
+            acc.insert(cur.id, cur);
+            acc
+        }))
 }
