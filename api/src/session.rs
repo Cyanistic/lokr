@@ -19,15 +19,17 @@ use crate::{
 #[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Session {
+    /// The session number. This is unique on a per-user basis.
     number: i64,
     created_at: DateTime<Utc>,
     last_used_at: DateTime<Utc>,
+    user_agent: Option<String>,
 }
 
 #[utoipa::path(
     get,
     path = "/api/sessions",
-    description = "Get all sessions for the currently authenticated user",
+    description = "Get all sessions for the currently authenticated user. The list is sorted by the `lastUsedAt` field, therefore the first session in the list will always be the current session.",
     responses(
         (status = OK, description = "Sessions found", body = [Session]),
         (status = UNAUTHORIZED, description = "No user is currently authenticated", body = ErrorResponse)
@@ -41,19 +43,21 @@ pub async fn get_sessions(
     State(state): State<AppState>,
     SessionAuth(user): SessionAuth,
 ) -> Result<Response, AppError> {
-    let query = sqlx::query_as!(
+    let sessions = sqlx::query_as!(
         Session,
         r#"
         SELECT number,
         created_at AS "created_at: _",
-        last_used_at AS "last_used_at: _" FROM session WHERE user_id = ?
+        last_used_at AS "last_used_at: _",
+        user_agent
+        FROM session WHERE user_id = ?
         ORDER BY last_used_at DESC
         "#,
         user.id
     )
     .fetch_all(&state.pool)
     .await?;
-    Ok((StatusCode::OK, Json(query)).into_response())
+    Ok((StatusCode::OK, Json(sessions)).into_response())
 }
 
 #[utoipa::path(

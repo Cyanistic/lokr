@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "\n            SELECT user.id AS \"id: _\", username, email, session.id AS \"session_id: _\"\n            FROM user\n            JOIN session ON user.id = session.user_id\n            WHERE session.id = ?\n            AND DATETIME(last_used_at, '+' || idle_duration || ' seconds' ) >= CURRENT_TIMESTAMP\n            ",
+  "query": "\n            SELECT user.id AS \"id: _\", username, email, session.number AS \"session_number: _\"\n            FROM user\n            JOIN session ON user.id = session.user_id\n            WHERE session.id = ?\n            AND DATETIME(last_used_at, '+' || idle_duration || ' seconds' ) >= CURRENT_TIMESTAMP\n            ",
   "describe": {
     "columns": [
       {
@@ -19,9 +19,9 @@
         "type_info": "Text"
       },
       {
-        "name": "session_id: _",
+        "name": "session_number: _",
         "ordinal": 3,
-        "type_info": "Blob"
+        "type_info": "Integer"
       }
     ],
     "parameters": {
@@ -34,5 +34,5 @@
       false
     ]
   },
-  "hash": "8913ea3ea98fa62007c2ac57224470cd27a3c7630178c186a02b5c781fa65430"
+  "hash": "c1f6e808cec23df21264d46e41af1c24bf9309d939f37caab5f8c48fd0863bc4"
 }
