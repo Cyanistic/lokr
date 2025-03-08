@@ -87,7 +87,10 @@ impl IntoResponse for AppError {
             }
             AppError::AuthError(e) => {
                 headers.append(SET_COOKIE, "session=; HttpOnly; Max-Age=0".parse().unwrap());
-                headers.append(SET_COOKIE, "authenticated=; Path=/; Max-Age=0".parse().unwrap());
+                headers.append(
+                    SET_COOKIE,
+                    "authenticated=; Path=/; Max-Age=0".parse().unwrap(),
+                );
                 (StatusCode::UNAUTHORIZED, e.to_string())
             }
             AppError::UserError((code, e)) => (*code, e.to_string()),

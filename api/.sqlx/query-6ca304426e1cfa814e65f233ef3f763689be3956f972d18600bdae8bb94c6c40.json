@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "INSERT INTO session (id, user_id) VALUES (?, ?) RETURNING id",
+  "query": "DELETE FROM session WHERE number = ? AND user_id = ? RETURNING id",
   "describe": {
     "columns": [
       {
@@ -16,5 +16,5 @@
       false
     ]
   },
-  "hash": "f317dc7ea4c0ac89e1760636483e21995a77e56c13efc5f9c6ffb413b17569f3"
+  "hash": "6ca304426e1cfa814e65f233ef3f763689be3956f972d18600bdae8bb94c6c40"
 }

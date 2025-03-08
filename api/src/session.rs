@@ -8,7 +8,6 @@ use chrono::{DateTime, Utc};
 use serde::Serialize;
 use tracing::instrument;
 use utoipa::ToSchema;
-use uuid::Uuid;
 
 use crate::{
     auth::SessionAuth,
@@ -20,7 +19,7 @@ use crate::{
 #[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Session {
-    id: Uuid,
+    number: i64,
     created_at: DateTime<Utc>,
     last_used_at: DateTime<Utc>,
 }
@@ -45,9 +44,11 @@ pub async fn get_sessions(
     let query = sqlx::query_as!(
         Session,
         r#"
-        SELECT id AS "id: _",
+        SELECT number,
         created_at AS "created_at: _",
-        last_used_at AS "last_used_at: _" FROM session WHERE user_id = ?"#,
+        last_used_at AS "last_used_at: _" FROM session WHERE user_id = ?
+        ORDER BY last_used_at DESC
+        "#,
         user.id
     )
     .fetch_all(&state.pool)
@@ -57,8 +58,8 @@ pub async fn get_sessions(
 
 #[utoipa::path(
     delete,
-    path = "/api/session/{id}",
-    description = "Delete an active session for the currently authenticated user",
+    path = "/api/session/{number}",
+    description = "Delete an active session for the currently authenticated user. Requires a session number rather than a session id for security reasons.",
     responses(
         (status = OK, description = "Session successfully deleted", body = SuccessResponse),
         (status = NOT_FOUND, description = "Session not found", body = ErrorResponse)
@@ -71,11 +72,11 @@ pub async fn get_sessions(
 pub async fn delete_session(
     State(state): State<AppState>,
     SessionAuth(user): SessionAuth,
-    Path(id): Path<Uuid>,
+    Path(number): Path<i64>,
 ) -> Result<Response, AppError> {
     if sqlx::query!(
-        "DELETE FROM session WHERE id = ? AND user_id = ? RETURNING id",
-        id,
+        "DELETE FROM session WHERE number = ? AND user_id = ? RETURNING id",
+        number,
         user.id
     )
     .fetch_optional(&state.pool)

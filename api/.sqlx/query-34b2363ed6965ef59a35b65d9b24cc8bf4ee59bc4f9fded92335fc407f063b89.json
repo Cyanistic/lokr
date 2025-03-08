@@ -1,12 +1,12 @@
 {
   "db_name": "SQLite",
-  "query": "\n        SELECT id AS \"id: _\",\n        created_at AS \"created_at: _\",\n        last_used_at AS \"last_used_at: _\" FROM session WHERE user_id = ?",
+  "query": "\n        SELECT number,\n        created_at AS \"created_at: _\",\n        last_used_at AS \"last_used_at: _\" FROM session WHERE user_id = ?\n        ORDER BY last_used_at DESC\n        ",
   "describe": {
     "columns": [
       {
-        "name": "id: _",
+        "name": "number",
         "ordinal": 0,
-        "type_info": "Blob"
+        "type_info": "Integer"
       },
       {
         "name": "created_at: _",
@@ -28,5 +28,5 @@
       false
     ]
   },
-  "hash": "4bd4e7eb5d158628417ff098f20c5244bf9c4eda44dd56fdc6b70ce0fe44462e"
+  "hash": "34b2363ed6965ef59a35b65d9b24cc8bf4ee59bc4f9fded92335fc407f063b89"
 }

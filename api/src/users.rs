@@ -341,8 +341,10 @@ pub async fn authenticate_user(
 
     let uuid = Uuid::new_v4();
     sqlx::query!(
-        "INSERT INTO session (id, user_id) VALUES (?, ?) RETURNING id",
+        "INSERT INTO session (id, user_id, number)
+        VALUES (?, ?, COALESCE((SELECT MAX(number) FROM session WHERE user_id = ?), 0) + 1) RETURNING id",
         uuid,
+        db_user.id,
         db_user.id
     )
     .fetch_one(&state.pool)
@@ -357,8 +359,14 @@ pub async fn authenticate_user(
     .await?;
     Ok((
         StatusCode::OK,
-        [(SET_COOKIE, format!("session={uuid}; HttpOnly; Max-Age=34560000"))],
-        AppendHeaders([(SET_COOKIE, "authenticated=true; Max-Age=34560000; Path=/".to_string())]),
+        [(
+            SET_COOKIE,
+            format!("session={uuid}; HttpOnly; Max-Age=34560000"),
+        )],
+        AppendHeaders([(
+            SET_COOKIE,
+            "authenticated=true; Max-Age=34560000; Path=/".to_string(),
+        )]),
         Json(login_body),
     )
         .into_response())
@@ -381,6 +389,18 @@ pub async fn logout(
     State(state): State<AppState>,
     SessionAuth(user): SessionAuth,
 ) -> Result<Response, AppError> {
+    if sqlx::query!("DELETE FROM session WHERE id = ?", user.session_id)
+        .execute(&state.pool)
+        .await?
+        .rows_affected()
+        == 0
+    {
+        // This should never happen, but just in case
+        return Err(AppError::UserError((
+            StatusCode::BAD_REQUEST,
+            "Session does not exist".into(),
+        )));
+    }
     Ok((
         StatusCode::OK,
         [(SET_COOKIE, "session=; HttpOnly; Max-Age=0")],
