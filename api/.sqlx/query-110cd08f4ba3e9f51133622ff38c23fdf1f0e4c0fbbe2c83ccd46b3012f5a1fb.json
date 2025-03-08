@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO session (id, user_id, number)\n        VALUES (?, ?, COALESCE((SELECT MAX(number) FROM session WHERE user_id = ?), 0) + 1) RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "110cd08f4ba3e9f51133622ff38c23fdf1f0e4c0fbbe2c83ccd46b3012f5a1fb"
+}
