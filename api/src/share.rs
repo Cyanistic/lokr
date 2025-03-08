@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-use anyhow::anyhow;
 use argon2::{
     password_hash::{rand_core::OsRng, PasswordHasher, SaltString},
     PasswordHash, PasswordVerifier,
@@ -22,8 +21,8 @@ use crate::{
     error::{AppError, ErrorResponse},
     state::AppState,
     success,
-    upload::{is_owner, FileMetadata, FileQuery, UploadMetadata},
-    utils::Hierarchify,
+    upload::{is_owner, FileMetadata, FileQuery, FileResponse, UploadMetadata},
+    utils::{get_file_users, Normalize},
     SuccessResponse,
 };
 
@@ -209,7 +208,7 @@ pub async fn share_with_user(
     description = "Get files shared with the user",
     params(FileQuery),
     responses(
-        (status = OK, description = "File successfully retrieved", body = FileMetadata),
+        (status = OK, description = "File successfully retrieved", body = FileResponse),
         (status = BAD_REQUEST, description = "Invalid query params", body = ErrorResponse),
         (status = NOT_FOUND, description = "File not found", body = ErrorResponse),
     ),
@@ -345,7 +344,7 @@ pub async fn get_user_shared_file(
     .await?;
 
     // Convert the query result into a tree structure
-    let root = query
+    let (files, root) = query
         .into_iter()
         .map(|row| FileMetadata {
             id: row.id,
@@ -362,14 +361,22 @@ pub async fn get_user_shared_file(
             },
             children: Vec::new(),
         })
-        .hierarchify();
-    if params.id.is_some() && root.is_empty() {
+        .normalize();
+    if params.id.is_some() && files.is_empty() {
         Err(AppError::UserError((
             StatusCode::NOT_FOUND,
             "File not found".into(),
         )))
     } else {
-        Ok((StatusCode::OK, Json(root)).into_response())
+        Ok((
+            StatusCode::OK,
+            Json(FileResponse {
+                users: Some(get_file_users(&state.pool, &files).await?),
+                files,
+                root,
+            }),
+        )
+            .into_response())
     }
 }
 
@@ -380,7 +387,7 @@ pub async fn get_user_shared_file(
     params(FileQuery, ("link_id" = Uuid, Path, description = "The id of the share link")),
     request_body(content = Option<String>, description = "The password for the shared link", example = "amogus"),
     responses(
-        (status = OK, description = "File successfully retrieved", body = FileMetadata),
+        (status = OK, description = "Files successfully retrieved", body = FileResponse),
         (status = BAD_REQUEST, description = "Invalid query params", body = ErrorResponse),
         (status = NOT_FOUND, description = "File not found", body = ErrorResponse),
     ),
@@ -543,7 +550,7 @@ pub async fn get_link_shared_file(
     .await?;
 
     // Convert the query result into a tree structure
-    let root = query
+    let (files, root) = query
         .into_iter()
         .map(|row| FileMetadata {
             id: row.id,
@@ -560,16 +567,15 @@ pub async fn get_link_shared_file(
             },
             children: Vec::new(),
         })
-        .hierarchify();
+        .normalize();
 
-    // There should always be 1 and only 1 root node.
-    // This is because a link can only be associated with a single file or directory.
     Ok((
         StatusCode::OK,
-        Json(
-            root.first()
-                .ok_or(anyhow!("Invariant violated: expected one root node"))?,
-        ),
+        Json(FileResponse {
+            users: Some(get_file_users(&state.pool, &files).await?),
+            files,
+            root,
+        }),
     )
         .into_response())
 }

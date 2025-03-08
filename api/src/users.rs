@@ -18,6 +18,7 @@ use futures_util::StreamExt;
 use image::{imageops::FilterType, DynamicImage, GenericImageView};
 use serde::{Deserialize, Serialize};
 use serde_inline_default::serde_inline_default;
+use sqlx::prelude::FromRow;
 use totp_rs::{Algorithm, Secret, TOTP};
 use tracing::instrument;
 use utoipa::{IntoParams, ToSchema};
@@ -962,26 +963,26 @@ pub enum SortOrder {
     Shortest,
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, ToSchema, FromRow)]
 #[serde(rename_all = "camelCase")]
 pub struct PublicUser {
     /// The id of the user
-    id: Uuid,
+    pub id: Uuid,
     /// The name of the user
     #[schema(example = "sussyman")]
-    username: String,
+    pub username: String,
     /// Optional email for the user
     #[schema(example = "sussyman@amogus.com")]
-    email: Option<String>,
+    pub email: Option<String>,
     /// The user's public key
     #[schema(
         content_encoding = "base64",
         example = "QQe22k5wy-88PUFIW1P7MkgxoyMyalmjnffAuUNgMuE"
     )]
-    public_key: String,
+    pub public_key: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     /// The file extension for the user's avatar
-    avatar_extension: Option<String>,
+    pub avatar_extension: Option<String>,
 }
 
 #[utoipa::path(

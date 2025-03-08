@@ -1,4 +1,4 @@
-use std::{io::ErrorKind, path::PathBuf};
+use std::{collections::HashMap, io::ErrorKind, path::PathBuf};
 
 use axum::{
     extract::{Multipart, Path, Query, State},
@@ -20,7 +20,8 @@ use crate::{
     error::{AppError, ErrorResponse},
     state::AppState,
     success,
-    utils::Hierarchify,
+    users::PublicUser,
+    utils::Normalize,
     SuccessResponse, UPLOAD_DIR,
 };
 
@@ -400,11 +401,8 @@ pub struct FileMetadata {
     pub owner_id: Option<Uuid>,
     /// The children of the directory.
     /// Only present if the file is a directory.
-    /// This is a recursive definition so it can be used to get the entire directory tree,
-    /// the children will also have their children and so on.
-    #[schema(no_recursion, example = "Recursive definition...")]
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub children: Vec<FileMetadata>,
+    pub children: Vec<Uuid>,
 }
 
 #[derive(Deserialize, IntoParams, Debug)]
@@ -428,16 +426,67 @@ pub struct FileQuery {
     pub limit: u32,
 }
 
+impl FileMetadata {
+    fn example() -> HashMap<Uuid, Self> {
+        let parent_uuid = Uuid::try_parse_ascii(b"123e4567-e89b-12d3-a456-426614174000").unwrap();
+        let child_uuid = Uuid::try_parse_ascii(b"21f981a7-d21f-4aa5-9f6b-09005235236a").unwrap();
+
+        let now = Utc::now();
+        let first = FileMetadata {
+            id: parent_uuid,
+            upload: UploadMetadata {
+                encrypted_file_name: "encryptedFileName".into(),
+                encrypted_mime_type: Some("encryptedMimeType".into()),
+                encrypted_key: "encryptedKey".into(),
+                nonce: "exampleNonce".into(),
+                is_directory: true,
+                parent_id: None,
+            },
+            created_at: now,
+            modified_at: now,
+            owner_id: Some(Uuid::try_parse_ascii(b"dae2b0f0-d84b-42c8-aebd-58a71ee1fb86").unwrap()),
+            children: vec![child_uuid],
+        };
+        let child = FileMetadata {
+            id: child_uuid,
+            upload: UploadMetadata {
+                encrypted_file_name: "encryptedFileName".into(),
+                encrypted_mime_type: Some("encryptedMimeType".into()),
+                encrypted_key: "encryptedKey".into(),
+                nonce: "exampleNonce".into(),
+                is_directory: false,
+                parent_id: Some(parent_uuid),
+            },
+            created_at: now,
+            modified_at: now,
+            owner_id: Some(Uuid::try_parse_ascii(b"dae2b0f0-d84b-42c8-aebd-58a71ee1fb86").unwrap()),
+            children: vec![],
+        };
+        HashMap::from([(parent_uuid, first), (child_uuid, child)])
+    }
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct FileResponse {
+    #[schema(
+        example = FileMetadata::example
+    )]
+    pub files: HashMap<Uuid, FileMetadata>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(example = "same kind of thing as files, but with `PublicUser` schema...")]
+    pub users: Option<HashMap<Uuid, PublicUser>>,
+    #[schema(example = "123e4567-e89b-12d3-a456-426614174000")]
+    pub root: Vec<Uuid>,
+}
 #[utoipa::path(
     get,
     path = "/api/file",
-    description = "Get the metadata of a file or directory. Also returns the children of a directory",
+    description = "Get the metadata of a file or directory. Also returns the children of a directory. This does not return a `users` object for the time being, as all files and directories are assumed to be owned by the querying user.",
     params(
         FileQuery
     ),
     responses(
-        (status = OK, description = "The file or directory metadata was retrieved successfully", body = FileMetadata),
-        (status = ACCEPTED, description = "The root directory metadata was retrieved successfully. Uses a different response code from the regular response because root directories don't have metadata, so we can only return their children", body = [FileMetadata]),
+        (status = OK, description = "The file or directory metadata was retrieved successfully", body = FileResponse),
         (status = BAD_REQUEST, description = "No file id or user authoziation provided", body = ErrorResponse),
         (status = NOT_FOUND, description = "File was not found"),
     ),
@@ -530,7 +579,7 @@ pub async fn get_file_metadata(
     .fetch_all(&state.pool)
     .await?;
     // Convert the query result into a tree structure
-    let root = query
+    let (files, root) = query
         .into_iter()
         .map(|row| FileMetadata {
             id: row.id,
@@ -547,14 +596,22 @@ pub async fn get_file_metadata(
             },
             children: Vec::new(),
         })
-        .hierarchify();
-    if params.id.is_some() && root.is_empty() {
+        .normalize();
+    if params.id.is_some() && files.is_empty() {
         Err(AppError::UserError((
             StatusCode::NOT_FOUND,
             "File not found".into(),
         )))
     } else {
-        Ok((StatusCode::OK, Json(root)).into_response())
+        Ok((
+            StatusCode::OK,
+            Json(FileResponse {
+                users: None,
+                files,
+                root,
+            }),
+        )
+            .into_response())
     }
 }
 
