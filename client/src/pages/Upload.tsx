@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Button from '@mui/material/Button';
+import { Fab, Tooltip } from '@mui/material';
+import AddIcon from '@mui/icons-material/Add';
 
 export default function Upload() {
 
@@ -216,13 +218,22 @@ export default function Upload() {
 
   };
 
+  const handleFABClick = async () => {
+    const fileInput = document.getElementById('file-input');
+    if (fileInput) {
+      fileInput.click();
+    } else {
+      console.warn('File input element not found');
+    }
+  }
+
 
   return (
     <div className="uploadMain">
 
       <div className="uploadFile">
         <div>
-          <input type="file" onChange={handleFileChange} multiple />
+          <input type="file" id='file-input' style={{display: 'none'}} onChange={handleFileChange} multiple />
           {files.length > 0 && (
             <div>
               <p>Selected {files.length} file(s):</p>
@@ -238,6 +249,18 @@ export default function Upload() {
           )}
           {/*<button onClick={handleSubmit}>Upload</button>*/}
           <Button variant="contained" onClick={handleSubmit} style={{ backgroundColor: 'black', color: 'white' }}>Upload</Button>
+
+          {/* Tooltip for FAB */}
+          <Tooltip title="Upload File" aria-label="upload">
+            <Fab
+              color="primary"
+              aria-label="upload"
+              onClick={handleFABClick}
+              sx={{ position: 'fixed', bottom: 16, right: 16 }}
+            >
+              <AddIcon/>
+            </Fab>
+          </Tooltip>
 
           {/* Display the upload status */}
           {uploadStatus && <p>{uploadStatus}</p>}
