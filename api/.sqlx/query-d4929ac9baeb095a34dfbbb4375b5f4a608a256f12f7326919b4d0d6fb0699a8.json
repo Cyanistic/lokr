@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "\n        SELECT number,\n        created_at AS \"created_at: _\",\n        last_used_at AS \"last_used_at: _\" FROM session WHERE user_id = ?\n        ORDER BY last_used_at DESC\n        ",
+  "query": "\n        SELECT number,\n        created_at AS \"created_at: _\",\n        last_used_at AS \"last_used_at: _\",\n        user_agent\n        FROM session WHERE user_id = ?\n        ORDER BY last_used_at DESC\n        ",
   "describe": {
     "columns": [
       {
@@ -17,6 +17,11 @@
         "name": "last_used_at: _",
         "ordinal": 2,
         "type_info": "Datetime"
+      },
+      {
+        "name": "user_agent",
+        "ordinal": 3,
+        "type_info": "Text"
       }
     ],
     "parameters": {
@@ -25,8 +30,9 @@
     "nullable": [
       false,
       false,
-      false
+      false,
+      true
     ]
   },
-  "hash": "34b2363ed6965ef59a35b65d9b24cc8bf4ee59bc4f9fded92335fc407f063b89"
+  "hash": "d4929ac9baeb095a34dfbbb4375b5f4a608a256f12f7326919b4d0d6fb0699a8"
 }

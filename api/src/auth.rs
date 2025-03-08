@@ -13,7 +13,7 @@ pub struct User {
     pub id: Uuid,
     pub username: String,
     pub email: Option<String>,
-    pub session_id: Uuid,
+    pub session_number: i64,
 }
 
 #[derive(Debug)]
@@ -76,7 +76,7 @@ where
         let user = sqlx::query_as!(
             User,
             r#"
-            SELECT user.id AS "id: _", username, email, session.id AS "session_id: _"
+            SELECT user.id AS "id: _", username, email, session.number AS "session_number: _"
             FROM user
             JOIN session ON user.id = session.user_id
             WHERE session.id = ?

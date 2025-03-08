@@ -12,6 +12,7 @@ use axum::{
     response::{AppendHeaders, IntoResponse, Response},
     Json,
 };
+use axum_extra::{headers::UserAgent, TypedHeader};
 use base64::{engine::general_purpose, Engine};
 use futures_util::StreamExt;
 use image::{imageops::FilterType, DynamicImage, GenericImageView};
@@ -289,6 +290,7 @@ pub async fn create_user(
 #[instrument(err, skip(state))]
 pub async fn authenticate_user(
     State(state): State<AppState>,
+    TypedHeader(user_agent): TypedHeader<UserAgent>,
     Json(user): Json<LoginUser>,
 ) -> Result<Response, AppError> {
     user.app_validate()?;
@@ -340,12 +342,14 @@ pub async fn authenticate_user(
     }
 
     let uuid = Uuid::new_v4();
+    let user_agent = user_agent.as_str();
     sqlx::query!(
-        "INSERT INTO session (id, user_id, number)
-        VALUES (?, ?, COALESCE((SELECT MAX(number) FROM session WHERE user_id = ?), 0) + 1) RETURNING id",
+        "INSERT INTO session (id, user_id, number, user_agent)
+        VALUES (?, ?, COALESCE((SELECT MAX(number) FROM session WHERE user_id = ?), 0) + 1, ?) RETURNING id",
         uuid,
         db_user.id,
-        db_user.id
+        db_user.id,
+        user_agent
     )
     .fetch_one(&state.pool)
     .await?;
@@ -389,10 +393,14 @@ pub async fn logout(
     State(state): State<AppState>,
     SessionAuth(user): SessionAuth,
 ) -> Result<Response, AppError> {
-    if sqlx::query!("DELETE FROM session WHERE id = ?", user.session_id)
-        .execute(&state.pool)
-        .await?
-        .rows_affected()
+    if sqlx::query!(
+        "DELETE FROM session WHERE user_id = ? AND number = ?",
+        user.id,
+        user.session_number
+    )
+    .execute(&state.pool)
+    .await?
+    .rows_affected()
         == 0
     {
         // This should never happen, but just in case
