@@ -1,0 +1,41 @@
+* List of frontend Todos
+  - ( ) Make cohesive styling across application
+  -- ( ) Style home
+  -- ( ) Style register
+  -- ( ) Style login
+  -- ( ) Style profile
+  -- ( ) Style about us
+  -- ( ) Style file page
+  -- ( ) Add logo/branding
+  -- ( ) Add colors
+  - ( ) Populate text pages with information
+  -- ( ) Populate about us
+  -- ( ) Populate home
+  - ( ) File Management
+  -- ( ) File and directory decryption
+  -- ( ) Directory navigation
+  -- ( ) File previews (for supported file types)
+  --- ( ) Previews should be shown with a small thumbnail in grid view
+  --- ( ) Previews enlarged upon double clicking
+  -- ( ) File moving
+  -- ( ) File copying
+  -- ( ) File deletion
+  -- ( ) File searching
+  -- ( ) Displaying file owner or uploader name and avatar if files are shared
+  -- ( ) Directory-aware file uploads
+  --- ( ) Encrypt uploaded files with the encryption key of parent directory
+  - ( ) File sharing
+  -- ( ) Revoking shared permissions
+  -- ( ) Managing permissions and updating with drop-down menu
+  -- ( ) Viewing all users that have access to a file (only if you own the file)
+  -- ( ) Share Links
+  --- ( ) Viewing all active links for a file and when they expire
+  --- ( ) Link creation
+  --- ( ) Uploading and viewing through links
+  -- ( ) Add support for direct user sharing
+  --- ( ) Viewing files shared directly
+  - ( ) Add proper login screen for totp verification
+  - ( ) Support for persistent settings
+  -- ( ) Dark/Light theme customization
+  -- ( ) Grid/List view by default
+  -- ( ) Default number of files to show per page (or infinite scrolling with dynamic updates)
