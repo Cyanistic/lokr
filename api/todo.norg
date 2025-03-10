@@ -1,9 +1,10 @@
 * List of backend Todos
   - ( ) Add support for permissions
-  -- ( ) Add support for viewer or editor permissions on direct sharing
-  -- ( ) Add support for viewer or editor permissions on link sharing
+  -- (x) Add support for viewer or editor permissions on direct sharing
+  -- (x) Add support for viewer or editor permissions on link sharing
   -- (x) Add support for removing sharing permissions on direct sharing
   -- ( ) Add support for switching between viewer and editor permissions on link and direct sharing
-    - ( ) Add support for editor permissions on uploads
-    -- ( ) This means be able to support uploads on share links and direct sharing
+    - (x) Add support for editor permissions on uploads
+    -- (x) This means be able to support uploads on share links and direct sharing
   - ( ) Add table column for uploader, not just owner
+  - ( ) Add file/directory copying (directory copying should be recursive)

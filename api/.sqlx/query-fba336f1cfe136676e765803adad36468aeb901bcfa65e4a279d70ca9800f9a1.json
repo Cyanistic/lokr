@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO share_link (id, file_id, expires_at, password_hash, edit_permission) VALUES (?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "fba336f1cfe136676e765803adad36468aeb901bcfa65e4a279d70ca9800f9a1"
+}

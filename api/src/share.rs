@@ -47,6 +47,8 @@ pub struct ShareRequest {
     #[serde(flatten)]
     type_: ShareRequestType,
     id: Uuid,
+    /// Whether the user/link should have editing permissions
+    edit: bool,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -79,12 +81,15 @@ pub async fn share_file(
             user_id,
             encrypted_key,
         } => {
-            share_with_user(&state, body.id, &encrypted_key, user.id, user_id).await?;
+            share_with_user(&state, body.id, &encrypted_key, user.id, user_id, body.edit).await?;
             Ok((StatusCode::OK, success!("File shared with user")).into_response())
         }
         ShareRequestType::Link { expires, password } => Ok((
             StatusCode::CREATED,
-            Json(share_with_link(&state, Some(user.id), body.id, expires, password).await?),
+            Json(
+                share_with_link(&state, body.id, Some(user.id), expires, password, body.edit)
+                    .await?,
+            ),
         )
             .into_response()),
     }
@@ -93,10 +98,11 @@ pub async fn share_file(
 /// Helper function for sharing a file with using a link
 pub async fn share_with_link(
     state: &AppState,
-    user: Option<Uuid>,
     file_id: Uuid,
+    user: Option<Uuid>,
     expires: u64,
     password: Option<String>,
+    edit: bool,
 ) -> Result<ShareResponse, AppError> {
     let link = Uuid::new_v4();
     let expires = if expires > 0 {
@@ -140,11 +146,12 @@ pub async fn share_with_link(
 
     // Everything is good so insert the link
     sqlx::query!(
-        "INSERT INTO share_link (id, file_id, expires_at, password_hash) VALUES (?, ?, ?, ?)",
+        "INSERT INTO share_link (id, file_id, expires_at, password_hash, edit_permission) VALUES (?, ?, ?, ?, ?)",
         link,
         file_id,
         expires,
-        password_hash
+        password_hash,
+        edit
     )
     .execute(&state.pool)
     .await?;
@@ -162,6 +169,7 @@ pub async fn share_with_user(
     encrypted_key: &str,
     owner_id: Uuid,
     receiver_id: Uuid,
+    edit: bool,
 ) -> Result<(), AppError> {
     if receiver_id == owner_id {
         return Err(AppError::UserError((
@@ -176,10 +184,11 @@ pub async fn share_with_user(
         )));
     }
     match sqlx::query!(
-        "INSERT INTO share_user (file_id, user_id, encrypted_key) VALUES (?, ?, ?)",
+        "INSERT INTO share_user (file_id, user_id, encrypted_key, edit_permission) VALUES (?, ?, ?, ?)",
         file_id,
         receiver_id,
-        encrypted_key
+        encrypted_key,
+        edit
     )
     .execute(&state.pool)
     .await

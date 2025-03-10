@@ -71,12 +71,15 @@ pub struct UploadResponse {
 // and isn't actually used anywhere in the code
 #[derive(ToSchema)]
 #[allow(unused)]
+#[schema(rename_all = "camelCase")]
 pub struct UploadRequest {
     #[schema(content_encoding = "application/json")]
     metadata: UploadMetadata,
     /// The encrypted file data as bytes
     #[schema(format = Binary, content_media_type = "application/octet-stream")]
     file: String,
+    #[schema(example = "", content_media_type = "text/plain")]
+    link_id: Option<String>,
 }
 
 #[utoipa::path(
@@ -104,6 +107,7 @@ pub async fn upload_file(
     let mut file_path: Option<PathBuf> = None;
     // Allocate a megabyte buffer
     let mut file_data: Vec<u8> = Vec::with_capacity(1024 * 1024);
+    let mut link_id: Option<Uuid> = None;
 
     while let Some(mut field) = data.next_field().await? {
         match field.name() {
@@ -117,6 +121,12 @@ pub async fn upload_file(
                     file_data.extend_from_slice(&chunk);
                 }
             }
+            Some("linkId") => {
+                let bytes = field.bytes().await?;
+                if !bytes.is_empty() {
+                    link_id = Some(Uuid::try_parse_ascii(&bytes)?);
+                }
+            }
             _ => {}
         }
     }
@@ -128,18 +138,42 @@ pub async fn upload_file(
         )));
     };
 
-    if let Some(parent_file) = sqlx::query!(
-        r#"SELECT is_directory AS "is_directory!" FROM file WHERE id = ?"#,
-        metadata.parent_id
-    )
-    .fetch_optional(&state.pool)
-    .await?
-    {
-        if !parent_file.is_directory {
-            return Err(AppError::UserError((
-                StatusCode::BAD_REQUEST,
-                "Parent file is not a directory".into(),
-            )));
+    // Check if the user has permission to upload the file to the parent directory
+    if let Some(parent_id) = metadata.parent_id {
+        match sqlx::query!(
+            r#"SELECT owner_id AS "owner_id: Uuid", is_directory, 
+            COALESCE(share_user.edit_permission OR share_link.edit_permission, false) AS "edit_permission!: bool"
+            FROM file 
+            LEFT JOIN share_user ON share_user.file_id = file.id AND share_user.user_id = ?
+            LEFT JOIN share_link ON share_link.file_id = file.id AND share_link.id = ?
+            WHERE file.id = ?"#,
+            uuid,
+            link_id,
+            parent_id
+        )
+        .fetch_optional(&state.pool)
+        .await?
+        {
+            Some(parent_file) => {
+                if !parent_file.is_directory {
+                    return Err(AppError::UserError((
+                        StatusCode::BAD_REQUEST,
+                        "Parent file is not a directory".into(),
+                    )));
+                }
+                if parent_file.owner_id != uuid && !parent_file.edit_permission {
+                    return Err(AppError::UserError((
+                        StatusCode::FORBIDDEN,
+                        "You are unauthorized to upload a file into this directory".into(),
+                    )));
+                }
+            }
+            None => {
+                return Err(AppError::UserError((
+                    StatusCode::NOT_FOUND,
+                    "Parent file does not exist!".into(),
+                )))
+            }
         }
     }
 
