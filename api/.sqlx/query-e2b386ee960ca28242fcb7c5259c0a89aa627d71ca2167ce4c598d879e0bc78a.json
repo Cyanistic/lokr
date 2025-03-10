@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                DELETE FROM share_user WHERE user_id = ? AND\n                file_id IN (SELECT id FROM file WHERE id = ? AND owner_id = ?)\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "e2b386ee960ca28242fcb7c5259c0a89aa627d71ca2167ce4c598d879e0bc78a"
+}
