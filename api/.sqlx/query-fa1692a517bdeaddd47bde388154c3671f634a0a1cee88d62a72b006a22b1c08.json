@@ -44,58 +44,63 @@
         "type_info": "Text"
       },
       {
-        "name": "totp_secret",
+        "name": "password_salt",
         "ordinal": 8,
+        "type_info": "Text"
+      },
+      {
+        "name": "totp_secret",
+        "ordinal": 9,
         "type_info": "Blob"
       },
       {
         "name": "totp_enabled",
-        "ordinal": 9,
-        "type_info": "Bool"
-      },
-      {
-        "name": "totp_verified",
         "ordinal": 10,
         "type_info": "Bool"
       },
       {
-        "name": "avatar",
+        "name": "totp_verified",
         "ordinal": 11,
+        "type_info": "Bool"
+      },
+      {
+        "name": "avatar",
+        "ordinal": 12,
         "type_info": "Text"
       },
       {
         "name": "theme",
-        "ordinal": 12,
+        "ordinal": 13,
         "type_info": "Integer"
       },
       {
         "name": "grid_view",
-        "ordinal": 13,
+        "ordinal": 14,
         "type_info": "Bool"
       },
       {
         "name": "sort_order",
-        "ordinal": 14,
-        "type_info": "Integer"
-      },
-      {
-        "name": "total_space",
         "ordinal": 15,
         "type_info": "Integer"
       },
       {
-        "name": "used_space",
+        "name": "total_space",
         "ordinal": 16,
         "type_info": "Integer"
       },
       {
-        "name": "created_at",
+        "name": "used_space",
         "ordinal": 17,
+        "type_info": "Integer"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 18,
         "type_info": "Datetime"
       },
       {
         "name": "modified_at",
-        "ordinal": 18,
+        "ordinal": 19,
         "type_info": "Datetime"
       }
     ],
@@ -111,6 +116,7 @@
       false,
       false,
       false,
+      true,
       true,
       false,
       false,
