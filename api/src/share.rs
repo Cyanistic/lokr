@@ -621,14 +621,23 @@ pub async fn get_shared_links(
     Ok((StatusCode::OK, Json(query)).into_response())
 }
 
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum ShareDeleteType {
+    #[serde(rename_all = "camelCase")]
+    User { user_id: Uuid, file_id: Uuid },
+    #[serde(rename_all = "camelCase")]
+    Link { link_id: Uuid },
+}
+
 #[utoipa::path(
     delete,
-    path = "/api/shared/link/{link_id}",
-    description = "Delete an active share link for a file",
-    params(("link_id" = Uuid, Path, description = "The id of the link")),
+    path = "/api/shared",
+    description = "Delete an active share link or revoke user permissions for a file",
+    request_body(content = ShareDeleteType, description = "The type of file sharing being used"),
     responses(
-        (status = OK, description = "Links successfully deleted", body = SuccessResponse),
-        (status = BAD_REQUEST, description = "Invalid query params", body = ErrorResponse),
+        (status = OK, description = " Successfully deleted/revoked file permissions", body = SuccessResponse),
+        (status = BAD_REQUEST, description = "Invalid request body", body = ErrorResponse),
         (status = NOT_FOUND, description = "File not found", body = ErrorResponse),
     ),
     security(
@@ -636,31 +645,60 @@ pub async fn get_shared_links(
     )
 )]
 #[instrument(err, skip(state))]
-pub async fn delete_shared_link(
+pub async fn delete_share_permission(
     State(state): State<AppState>,
     SessionAuth(user): SessionAuth,
-    Path(link_id): Path<Uuid>,
+    Json(req): Json<ShareDeleteType>,
 ) -> Result<Response, AppError> {
-    let rows = sqlx::query!(
-        r#"
-        DELETE FROM share_link
-        WHERE id IN (
-            SELECT share_link.id FROM share_link
-            JOIN file ON file.id = share_link.file_id
-            WHERE share_link.id = ? AND owner_id = ? AND DATETIME(expires_at) >= CURRENT_TIMESTAMP
-        )
-        "#,
-        link_id,
-        user.id
-    )
-    .execute(&state.pool)
-    .await?
-    .rows_affected();
-    if rows == 0 {
-        return Err(AppError::UserError((
-            StatusCode::NOT_FOUND,
-            "Link not found".into(),
-        )));
+    match req {
+        ShareDeleteType::User { user_id, file_id } => {
+            let rows = sqlx::query!(
+                "
+                DELETE FROM share_user WHERE user_id = ? AND
+                file_id IN (SELECT id FROM file WHERE id = ? AND owner_id = ?)
+                ",
+                user_id,
+                file_id,
+                user.id
+            )
+            .execute(&state.pool)
+            .await?
+            .rows_affected();
+            if rows == 0 {
+                return Err(AppError::UserError((
+                    StatusCode::NOT_FOUND,
+                    "File is not shared with user".into(),
+                )));
+            }
+            Ok((
+                StatusCode::OK,
+                success!("File permissions successfully revoked"),
+            )
+                .into_response())
+        }
+        ShareDeleteType::Link { link_id } => {
+            let rows = sqlx::query!(
+                r#"
+                DELETE FROM share_link
+                WHERE id IN (
+                    SELECT share_link.id FROM share_link
+                    JOIN file ON file.id = share_link.file_id
+                    WHERE share_link.id = ? AND owner_id = ? AND DATETIME(expires_at) >= CURRENT_TIMESTAMP
+                )
+                "#,
+                link_id,
+                user.id
+            )
+            .execute(&state.pool)
+            .await?
+            .rows_affected();
+            if rows == 0 {
+                return Err(AppError::UserError((
+                    StatusCode::NOT_FOUND,
+                    "Link not found".into(),
+                )));
+            }
+            Ok((StatusCode::OK, success!("Link successfully deleted")).into_response())
+        }
     }
-    Ok((StatusCode::OK, success!("Links successfully deleted")).into_response())
 }
