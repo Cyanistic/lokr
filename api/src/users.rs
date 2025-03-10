@@ -831,7 +831,7 @@ pub async fn update_user(
                 "UPDATE user SET password_hash = ?, encrypted_private_key = ?, password_salt = ? WHERE id = ?",
                 password_hash,
                 encrypted_private_key,
-                password_salt, 
+                password_salt,
                 user.id
             )
             .execute(&state.pool)

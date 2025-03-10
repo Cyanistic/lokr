@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id AS \"id: _\", username, email, public_key, avatar AS avatar_extension FROM user",
+  "query": "SELECT id AS \"id: _\", username, email, public_key, avatar AS avatar_extension, password_salt FROM user",
   "describe": {
     "columns": [
       {
@@ -27,6 +27,11 @@
         "name": "avatar_extension",
         "ordinal": 4,
         "type_info": "Text"
+      },
+      {
+        "name": "password_salt",
+        "ordinal": 5,
+        "type_info": "Text"
       }
     ],
     "parameters": {
@@ -37,8 +42,9 @@
       false,
       true,
       false,
+      true,
       true
     ]
   },
-  "hash": "535f215eb9cf1fdaa3e25dd4607c9ff86d3921e490e023b64ad0d2172dafd261"
+  "hash": "df5f329037e7597c714f96d4ce49cc57cb04a5eae4fd8a37ca1da5d64226a0b2"
 }
