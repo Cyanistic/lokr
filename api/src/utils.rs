@@ -61,8 +61,18 @@ impl<T: Iterator<Item = FileMetadata>> Normalize for T {
     fn normalize(self) -> (HashMap<Uuid, Self::Item>, Vec<Uuid>) {
         self.fold((HashMap::new(), Vec::new()), |(mut map, mut root), cur| {
             let uuid = cur.id;
-            if cur.upload.parent_id.is_none() {
-                root.push(uuid);
+            match cur.upload.parent_id {
+                // Normally we would need to worry about the parent_id being inserted into the file
+                // map before the child node. However, we have our queries return files/directories
+                // ordered by depth, so we can be sure that the parents always appear before the
+                // children
+                Some(parent_id) => {
+                    map.entry(parent_id)
+                        .and_modify(|entry| entry.children.push(uuid));
+                }
+                None => {
+                    root.push(uuid);
+                }
             }
             map.insert(uuid, cur);
             (map, root)

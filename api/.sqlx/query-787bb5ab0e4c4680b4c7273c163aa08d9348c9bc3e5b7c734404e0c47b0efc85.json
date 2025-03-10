@@ -1,0 +1,86 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            WITH RECURSIVE children AS (\n                -- Anchor member (root or specified node)\n                SELECT \n                    0 AS depth,\n                    id, \n                    parent_id, \n                    encrypted_name, \n                    encrypted_key, \n                    owner_id,\n                    nonce, \n                    is_directory, \n                    mime,\n                    size,\n                    created_at,\n                    modified_at\n                FROM file\n                WHERE \n                owner_id = COALESCE(?, owner_id) AND\n                IIF(? IS NULL, parent_id IS NULL, id = ?)\n                UNION ALL\n                \n                -- Recursive member\n                SELECT \n                    c.depth + 1,\n                    f.id, \n                    f.parent_id, \n                    f.encrypted_name, \n                    f.encrypted_key, \n                    f.owner_id,\n                    f.nonce, \n                    f.is_directory, \n                    f.mime,\n                    f.size,\n                    f.created_at,\n                    f.modified_at\n                FROM file f\n                JOIN children c ON f.parent_id = c.id\n                WHERE \n                    c.depth < ? \n                ORDER BY c.depth + 1\n            )\n            SELECT \n                -- Goofy ahh workaround to get the query to work with sqlx\n                depth AS \"depth!: u32\",\n                id AS \"id: Uuid\",\n                parent_id AS \"parent_id: Uuid\", \n                encrypted_name, \n                encrypted_key, \n                owner_id AS \"owner_id: Uuid\",\n                nonce, \n                is_directory AS \"is_directory!\",\n                mime,\n                size,\n                created_at,\n                modified_at\n            FROM children ORDER BY depth ASC LIMIT ? OFFSET ?\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "depth!: u32",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "id: Uuid",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "parent_id: Uuid",
+        "ordinal": 2,
+        "type_info": "Blob"
+      },
+      {
+        "name": "encrypted_name",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "encrypted_key",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "owner_id: Uuid",
+        "ordinal": 5,
+        "type_info": "Blob"
+      },
+      {
+        "name": "nonce",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "is_directory!",
+        "ordinal": 7,
+        "type_info": "Bool"
+      },
+      {
+        "name": "mime",
+        "ordinal": 8,
+        "type_info": "Text"
+      },
+      {
+        "name": "size",
+        "ordinal": 9,
+        "type_info": "Integer"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 10,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "modified_at",
+        "ordinal": 11,
+        "type_info": "Datetime"
+      }
+    ],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "787bb5ab0e4c4680b4c7273c163aa08d9348c9bc3e5b7c734404e0c47b0efc85"
+}

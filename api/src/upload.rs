@@ -241,7 +241,7 @@ pub async fn delete_file(
 
     // Only delete the file on the local file system if it is not a directory
     // This is because we don't actually store created directories on the file system
-    if file.is_directory.is_none_or(|is_directory| !is_directory) {
+    if !file.is_directory {
         // If the file exists, delete it
         match std::fs::remove_file(&*UPLOAD_DIR.join(id.to_string())) {
             // A not found error likely means that the file was already deleted
@@ -341,10 +341,7 @@ pub async fn update_file(
             };
 
             // Check that the new parent is a directory
-            if !parent_file
-                .is_directory
-                .is_some_and(|is_directory| is_directory)
-            {
+            if !parent_file.is_directory {
                 return Err(AppError::UserError((
                     StatusCode::BAD_REQUEST,
                     "Cannot set file parent to non-directories".into(),
@@ -567,7 +564,7 @@ pub async fn get_file_metadata(
                 size,
                 created_at,
                 modified_at
-            FROM (SELECT * FROM children ORDER BY depth LIMIT ? OFFSET ?) ORDER BY depth DESC
+            FROM children ORDER BY depth ASC LIMIT ? OFFSET ?
             "#,
         user_id,
         params.id,

@@ -331,7 +331,7 @@ pub async fn get_user_shared_file(
                 size,
                 created_at,
                 modified_at
-            FROM (SELECT * FROM children ORDER BY depth LIMIT ? OFFSET ?) ORDER BY depth DESC
+            FROM children ORDER BY depth ASC LIMIT ? OFFSET ?
     "#,
         user.id,
         user.id,
@@ -356,7 +356,7 @@ pub async fn get_user_shared_file(
                 encrypted_mime_type: row.mime,
                 encrypted_key: row.encrypted_key,
                 nonce: row.nonce,
-                is_directory: row.is_directory.is_some_and(|is_directory| is_directory),
+                is_directory: row.is_directory,
                 parent_id: row.parent_id,
             },
             children: Vec::new(),
@@ -538,7 +538,7 @@ pub async fn get_link_shared_file(
                 size,
                 created_at,
                 modified_at
-            FROM (SELECT * FROM children ORDER BY depth LIMIT ? OFFSET ?) ORDER BY depth DESC
+            FROM children ORDER BY depth ASC LIMIT ? OFFSET ?
     "#,
         link_id,
         params.id,
@@ -562,7 +562,7 @@ pub async fn get_link_shared_file(
                 encrypted_mime_type: row.mime,
                 encrypted_key: row.encrypted_key,
                 nonce: row.nonce,
-                is_directory: row.is_directory.is_some_and(|is_directory| is_directory),
+                is_directory: row.is_directory,
                 parent_id: row.parent_id,
             },
             children: Vec::new(),
