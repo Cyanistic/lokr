@@ -7,7 +7,7 @@ CREATE TABLE file (
     encrypted_name TEXT NOT NULL,          -- Encrypted filename
     mime TEXT,                   -- Encrypted MIME type
     size INTEGER DEFAULT 0,      -- Encrypted size, should be 0 for directories
-    is_directory BOOLEAN DEFAULT 0, -- 1 if the file is a directory
+    is_directory BOOLEAN NOT NULL DEFAULT 0, -- 1 if the file is a directory
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     modified_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (owner_id) REFERENCES user(id) ON DELETE CASCADE,
