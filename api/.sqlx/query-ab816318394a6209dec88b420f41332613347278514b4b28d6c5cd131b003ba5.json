@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        SELECT su.user_id AS \"user_id: Uuid\", \n        edit_permission,\n        created_at AS \"created_at!\",\n        modified_at AS \"modified_at!\"\n        FROM share_user su\n        WHERE file_id = ?\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "user_id: Uuid",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "edit_permission",
+        "ordinal": 1,
+        "type_info": "Bool"
+      },
+      {
+        "name": "created_at!",
+        "ordinal": 2,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "modified_at!",
+        "ordinal": 3,
+        "type_info": "Datetime"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "ab816318394a6209dec88b420f41332613347278514b4b28d6c5cd131b003ba5"
+}

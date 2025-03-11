@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE share_link SET edit_permission = ?,\n                password_hash =  \n                CASE ?\n                    WHEN NULL THEN password_hash\n                    WHEN '' THEN NULL\n                    ELSE ?\n                END\n                FROM\n                (SELECT share_link.id FROM file\n                JOIN share_link ON share_link.file_id = file.id\n                WHERE owner_id = ? AND share_link.id = ?) AS f\n                WHERE share_link.id = f.id",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "9c6904e907933b7fc5ccd284bc72a9e601641050522d3e17f0bb72cd9ab45c32"
+}

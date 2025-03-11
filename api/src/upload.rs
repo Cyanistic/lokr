@@ -162,6 +162,7 @@ pub async fn upload_file(
             LEFT JOIN share_link AS sl
             ON sl.file_id = file.id AND sl.id = ? AND (expires_at IS NULL OR DATETIME(expires_at) >= CURRENT_TIMESTAMP)
             WHERE file.id IN (SELECT id FROM ancestors) AND (owner_id = ? OR su.edit_permission OR sl.edit_permission)
+            LIMIT 1
             "#,
             parent_id,
             uuid,
