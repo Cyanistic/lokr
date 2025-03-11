@@ -56,6 +56,7 @@ pub struct ShareRequest {
 pub struct ShareResponse {
     link: Uuid,
     expires_at: Option<DateTime<Utc>>,
+    edit_permission: bool,
 }
 
 #[utoipa::path(
@@ -159,6 +160,7 @@ pub async fn share_with_link(
     Ok(ShareResponse {
         link,
         expires_at: expires,
+        edit_permission: edit,
     })
 }
 
@@ -618,7 +620,9 @@ pub async fn get_shared_links(
     let query = sqlx::query_as!(
         ShareResponse,
         r#"
-        SELECT share_link.id AS "link: Uuid", expires_at AS "expires_at: _"
+        SELECT share_link.id AS "link: Uuid", 
+        expires_at AS "expires_at: _",
+        edit_permission
         FROM share_link 
         WHERE file_id = ? AND
         (expires_at IS NULL OR
@@ -633,7 +637,7 @@ pub async fn get_shared_links(
 
 #[derive(Debug, Deserialize, ToSchema)]
 #[serde(tag = "type", rename_all = "camelCase")]
-pub enum ShareDeleteType {
+pub enum ShareIdentifier {
     #[serde(rename_all = "camelCase")]
     User { user_id: Uuid, file_id: Uuid },
     #[serde(rename_all = "camelCase")]
@@ -644,7 +648,7 @@ pub enum ShareDeleteType {
     delete,
     path = "/api/shared",
     description = "Delete an active share link or revoke user permissions for a file",
-    request_body(content = ShareDeleteType, description = "The type of file sharing being used"),
+    request_body(content = ShareIdentifier, description = "The type of file sharing being used"),
     responses(
         (status = OK, description = " Successfully deleted/revoked file permissions", body = SuccessResponse),
         (status = BAD_REQUEST, description = "Invalid request body", body = ErrorResponse),
@@ -658,10 +662,10 @@ pub enum ShareDeleteType {
 pub async fn delete_share_permission(
     State(state): State<AppState>,
     SessionAuth(user): SessionAuth,
-    Json(req): Json<ShareDeleteType>,
+    Json(req): Json<ShareIdentifier>,
 ) -> Result<Response, AppError> {
     match req {
-        ShareDeleteType::User { user_id, file_id } => {
+        ShareIdentifier::User { user_id, file_id } => {
             let rows = sqlx::query!(
                 "
                 DELETE FROM share_user WHERE user_id = ? AND
@@ -686,7 +690,7 @@ pub async fn delete_share_permission(
             )
                 .into_response())
         }
-        ShareDeleteType::Link { link_id } => {
+        ShareIdentifier::Link { link_id } => {
             let rows = sqlx::query!(
                 r#"
                 DELETE FROM share_link
@@ -711,4 +715,81 @@ pub async fn delete_share_permission(
             Ok((StatusCode::OK, success!("Link successfully deleted")).into_response())
         }
     }
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct ShareUpdateRequest {
+    #[serde(flatten)]
+    type_: ShareIdentifier,
+    edit: bool,
+}
+
+#[utoipa::path(
+    put,
+    path = "/api/share/{file_id}",
+    description = "Update permissions for a directly shared file or link.",
+    request_body(content = ShareUpdateRequest, description = "The type of file sharing being used"),
+    responses(
+        (status = OK, description = " Successfully deleted/revoked file permissions", body = SuccessResponse),
+        (status = BAD_REQUEST, description = "Invalid request body", body = ErrorResponse),
+        (status = NOT_FOUND, description = "File not found", body = ErrorResponse),
+    ),
+    security(
+        ("lokr_session_cookie" = [])
+    )
+)]
+#[instrument(err, skip(state))]
+pub async fn update_share_permission(
+    State(state): State<AppState>,
+    SessionAuth(user): SessionAuth,
+    Json(req): Json<ShareUpdateRequest>,
+) -> Result<Response, AppError> {
+    match req.type_ {
+        // Using nested queries in both cases to avoid
+        // call overhead of multiple queries
+        ShareIdentifier::User { user_id, file_id } => {
+            let rows = sqlx::query!(
+                "
+                UPDATE share_user SET edit_permission = ? FROM
+                (SELECT id FROM file WHERE owner_id = ? AND id = ?) AS s
+                WHERE user_id = ? AND file_id = s.id
+                ",
+                req.edit,
+                user.id,
+                file_id,
+                user_id,
+            )
+            .execute(&state.pool)
+            .await?
+            .rows_affected();
+            if rows == 0 {
+                return Err(AppError::UserError((
+                    StatusCode::FORBIDDEN,
+                    "You do not have permission to update permissions".into(),
+                )));
+            }
+        }
+        ShareIdentifier::Link { link_id } => {
+            let rows = sqlx::query!(
+                "UPDATE share_link SET edit_permission = ? FROM
+                (SELECT share_link.id FROM file
+                JOIN share_link ON share_link.file_id = file.id
+                WHERE owner_id = ? AND share_link.id = ?) AS f
+                WHERE share_link.id = f.id",
+                req.edit,
+                user.id,
+                link_id
+            )
+            .execute(&state.pool)
+            .await?
+            .rows_affected();
+            if rows == 0 {
+                return Err(AppError::UserError((
+                    StatusCode::FORBIDDEN,
+                    "You do not have permission to update permissions".into(),
+                )));
+            }
+        }
+    }
+    Ok((StatusCode::OK, success!("Successfully updated permissions")).into_response())
 }

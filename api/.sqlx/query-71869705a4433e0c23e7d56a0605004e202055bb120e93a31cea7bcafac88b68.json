@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                UPDATE share_user SET edit_permission = ? FROM\n                (SELECT id FROM file WHERE owner_id = ? AND id = ?) AS s\n                WHERE user_id = ? AND file_id = s.id\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "71869705a4433e0c23e7d56a0605004e202055bb120e93a31cea7bcafac88b68"
+}
