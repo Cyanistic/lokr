@@ -1,0 +1,32 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        SELECT share_link.id AS \"link: Uuid\", \n        expires_at AS \"expires_at: _\",\n        edit_permission\n        FROM share_link \n        WHERE file_id = ? AND\n        (expires_at IS NULL OR\n        DATETIME(expires_at) >= CURRENT_TIMESTAMP)\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "link: Uuid",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "expires_at: _",
+        "ordinal": 1,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "edit_permission",
+        "ordinal": 2,
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "0ae57eeee1a6b2c33cf44f337b5ebedc6e2488c49c58845427493a6e81d0ffeb"
+}
