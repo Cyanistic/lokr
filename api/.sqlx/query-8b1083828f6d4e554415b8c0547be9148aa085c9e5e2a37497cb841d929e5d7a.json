@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        INSERT INTO share_link (id, file_id, expires_at, password_hash, edit_permission) VALUES (?, ?, ?, ?, ?)\n        RETURNING created_at AS \"created_at!\", modified_at AS \"modified_at!\"\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "created_at!",
+        "ordinal": 0,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "modified_at!",
+        "ordinal": 1,
+        "type_info": "Datetime"
+      }
+    ],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": [
+      true,
+      true
+    ]
+  },
+  "hash": "8b1083828f6d4e554415b8c0547be9148aa085c9e5e2a37497cb841d929e5d7a"
+}

@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        INSERT INTO share_user (file_id, user_id, encrypted_key, edit_permission) VALUES (?, ?, ?, ?) \n        ON CONFLICT DO UPDATE SET encrypted_key = ?\n        RETURNING created_at AS \"created_at!\", modified_at AS \"modified_at!\"\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "created_at!",
+        "ordinal": 0,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "modified_at!",
+        "ordinal": 1,
+        "type_info": "Datetime"
+      }
+    ],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": [
+      true,
+      true
+    ]
+  },
+  "hash": "133c3cc3a5e98d67cd64dd33fa043e69d95b3fcb2c6b93a5b3c1c05458ff2035"
+}

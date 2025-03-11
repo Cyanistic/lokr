@@ -52,11 +52,26 @@ pub struct ShareRequest {
 }
 
 #[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase", tag = "type")]
+pub enum ShareResponseType {
+    #[serde(rename_all = "camelCase")]
+    User { user_id: Uuid },
+    #[serde(rename_all = "camelCase")]
+    Link {
+        link_id: Uuid,
+        expires_at: Option<DateTime<Utc>>,
+        password_protected: bool,
+    },
+}
+
+#[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ShareResponse {
-    link: Uuid,
-    expires_at: Option<DateTime<Utc>>,
+    #[serde(flatten)]
+    type_: ShareResponseType,
     edit_permission: bool,
+    created_at: DateTime<Utc>,
+    modified_at: DateTime<Utc>,
 }
 
 #[utoipa::path(
@@ -65,7 +80,7 @@ pub struct ShareResponse {
     description = "Share a file with a user or generate a link",
     request_body(content = ShareRequest, description = "The file id and the type of sharing"),
     responses(
-        (status = OK, description = "File or directory successfully shared with user", body = SuccessResponse),
+        (status = OK, description = "File or directory successfully shared with user", body = ShareResponse),
         (status = CREATED, description = "File or directory share link successfully created", body = ShareResponse),
         (status = BAD_REQUEST, description = "File id was not provided", body = ErrorResponse),
         (status = NOT_FOUND, description = "File was not found", body = ErrorResponse),
@@ -81,10 +96,14 @@ pub async fn share_file(
         ShareRequestType::User {
             user_id,
             encrypted_key,
-        } => {
-            share_with_user(&state, body.id, &encrypted_key, user.id, user_id, body.edit).await?;
-            Ok((StatusCode::OK, success!("File shared with user")).into_response())
-        }
+        } => Ok((
+            StatusCode::OK,
+            Json(
+                share_with_user(&state, body.id, &encrypted_key, user.id, user_id, body.edit)
+                    .await?,
+            ),
+        )
+            .into_response()),
         ShareRequestType::Link { expires, password } => Ok((
             StatusCode::CREATED,
             Json(
@@ -146,21 +165,29 @@ pub async fn share_with_link(
     };
 
     // Everything is good so insert the link
-    sqlx::query!(
-        "INSERT INTO share_link (id, file_id, expires_at, password_hash, edit_permission) VALUES (?, ?, ?, ?, ?)",
+    let row = sqlx::query!(
+        r#"
+        INSERT INTO share_link (id, file_id, expires_at, password_hash, edit_permission) VALUES (?, ?, ?, ?, ?)
+        RETURNING created_at AS "created_at!", modified_at AS "modified_at!"
+        "#,
         link,
         file_id,
         expires,
         password_hash,
         edit
     )
-    .execute(&state.pool)
+    .fetch_one(&state.pool)
     .await?;
 
     Ok(ShareResponse {
-        link,
-        expires_at: expires,
+        type_: ShareResponseType::Link {
+            link_id: link,
+            expires_at: expires,
+            password_protected: password_hash.is_some(),
+        },
         edit_permission: edit,
+        created_at: row.created_at.and_utc(),
+        modified_at: row.modified_at.and_utc(),
     })
 }
 
@@ -172,7 +199,7 @@ pub async fn share_with_user(
     owner_id: Uuid,
     receiver_id: Uuid,
     edit: bool,
-) -> Result<(), AppError> {
+) -> Result<ShareResponse, AppError> {
     if receiver_id == owner_id {
         return Err(AppError::UserError((
             StatusCode::BAD_REQUEST,
@@ -185,14 +212,19 @@ pub async fn share_with_user(
             "File not found".into(),
         )));
     }
-    match sqlx::query!(
-        "INSERT INTO share_user (file_id, user_id, encrypted_key, edit_permission) VALUES (?, ?, ?, ?)",
+    let row = match sqlx::query!(
+        r#"
+        INSERT INTO share_user (file_id, user_id, encrypted_key, edit_permission) VALUES (?, ?, ?, ?) 
+        ON CONFLICT DO UPDATE SET encrypted_key = ?
+        RETURNING created_at AS "created_at!", modified_at AS "modified_at!"
+        "#,
         file_id,
         receiver_id,
         encrypted_key,
-        edit
+        edit,
+        encrypted_key
     )
-    .execute(&state.pool)
+    .fetch_one(&state.pool)
     .await
     {
         // If a FOREIGN KEY constraint is violated, it likely means that the parent id is invalid
@@ -208,9 +240,16 @@ pub async fn share_with_user(
             )))
         }
         Err(e) => return Err(e.into()),
-        _ => {}
-    }
-    Ok(())
+        Ok(k) => k
+    };
+    Ok(ShareResponse {
+        type_: ShareResponseType::User {
+            user_id: receiver_id,
+        },
+        edit_permission: edit,
+        created_at: row.created_at.and_utc(),
+        modified_at: row.modified_at.and_utc(),
+    })
 }
 
 #[utoipa::path(
@@ -292,7 +331,7 @@ pub async fn get_user_shared_file(
                     mime,
                     size,
                     file.created_at,
-                    modified_at
+                    file.modified_at
                 FROM file
                 LEFT JOIN share_user ON file.id = share_user.file_id
                 WHERE
@@ -499,7 +538,7 @@ pub async fn get_link_shared_file(
                     mime,
                     size,
                     file.created_at,
-                    modified_at
+                    file.modified_at
                 FROM file
                 LEFT JOIN share_link ON file.id = share_link.file_id
                 WHERE
@@ -615,12 +654,13 @@ pub async fn get_shared_links(
             "File not found".into(),
         )));
     }
-    let query = sqlx::query_as!(
-        ShareResponse,
+    let query: Vec<ShareResponse> = sqlx::query!(
         r#"
-        SELECT share_link.id AS "link: Uuid", 
-        expires_at AS "expires_at: _",
-        edit_permission
+        SELECT share_link.id AS "link_id: Uuid", 
+        expires_at AS "expires_at",
+        edit_permission,
+        (password_hash IS NOT NULL) AS "password_protected!: bool",
+        created_at AS "created_at!", modified_at AS "modified_at!"
         FROM share_link 
         WHERE file_id = ? AND
         (expires_at IS NULL OR
@@ -629,7 +669,70 @@ pub async fn get_shared_links(
         file_id
     )
     .fetch_all(&state.pool)
-    .await?;
+    .await?
+    .into_iter()
+    .map(|row| ShareResponse {
+        type_: ShareResponseType::Link {
+            link_id: row.link_id,
+            expires_at: row.expires_at.map(|e| e.and_utc()),
+            password_protected: row.password_protected,
+        },
+        edit_permission: row.edit_permission,
+        created_at: row.created_at.and_utc(),
+        modified_at: row.modified_at.and_utc(),
+    })
+    .collect();
+    Ok((StatusCode::OK, Json(query)).into_response())
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/shared/{file_id}/users",
+    description = "Get a list of users that have permissions to a file",
+    params(("file_id" = Uuid, Path, description = "The id of the file")),
+    responses(
+        (status = OK, description = "Users successfully retrieved", body = ShareResponse),
+        (status = BAD_REQUEST, description = "Invalid query params", body = ErrorResponse),
+        (status = NOT_FOUND, description = "File not found", body = ErrorResponse),
+    ),
+    security(
+        ("lokr_session_cookie" = [])
+    )
+)]
+pub async fn get_shared_users(
+    State(state): State<AppState>,
+    SessionAuth(user): SessionAuth,
+    Path(file_id): Path<Uuid>,
+) -> Result<Response, AppError> {
+    if !is_owner(&state.pool, &user.id, &file_id).await? {
+        return Err(AppError::UserError((
+            StatusCode::NOT_FOUND,
+            "File not found".into(),
+        )));
+    }
+    let query: Vec<ShareResponse> = sqlx::query!(
+        r#"
+        SELECT su.user_id AS "user_id: Uuid", 
+        edit_permission,
+        created_at AS "created_at!",
+        modified_at AS "modified_at!"
+        FROM share_user su
+        WHERE file_id = ?
+        "#,
+        file_id
+    )
+    .fetch_all(&state.pool)
+    .await?
+    .into_iter()
+    .map(|row| ShareResponse {
+        type_: ShareResponseType::User {
+            user_id: row.user_id,
+        },
+        edit_permission: row.edit_permission,
+        created_at: row.created_at.and_utc(),
+        modified_at: row.modified_at.and_utc(),
+    })
+    .collect();
     Ok((StatusCode::OK, Json(query)).into_response())
 }
 
@@ -639,7 +742,12 @@ pub enum ShareIdentifier {
     #[serde(rename_all = "camelCase")]
     User { user_id: Uuid, file_id: Uuid },
     #[serde(rename_all = "camelCase")]
-    Link { link_id: Uuid },
+    Link {
+        link_id: Uuid,
+        /// If this is NULL, this is assumed to not be changing.
+        /// An empty string means remove the password
+        password: Option<String>,
+    },
 }
 
 #[utoipa::path(
@@ -688,7 +796,7 @@ pub async fn delete_share_permission(
             )
                 .into_response())
         }
-        ShareIdentifier::Link { link_id } => {
+        ShareIdentifier::Link { link_id, .. } => {
             let rows = sqlx::query!(
                 r#"
                 DELETE FROM share_link
@@ -767,14 +875,47 @@ pub async fn update_share_permission(
                 )));
             }
         }
-        ShareIdentifier::Link { link_id } => {
+        ShareIdentifier::Link { link_id, password } => {
+            // Only hash the password if it is provided and not
+            // empty, as empty values mean that the user wants to
+            // disable the password and None values mean that the
+            // user does not want to modify the password.
+            let password_hash = match password {
+                Some(password) if !password.is_empty() => {
+                    let salt = SaltString::generate(&mut OsRng);
+                    Some(
+                        tokio::task::block_in_place(|| {
+                            state
+                                .argon2
+                                .hash_password(password.as_bytes(), &salt)
+                                .map_err(|_| {
+                                    AppError::UserError((
+                                        StatusCode::BAD_REQUEST,
+                                        "Unable to hash password".into(),
+                                    ))
+                                })
+                        })?
+                        .to_string(),
+                    )
+                }
+                p => p,
+            };
             let rows = sqlx::query!(
-                "UPDATE share_link SET edit_permission = ? FROM
+                "UPDATE share_link SET edit_permission = ?,
+                password_hash =  
+                CASE ?
+                    WHEN NULL THEN password_hash
+                    WHEN '' THEN NULL
+                    ELSE ?
+                END
+                FROM
                 (SELECT share_link.id FROM file
                 JOIN share_link ON share_link.file_id = file.id
                 WHERE owner_id = ? AND share_link.id = ?) AS f
                 WHERE share_link.id = f.id",
                 req.edit,
+                password_hash,
+                password_hash,
                 user.id,
                 link_id
             )
