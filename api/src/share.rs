@@ -254,11 +254,10 @@ pub async fn get_user_shared_file(
         SELECT COUNT(*)
         FROM share_user
         WHERE user_id = ? AND
-        (? IS NULL OR file_id IN (SELECT id FROM ancestors));
+        file_id IN (SELECT id FROM ancestors);
         "#,
             params.id,
             user.id,
-            params.id
         )
         .fetch_one(&state.pool)
         .await?;
@@ -435,11 +434,10 @@ pub async fn get_link_shared_file(
         FROM share_link
         WHERE share_link.id = ? AND
         (expires_at IS NULL OR DATETIME(expires_at) >= CURRENT_TIMESTAMP) AND
-        (? IS NULL OR file_id IN (SELECT id FROM ancestors));
+        file_id IN (SELECT id FROM ancestors);
         "#,
             params.id,
             link_id,
-            params.id
         )
         .fetch_one(&state.pool)
         .await?;

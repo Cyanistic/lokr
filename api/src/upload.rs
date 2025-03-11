@@ -141,15 +141,32 @@ pub async fn upload_file(
     // Check if the user has permission to upload the file to the parent directory
     if let Some(parent_id) = metadata.parent_id {
         match sqlx::query!(
-            r#"SELECT owner_id AS "owner_id: Uuid", is_directory, 
-            COALESCE(share_user.edit_permission OR share_link.edit_permission, false) AS "edit_permission!: bool"
+            r#"
+            WITH RECURSIVE ancestors AS (
+                SELECT
+                    id,
+                    parent_id
+                FROM file
+                WHERE id = ?  -- the file we're checking
+                UNION ALL
+                SELECT
+                    f.id,
+                    f.parent_id
+                FROM file f
+                JOIN ancestors a ON f.id = a.parent_id
+            )
+            SELECT is_directory AS "is_directory!"
             FROM file 
-            LEFT JOIN share_user ON share_user.file_id = file.id AND share_user.user_id = ?
-            LEFT JOIN share_link ON share_link.file_id = file.id AND share_link.id = ?
-            WHERE file.id = ?"#,
+            LEFT JOIN share_user AS su
+            ON su.file_id = file.id AND su.user_id = ?
+            LEFT JOIN share_link AS sl
+            ON sl.file_id = file.id AND sl.id = ? AND (expires_at IS NULL OR DATETIME(expires_at) >= CURRENT_TIMESTAMP)
+            WHERE file.id IN (SELECT id FROM ancestors) AND (owner_id = ? OR su.edit_permission OR sl.edit_permission)
+            "#,
+            parent_id,
             uuid,
             link_id,
-            parent_id
+            uuid
         )
         .fetch_optional(&state.pool)
         .await?
@@ -161,17 +178,11 @@ pub async fn upload_file(
                         "Parent file is not a directory".into(),
                     )));
                 }
-                if parent_file.owner_id != uuid && !parent_file.edit_permission {
-                    return Err(AppError::UserError((
-                        StatusCode::FORBIDDEN,
-                        "You are unauthorized to upload a file into this directory".into(),
-                    )));
-                }
             }
             None => {
                 return Err(AppError::UserError((
                     StatusCode::NOT_FOUND,
-                    "Parent file does not exist!".into(),
+                    "Parent file not found!".into(),
                 )))
             }
         }
