@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "\n        SELECT share_link.id AS \"link: Uuid\", expires_at AS \"expires_at: _\"\n        FROM share_link \n        WHERE file_id = ? AND\n        DATETIME(expires_at) >= CURRENT_TIMESTAMP\n        ",
+  "query": "\n        SELECT share_link.id AS \"link: Uuid\", expires_at AS \"expires_at: _\"\n        FROM share_link \n        WHERE file_id = ? AND\n        (expires_at IS NULL OR\n        DATETIME(expires_at) >= CURRENT_TIMESTAMP)\n        ",
   "describe": {
     "columns": [
       {
@@ -22,5 +22,5 @@
       true
     ]
   },
-  "hash": "33464cb4294480b0f10b1781926eb05bad35980ff6f0cd303e35e45152df267f"
+  "hash": "a40c330c464b25de53f14a37d74a3976cc6322d29986d5c75dc6bc5c711f2763"
 }
