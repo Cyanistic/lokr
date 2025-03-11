@@ -505,7 +505,7 @@ pub async fn get_link_shared_file(
                 WHERE
                     -- Don't show files that are shared with other links
                     (share_link.id IS NULL OR share_link.id = ?) AND 
-                    DATETIME(expires_at) >= CURRENT_TIMESTAMP AND
+                    (expires_at IS NULL OR DATETIME(expires_at) >= CURRENT_TIMESTAMP) AND
                     -- If no file id is provided, then show the root directory
                     -- We need to use COALESCE to ensure that only files in root directory
                     -- are shown if the file id is NULL. We can idenfify shared files in the root directory
@@ -621,7 +621,8 @@ pub async fn get_shared_links(
         SELECT share_link.id AS "link: Uuid", expires_at AS "expires_at: _"
         FROM share_link 
         WHERE file_id = ? AND
-        DATETIME(expires_at) >= CURRENT_TIMESTAMP
+        (expires_at IS NULL OR
+        DATETIME(expires_at) >= CURRENT_TIMESTAMP)
         "#,
         file_id
     )
@@ -692,7 +693,7 @@ pub async fn delete_share_permission(
                 WHERE id IN (
                     SELECT share_link.id FROM share_link
                     JOIN file ON file.id = share_link.file_id
-                    WHERE share_link.id = ? AND owner_id = ? AND DATETIME(expires_at) >= CURRENT_TIMESTAMP
+                    WHERE share_link.id = ? AND owner_id = ?
                 )
                 "#,
                 link_id,
