@@ -8,3 +8,6 @@
     -- (x) This means be able to support uploads on share links and direct sharing
   - ( ) Add table column for uploader, not just owner
   - ( ) Add file/directory copying (directory copying should be recursive)
+  - ( ) Add support for changing a link's password
+  - ( ) Add support for checking if a link has a password
+  - ( ) Add support for ip address associated sessions
