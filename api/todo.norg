@@ -6,9 +6,13 @@
   -- (x) Add support for switching between viewer and editor permissions on link and direct sharing
     - (x) Add support for editor permissions on uploads
     -- (x) This means be able to support uploads on share links and direct sharing
-  - ( ) Add table column for uploader, not just owner
-  - ( ) Add file/directory copying (directory copying should be recursive)
+  - (x) Add table column for uploader, not just owner
+  - (_) Add file/directory copying (directory copying should be recursive)
   - (x) Add support for changing a link's password
   - (x) Add support for checking if a link has a password
   - ( ) Add support for ip address associated sessions
   - (x) Add support for checking users that have share permissions for a file
+  - ( ) Add preferences support
+  -- ( ) Dark/Light Theme
+  -- ( ) Grid/List View by default
+  -- ( ) Sort order preferences
