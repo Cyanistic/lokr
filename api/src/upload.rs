@@ -138,56 +138,65 @@ pub async fn upload_file(
         )));
     };
 
-    // Check if the user has permission to upload the file to the parent directory
-    if let Some(parent_id) = metadata.parent_id {
-        match sqlx::query!(
-            r#"
-            WITH RECURSIVE ancestors AS (
-                SELECT
-                    id,
-                    parent_id
-                FROM file
-                WHERE id = ?  -- the file we're checking
-                UNION ALL
-                SELECT
-                    f.id,
-                    f.parent_id
-                FROM file f
-                JOIN ancestors a ON f.id = a.parent_id
+    // Get the owner id of the file so we can reuse it, as the file owner for children should
+    // be the same as the the owner id of the parent
+    let owner_id = match metadata.parent_id {
+        // Check if the user has permission to upload the file to the parent directory
+        Some(parent_id) => {
+            match sqlx::query!(
+                r#"
+                WITH RECURSIVE ancestors AS (
+                    SELECT
+                        id,
+                        parent_id
+                    FROM file
+                    WHERE id = ?  -- the file we're checking
+                    UNION ALL
+                    SELECT
+                        f.id,
+                        f.parent_id
+                    FROM file f
+                    JOIN ancestors a ON f.id = a.parent_id
+                )
+                SELECT owner_id AS "owner_id: Uuid",
+                is_directory AS "is_directory!"
+                FROM file 
+                LEFT JOIN share_user AS su
+                ON su.file_id = file.id AND su.user_id = ?
+                LEFT JOIN share_link AS sl
+                ON sl.file_id = file.id AND sl.id = ? AND (expires_at IS NULL OR DATETIME(expires_at) >= CURRENT_TIMESTAMP)
+                WHERE file.id IN (SELECT id FROM ancestors) AND (owner_id = ? OR su.edit_permission OR sl.edit_permission)
+                LIMIT 1
+                "#,
+                parent_id,
+                uuid,
+                link_id,
+                uuid
             )
-            SELECT is_directory AS "is_directory!"
-            FROM file 
-            LEFT JOIN share_user AS su
-            ON su.file_id = file.id AND su.user_id = ?
-            LEFT JOIN share_link AS sl
-            ON sl.file_id = file.id AND sl.id = ? AND (expires_at IS NULL OR DATETIME(expires_at) >= CURRENT_TIMESTAMP)
-            WHERE file.id IN (SELECT id FROM ancestors) AND (owner_id = ? OR su.edit_permission OR sl.edit_permission)
-            LIMIT 1
-            "#,
-            parent_id,
-            uuid,
-            link_id,
-            uuid
-        )
-        .fetch_optional(&state.pool)
-        .await?
-        {
-            Some(parent_file) => {
-                if !parent_file.is_directory {
+            .fetch_optional(&state.pool)
+            .await?
+            {
+                Some(parent_file) => {
+                    if !parent_file.is_directory {
+                        return Err(AppError::UserError((
+                            StatusCode::BAD_REQUEST,
+                            "Parent file is not a directory".into(),
+                        )));
+                    }
+                    parent_file.owner_id
+                }
+                None => {
                     return Err(AppError::UserError((
-                        StatusCode::BAD_REQUEST,
-                        "Parent file is not a directory".into(),
-                    )));
+                        StatusCode::NOT_FOUND,
+                        "Parent file not found!".into(),
+                    )))
                 }
             }
-            None => {
-                return Err(AppError::UserError((
-                    StatusCode::NOT_FOUND,
-                    "Parent file not found!".into(),
-                )))
-            }
         }
-    }
+        // This is a file in the root directory, so the owner
+        // will automatically be the uploader
+        None => uuid
+    };
 
     let file_size = if !metadata.is_directory {
         let Some(file_path) = file_path else {
@@ -203,8 +212,12 @@ pub async fn upload_file(
         0
     };
     match sqlx::query!(
-        "INSERT INTO file (id, owner_id, parent_id, encrypted_key, encrypted_name, mime, nonce, is_directory, size) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        r#"
+        INSERT INTO file (id, owner_id, uploader_id, parent_id, encrypted_key, encrypted_name, mime, nonce, is_directory, size)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        "#,
         file_id,
+        owner_id,
         uuid,
         metadata.parent_id,
         metadata.encrypted_key,
@@ -442,6 +455,7 @@ pub struct FileMetadata {
     pub created_at: DateTime<Utc>,
     pub modified_at: DateTime<Utc>,
     pub owner_id: Option<Uuid>,
+    pub uploader_id: Option<Uuid>,
     /// The children of the directory.
     /// Only present if the file is a directory.
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -473,6 +487,7 @@ impl FileMetadata {
     fn example() -> HashMap<Uuid, Self> {
         let parent_uuid = Uuid::try_parse_ascii(b"123e4567-e89b-12d3-a456-426614174000").unwrap();
         let child_uuid = Uuid::try_parse_ascii(b"21f981a7-d21f-4aa5-9f6b-09005235236a").unwrap();
+        let user_id = Uuid::try_parse_ascii(b"dae2b0f0-d84b-42c8-aebd-58a71ee1fb86").unwrap();
 
         let now = Utc::now();
         let first = FileMetadata {
@@ -487,7 +502,8 @@ impl FileMetadata {
             },
             created_at: now,
             modified_at: now,
-            owner_id: Some(Uuid::try_parse_ascii(b"dae2b0f0-d84b-42c8-aebd-58a71ee1fb86").unwrap()),
+            owner_id: Some(user_id),
+            uploader_id: Some(user_id),
             children: vec![child_uuid],
         };
         let child = FileMetadata {
@@ -502,7 +518,8 @@ impl FileMetadata {
             },
             created_at: now,
             modified_at: now,
-            owner_id: Some(Uuid::try_parse_ascii(b"dae2b0f0-d84b-42c8-aebd-58a71ee1fb86").unwrap()),
+            owner_id: Some(user_id),
+            uploader_id: Some(user_id),
             children: vec![],
         };
         HashMap::from([(parent_uuid, first), (child_uuid, child)])
@@ -564,6 +581,7 @@ pub async fn get_file_metadata(
                     encrypted_name, 
                     encrypted_key, 
                     owner_id,
+                    uploader_id,
                     nonce, 
                     is_directory, 
                     mime,
@@ -584,6 +602,7 @@ pub async fn get_file_metadata(
                     f.encrypted_name, 
                     f.encrypted_key, 
                     f.owner_id,
+                    f.uploader_id,
                     f.nonce, 
                     f.is_directory, 
                     f.mime,
@@ -604,6 +623,7 @@ pub async fn get_file_metadata(
                 encrypted_name, 
                 encrypted_key, 
                 owner_id AS "owner_id: Uuid",
+                uploader_id AS "uploader_id: Uuid",
                 nonce, 
                 is_directory AS "is_directory!",
                 mime,
@@ -629,6 +649,7 @@ pub async fn get_file_metadata(
             created_at: row.created_at.and_utc(),
             modified_at: row.modified_at.and_utc(),
             owner_id: row.owner_id,
+            uploader_id: row.uploader_id,
             upload: UploadMetadata {
                 encrypted_file_name: row.encrypted_name,
                 encrypted_mime_type: row.mime,

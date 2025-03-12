@@ -96,16 +96,19 @@ pub async fn get_file_users(
     pool: &SqlitePool,
     files: &HashMap<Uuid, FileMetadata>,
 ) -> Result<HashMap<Uuid, PublicUser>> {
-    let owner_set = files.iter().fold(HashSet::new(), |mut acc, cur| {
+    let user_set = files.iter().fold(HashSet::new(), |mut acc, cur| {
         if let Some(owner_id) = cur.1.owner_id {
             acc.insert(owner_id);
+        }
+        if let Some(uploader_id) = cur.1.uploader_id {
+            acc.insert(uploader_id);
         }
         acc
     });
     let mut builder: QueryBuilder<'_, Sqlite> = QueryBuilder::new("SELECT id, username, email, public_key, avatar AS avatar_extension FROM user WHERE id IN (");
     let mut separated = builder.separated(", ");
-    for owner in &owner_set {
-        separated.push_bind(owner);
+    for user in &user_set {
+        separated.push_bind(user);
     }
     separated.push_unseparated(")");
     let query = builder.build_query_as::<PublicUser>();

@@ -1,6 +1,7 @@
 CREATE TABLE file (
     id BLOB PRIMARY KEY NOT NULL,         -- UUIDv7
     owner_id BLOB,   	 -- User ID of the file owner could be NULL for anonymous files
+    uploader_id BLOB,	 -- User ID of the person who uploaded the file
     parent_id BLOB,              -- UUIDv7 of the parent directory, NULL for root
     encrypted_key TEXT NOT NULL, -- Ed25519-encrypted AES key
     nonce TEXT NOT NULL,         -- 12-byte AES-GCM nonce
