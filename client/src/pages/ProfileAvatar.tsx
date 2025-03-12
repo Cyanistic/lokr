@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import Button from '@mui/material/Button';
+import {Button, useTheme} from '@mui/material';
 
 type AvatarUploadProps = {
   avatarUrl: string;
@@ -51,6 +51,8 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({ avatarUrl, onAvatarChange }
 
   };
 
+  const theme = useTheme();
+
   return (
     <div style={{ textAlign: "center" }}>
       <img
@@ -85,8 +87,8 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({ avatarUrl, onAvatarChange }
           fontSize: "16px",
           cursor: "pointer",
           marginTop: "10px", 
-          backgroundColor: 'black', 
-          color: 'white',
+          backgroundColor: theme.palette.mode === 'dark' ? '#2f27ce': '#3a31d8', 
+          color: theme.palette.mode === 'dark' ? '#050316' : '#eae9fc', 
           textTransform: 'none'}}
         >Upload Avatar
       </Button>

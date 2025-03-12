@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import Button from '@mui/material/Button';
+import {Button, useTheme} from '@mui/material';
 import { Fab, Tooltip } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 
@@ -227,6 +227,8 @@ export default function Upload() {
     }
   }
 
+  const theme = useTheme();
+
 
   return (
     <div className="uploadMain">
@@ -248,7 +250,12 @@ export default function Upload() {
             </div>
           )}
           {/*<button onClick={handleSubmit}>Upload</button>*/}
-          <Button variant="contained" onClick={handleSubmit} style={{ backgroundColor: 'black', color: 'white' }}>Upload</Button>
+          <Button variant="contained" onClick={handleSubmit} style={
+            {
+              backgroundColor: theme.palette.mode === 'dark' ? '#2f27ce': '#3a31d8', 
+              color: theme.palette.mode === 'dark' ? '#050316' : '#eae9fc' 
+            }
+          }>Upload</Button>
 
           {/* Tooltip for FAB */}
           <Tooltip title="Upload File" aria-label="upload">

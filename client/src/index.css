@@ -4,9 +4,9 @@
   font-weight: 400;
 
   color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
+  color: light-dark(#050316, #eae9fc);
   background-color: #101e6e;
-  background: linear-gradient(0deg, rgba(2,0,36,1) 5%, rgba(9,9,121,1) 47%, rgba(0,116,255,1) 100%);
+  background: light-dark(#fbfbfe, #010104);
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -34,11 +34,11 @@ body {
 h1 {
   font-size: 3.2em;
   line-height: 1.1;
-  color:white;
+  color:light-dark(#050316, #eae9fc);
 }
 
 p {
-  color: white;
+  color: light-dark(#050316, #eae9fc);
 }
 
 button {

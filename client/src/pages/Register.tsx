@@ -4,6 +4,7 @@ import {
     encryptPrivateKey,
     generateRSAKeyPair
 } from "../cryptoFunctions";
+import {Button, useTheme} from '@mui/material';
 
 // Helper function to convert Uint8Array to Base64 safely
 function toBase64(bytes: Uint8Array): string {
@@ -101,33 +102,51 @@ export default function Register() {
             }
         }
     }
+    const theme = useTheme();
 
     return (
-        <div>
+        <div style={{ textAlign: "center", padding: "20px"}}>
             <h1>Register</h1>
             {message && <p>{message}</p>}
             <form onSubmit={handleRegister}>
-                <input 
-                    type="text" 
-                    placeholder="Username" 
-                    value={username} 
-                    onChange={e => setUsername(e.target.value)} 
-                    required
-                />
-                <input 
-                    type="email" 
-                    placeholder="Email" 
-                    value={email} 
-                    onChange={e => setEmail(e.target.value)} 
-                />
-                <input 
-                    type="password" 
-                    placeholder="Password" 
-                    value={password} 
-                    onChange={e => setPassword(e.target.value)} 
-                    required
-                />
-                <button type="submit">Register</button>
+                <div style={{ position: "relative", display: "inline-block" }}>
+                    <input 
+                        type="text" 
+                        placeholder="Username" 
+                        value={username} 
+                        onChange={e => setUsername(e.target.value)} 
+                        required
+                        style={{ padding: "8px", width: "200px" }}
+                    />
+                    <br />
+                    <input 
+                        type="email" 
+                        placeholder="Email" 
+                        value={email} 
+                        onChange={e => setEmail(e.target.value)} 
+                        style={{ padding: "8px", width: "200px", marginTop: "10px" }}
+                    />
+                    <br />
+                    <input 
+                        type="password" 
+                        placeholder="Password" 
+                        value={password} 
+                        onChange={e => setPassword(e.target.value)} 
+                        required
+                        style={{ padding: "8px", width: "200px", marginTop: "10px" }}
+                    />
+                    <br />
+                    <br />
+                    {/*<button type="submit">Register</button>*/}
+                    <Button type="submit" variant="contained" style={
+                        {  
+                            textTransform: 'none', 
+                            backgroundColor: theme.palette.mode === 'dark' ? '#2f27ce': '#3a31d8', 
+                            color: theme.palette.mode === 'dark' ? '#050316' : '#eae9fc' 
+                        }
+                    }>Register</Button>
+
+                </div>
             </form>
         </div>
     );
