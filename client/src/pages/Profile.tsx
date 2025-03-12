@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import AvatarUpload from './ProfileAvatar';
-import Button from '@mui/material/Button';
+import {Button, useTheme} from '@mui/material';
 
 
 function Profile() {
@@ -247,7 +247,7 @@ const handleVerifyTOTP = async () => {
     }
   };
 
-
+  const theme = useTheme();
 
   // Define sections as separate components or elements
   const renderContent = () => {
@@ -284,13 +284,25 @@ const handleVerifyTOTP = async () => {
                           onChange={(e) => setUpdatedValue(e.target.value)}
                         />
                         {/*<button onClick={() => handleSave("username")}>Save</button>*/}
-                        <Button variant="contained" onClick={() => handleSave("username")} style={{ backgroundColor: 'black', color: 'white', textTransform: 'none'}}>Save</Button>
+                        <Button variant="contained" onClick={() => handleSave("username")} style={
+                          {
+                            backgroundColor: theme.palette.mode === 'dark' ? '#2f27ce': '#3a31d8', 
+                            color: theme.palette.mode === 'dark' ? '#050316' : '#eae9fc', 
+                            textTransform: 'none'
+                          }
+                        }>Save</Button>
                       </>
                     ) : (
                       <>
                         {user.username}{" "}
                         {/*<button onClick={() => handleEdit("username", user.username)}>Edit</button>*/}
-                        <Button variant="contained" onClick={() => handleEdit("username", user.username)} style={{ backgroundColor: 'black', color: 'white', textTransform: 'none'}}>Edit</Button>
+                        <Button variant="contained" onClick={() => handleEdit("username", user.username)} style={
+                          {
+                            backgroundColor: theme.palette.mode === 'dark' ? '#2f27ce': '#3a31d8', 
+                            color: theme.palette.mode === 'dark' ? '#050316' : '#eae9fc', 
+                            textTransform: 'none'
+                          }
+                        }>Edit</Button>
                       </>
                     )}
                   </p>
@@ -305,13 +317,25 @@ const handleVerifyTOTP = async () => {
                           onChange={(e) => setUpdatedValue(e.target.value)}
                         />
                         {/*<button onClick={() => handleSave("password")}>Save</button>*/}
-                        <Button variant="contained" onClick={() => handleSave("password")} style={{ backgroundColor: 'black', color: 'white', textTransform: 'none'}}>Save</Button>
+                        <Button variant="contained" onClick={() => handleSave("password")} style={
+                          {
+                            backgroundColor: theme.palette.mode === 'dark' ? '#2f27ce': '#3a31d8', 
+                            color: theme.palette.mode === 'dark' ? '#050316' : '#eae9fc', 
+                            textTransform: 'none'
+                          }
+                        }>Save</Button>
                       </>
                     ) : (
                       <>
                         ••••••••{" "}
                         {/*<button onClick={() => handleEdit("password", "")}>Change Password</button>*/}
-                        <Button variant="contained" onClick={() => handleEdit("password", "")} style={{ backgroundColor: 'black', color: 'white', textTransform: 'none'}}>Change Password</Button>
+                        <Button variant="contained" onClick={() => handleEdit("password", "")} style={
+                          {
+                            backgroundColor: theme.palette.mode === 'dark' ? '#2f27ce': '#3a31d8', 
+                            color: theme.palette.mode === 'dark' ? '#050316' : '#eae9fc', 
+                            textTransform: 'none'
+                          }
+                        }>Change Password</Button>
                       </>
                     )}
                   </p>
@@ -381,7 +405,7 @@ const handleVerifyTOTP = async () => {
       padding: '20px',
       color: 'white',
       display: 'flex',
-      flexDirection: 'column' as 'column',
+      flexDirection: 'column',
     },
     button: {
       backgroundColor: '#444',

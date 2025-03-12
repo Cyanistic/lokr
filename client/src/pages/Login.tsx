@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import localforage from "localforage";
 import { Link } from "react-router-dom";
-import Button from '@mui/material/Button';
+import {Button, useTheme} from '@mui/material';
 
 const Login: React.FC = () => {
   const [username, setUsername] = useState("");
@@ -124,8 +124,10 @@ const Login: React.FC = () => {
     }
   };
 
+  const theme = useTheme();
+
   return (
-    <div style={{ textAlign: "center", padding: "20px", color: "white" }}>
+    <div style={{ textAlign: "center", padding: "20px"}}>
       <h2>Login</h2>
       {errorMessage && <p style={{ color: "red" }}>{errorMessage}</p>}
 
@@ -206,12 +208,20 @@ const Login: React.FC = () => {
         {/*<button type="submit" style={{ marginTop: "10px", padding: "8px 20px", cursor: "pointer" }}>
           Login
         </button>*/}
-        <Button type="submit" variant="contained" style={{ marginTop: "10px", padding: "8px 20px", cursor: "pointer", backgroundColor: 'black', color: 'white' }}>Login</Button>
+        <Button type="submit" variant="contained" style={
+          { 
+            marginTop: "10px", 
+            padding: "8px 20px", 
+            cursor: "pointer", 
+            backgroundColor: theme.palette.mode === 'dark' ? '#2f27ce': '#3a31d8', 
+            color: theme.palette.mode === 'dark' ? '#050316' : '#eae9fc' 
+          }
+        }>Login</Button>
       </form>
 
       <p>
         Don't have an account?{" "}
-        <Link to="/register" style={{ color: "#ccc" }}>
+        <Link to="/register" style={{ color: theme.palette.mode === 'dark' ? '#2f27ce': '#3a31d8' }}>
           Register here
         </Link>
       </p>
