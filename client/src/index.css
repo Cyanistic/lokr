@@ -16,7 +16,7 @@
 
 a {
   font-weight: 500;
-  color: #646cff;
+  color: light-dark(#3a31d8, #2f27ce);
   text-decoration: inherit;
 }
 a:hover {
@@ -59,6 +59,37 @@ button:focus,
 button:focus-visible {
   outline: 4px auto -webkit-focus-ring-color;
 }
+
+.about-body {
+  font-family: Arial, sans-serif;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 0;
+  flex-direction: column; /* Center content vertically */
+}
+* {
+  box-sizing: border-box; /* Include padding and borders in the element's total width and height */
+}
+.about-box {
+  width: 80%; /* Default width for responsive design */
+  max-width: 700px; /* Max width on larger screens */
+  padding: 20px;
+  font-size: 16px;
+  background-color: light-dark(#2f27ce, #3a31d8); /* White background */
+  color: white;
+  border: 2px solid #1976d2; /* Blue border */
+  border-radius: 12px; /* Rounded corners */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); /* Soft shadow to make it pop */
+  transition: box-shadow 0.3s ease, border-color 0.3s ease;
+}
+.about-box p {
+  margin: 0;
+  font-size: 16px;
+  color: white;
+  text-align: justify;
+}
+
 
 @media (prefers-color-scheme: light) {
   :root {
