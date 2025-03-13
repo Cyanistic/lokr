@@ -5,21 +5,6 @@ import {Button, useTheme} from '@mui/material';
 
 function Profile() {
 
-  // Type the state as File or null for file, and string or null for imageUrl
-  
-  /*const [imageUrl, setImageUrl] = useState<string | null>(null);
-
-  function getFile(event: React.ChangeEvent<HTMLInputElement>) {
-    const selectedFile = event.target.files?.[0]; // Make sure there's a file
-    if (selectedFile) {
-      
-      setImageUrl(URL.createObjectURL(selectedFile)); // Create and set the image URL
-    } else {
-      console.log("No file selected!"); // Debugging log
-      setImageUrl(null); // If no file selected, reset the imageUrl state
-    }
-  }*/
-
   type RegenerateTOTPRequest = { type: "regenerate"; password: string };
   type VerifyTOTPRequest = { type: "verify"; code: string };
   type EnableTOTPRequest = { type: "enable"; enable: boolean; password: string };
@@ -434,8 +419,8 @@ const handleVerifyTOTP = async () => {
 
 return (
 
-  <div className='main'>
-    <h2>Profile</h2>
+  <div className='main' style={{margin: 0}}>
+    {/*<h2>Profile</h2>*/}
     <div style={styles.container}>
       {/* Left Sidebar with buttons */}
       <div style={styles.sidebar}>

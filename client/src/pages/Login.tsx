@@ -212,7 +212,7 @@ const Login: React.FC = () => {
           { 
             marginTop: "10px", 
             padding: "8px 20px", 
-            cursor: "pointer", 
+            cursor: "pointer",
             backgroundColor: theme.palette.mode === 'dark' ? '#2f27ce': '#3a31d8', 
             color: theme.palette.mode === 'dark' ? '#050316' : '#eae9fc' 
           }
@@ -221,7 +221,7 @@ const Login: React.FC = () => {
 
       <p>
         Don't have an account?{" "}
-        <Link to="/register" style={{ color: theme.palette.mode === 'dark' ? '#2f27ce': '#3a31d8' }}>
+        <Link to="/register" /*style={/*{ color: theme.palette.mode === 'dark' ? '#2f27ce': '#3a31d8' }*/>
           Register here
         </Link>
       </p>
