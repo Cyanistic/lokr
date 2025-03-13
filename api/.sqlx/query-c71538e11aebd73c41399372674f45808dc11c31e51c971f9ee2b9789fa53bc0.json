@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        WITH RECURSIVE descendants AS (\n            SELECT id, is_directory FROM file WHERE id = ?\n            UNION ALL\n            SELECT f.id, f.is_directory\n            FROM file f\n            JOIN descendants d ON f.parent_id = d.id\n        )\n        SELECT id AS \"id: Uuid\", is_directory AS \"is_directory!\" FROM descendants;\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id: Uuid",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "is_directory!",
+        "ordinal": 1,
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "c71538e11aebd73c41399372674f45808dc11c31e51c971f9ee2b9789fa53bc0"
+}

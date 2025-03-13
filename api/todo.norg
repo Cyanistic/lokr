@@ -16,3 +16,5 @@
   -- ( ) Dark/Light Theme
   -- ( ) Grid/List View by default
   -- ( ) Sort order preferences
+  - (x) Add support for recursively deleting files in a directory
+  - ( ) Add support for "remembering" passwords to share links
