@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use serde_inline_default::serde_inline_default;
 use sqlx::SqlitePool;
 use tokio::{fs::File, io::AsyncWriteExt};
-use tracing::instrument;
+use tracing::{error, instrument};
 use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
@@ -256,6 +256,12 @@ pub async fn upload_file(
         .into_response())
 }
 
+#[derive(Debug, Deserialize, IntoParams)]
+#[serde(rename_all = "camelCase")]
+pub struct LinkParams {
+    link_id: Option<Uuid>,
+}
+
 #[utoipa::path(
     delete,
     path = "/api/file/{id}",
@@ -276,19 +282,54 @@ pub async fn upload_file(
 pub async fn delete_file(
     State(state): State<AppState>,
     SessionAuth(user): SessionAuth,
+    Query(params): Query<LinkParams>,
     Path(id): Path<Uuid>,
 ) -> Result<Response, AppError> {
     // Check if the user owns the file
-    // Check if the new parent is owned by the user
-    let Some(file) = sqlx::query!(
-        "SELECT is_directory FROM file WHERE id = ? AND owner_id = ?",
+    if sqlx::query!(
+        r#"
+        WITH RECURSIVE ancestors AS (
+            SELECT
+                id,
+                parent_id
+            FROM file
+            WHERE id = ?  -- the file we're checking
+            UNION ALL
+            SELECT
+                f.id,
+                f.parent_id
+            FROM file f
+            JOIN ancestors a ON f.id = a.parent_id
+        )
+        SELECT owner_id AS "owner_id: Uuid",
+        is_directory AS "is_directory!"
+        FROM file 
+        LEFT JOIN share_user AS su
+        ON su.file_id = file.id AND su.user_id = ?
+        LEFT JOIN share_link AS sl
+        ON sl.file_id = file.id AND sl.id = ? AND (expires_at IS NULL OR DATETIME(expires_at) >= CURRENT_TIMESTAMP)
+        WHERE file.id IN (SELECT id FROM ancestors) AND (
+            owner_id = ? OR (
+                -- Only allow the users that have share access to delete the file
+                -- if it is a child of a directory being shared with them, not
+                -- the file itself
+                (su.edit_permission AND su.file_id != ?) OR 
+                (sl.edit_permission AND sl.file_id != ?)
+            )
+        )
+        LIMIT 1
+        "#,
         id,
-        user.id
+        user.id,
+        params.link_id,
+        id,
+        id,
+        id
     )
     .fetch_optional(&state.pool)
     .await?
-    else {
-        // Return an error if the user doen't own the file
+    .is_none() {
+        // Return an error if the user have permission to delete the file
         // or the file doesn't exist
         // This is to prevent users from deleting files they don't own
         // or attempting to snoop on files they don't have access to
@@ -298,24 +339,49 @@ pub async fn delete_file(
         )));
     };
 
-    // Only delete the file on the local file system if it is not a directory
-    // This is because we don't actually store created directories on the file system
-    if !file.is_directory {
-        // If the file exists, delete it
-        match std::fs::remove_file(&*UPLOAD_DIR.join(id.to_string())) {
-            // A not found error likely means that the file was already deleted
-            // so just ignore it.
-            // Any other error likely means that there actually is a file
-            // system error so return it as an error.
-            Err(e) if e.kind() != ErrorKind::NotFound => return Err(e.into()),
-            _ => {}
-        }
-    }
+    // Get the children of the file for local deletion
+    let descendant_files = sqlx::query!(
+        r#"
+        WITH RECURSIVE descendants AS (
+            SELECT id, is_directory FROM file WHERE id = ?
+            UNION ALL
+            SELECT f.id, f.is_directory
+            FROM file f
+            JOIN descendants d ON f.parent_id = d.id
+        )
+        SELECT id AS "id: Uuid", is_directory AS "is_directory!" FROM descendants;
+        "#,
+        id
+    )
+    .fetch_all(&state.pool)
+    .await?;
 
-    // The user owns the file so delete it
-    sqlx::query!("DELETE FROM file WHERE id = ?", id)
+    // The user has permission to delete the file, so delete it and all of its
+    // children recursively
+    sqlx::query!(r#"DELETE FROM file WHERE id = ?"#, id)
         .execute(&state.pool)
         .await?;
+
+    for file in descendant_files {
+        // Only delete the file on the local file system if it is not a directory
+        // This is because we don't actually store created directories on the file system
+        if !file.is_directory {
+            // If the file exists, delete it
+            match std::fs::remove_file(&*UPLOAD_DIR.join(file.id.to_string())) {
+                // A not found error likely means that the file was already deleted
+                // so just ignore it.
+                // Any other error likely means that there actually is a file
+                // system error so log it. We don't want to return the error
+                // because we want to try deleting all of the files locally
+                // instead of short-circuiting. Either way, the files are deleted
+                // in the database, so they are inaccessible to the user
+                Err(e) if e.kind() != ErrorKind::NotFound => {
+                    error!("Unable to delete file '{}': {}", file.id, e);
+                }
+                _ => {}
+            }
+        }
+    }
 
     Ok((StatusCode::OK, success!("File deleted successfully")).into_response())
 }
