@@ -6,10 +6,11 @@ use argon2::{
 };
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
-    response::{IntoResponse, Response},
+    http::{header::SET_COOKIE, StatusCode},
+    response::{AppendHeaders, IntoResponse, Response},
     Json,
 };
+use axum_extra::{headers::Cookie, TypedHeader};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
@@ -145,6 +146,12 @@ pub async fn share_with_link(
 
     let password_hash = match &password {
         Some(password) => {
+            if password.is_empty() {
+                return Err(AppError::UserError((
+                    StatusCode::BAD_REQUEST,
+                    "Password cannot be empty!".into(),
+                )));
+            }
             let salt = SaltString::generate(&mut OsRng);
             Some(
                 tokio::task::block_in_place(|| {
@@ -452,6 +459,7 @@ pub async fn get_user_shared_file(
 pub async fn get_link_shared_file(
     State(state): State<AppState>,
     Query(params): Query<FileQuery>,
+    TypedHeader(cookie): TypedHeader<Cookie>,
     Path(link_id): Path<Uuid>,
     Json(link_request): Json<Option<String>>,
 ) -> Result<Response, AppError> {
@@ -494,21 +502,26 @@ pub async fn get_link_shared_file(
     }
 
     // Check if the password is correct
-    if let Some(stored_hash) =
+    let password = if let Some(stored_hash) =
         sqlx::query_scalar!("SELECT password_hash FROM share_link WHERE id = ?", link_id)
             .fetch_optional(&state.pool)
             .await?
             .ok_or(AppError::UserError((
                 StatusCode::NOT_FOUND,
                 "Invalid share link".into(),
-            )))?
-    {
-        let Some(password) = link_request else {
-            return Err(AppError::UserError((
+            )))? {
+        // Attempt to read the password from the request body.
+        // If the password is not provided, then check the cookie to see if
+        // the user has already provided the correct password in the past.
+        // If neither, then reject the request.
+        let password = match (link_request, cookie.get(&link_id.to_string())) {
+            (Some(password), _) => password,
+            (_, Some(password)) => urlencoding::decode(&password)?.to_string(),
+            (None, None) => return Err(AppError::UserError((
                 StatusCode::UNAUTHORIZED,
                 "This link requires a password. Please provide a password inside the request body"
                     .into(),
-            )));
+            ))),
         };
         tokio::task::block_in_place(|| {
             state
@@ -521,7 +534,10 @@ pub async fn get_link_shared_file(
                     AppError::UserError((StatusCode::UNAUTHORIZED, "Invalid password".into()))
                 })
         })?;
-    }
+        Some(password)
+    } else {
+        None
+    };
     // The query to get the shared files
     let query = sqlx::query!(
         r#"
@@ -627,6 +643,14 @@ pub async fn get_link_shared_file(
 
     Ok((
         StatusCode::OK,
+        if let Some(password) = password {
+            AppendHeaders(vec![(
+                SET_COOKIE,
+                format!("{link_id}={}; HttpOnly", urlencoding::encode(&password)),
+            )])
+        } else {
+            AppendHeaders(vec![])
+        },
         Json(FileResponse {
             users: Some(get_file_users(&state.pool, &files).await?),
             files,
@@ -840,7 +864,7 @@ pub struct ShareUpdateRequest {
 
 #[utoipa::path(
     put,
-    path = "/api/share/{file_id}",
+    path = "/api/share",
     description = "Update permissions for a directly shared file or link.",
     request_body(content = ShareUpdateRequest, description = "The type of file sharing being used"),
     responses(
