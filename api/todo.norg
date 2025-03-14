@@ -18,5 +18,5 @@
   -- ( ) Sort order preferences
   - (x) Add support for recursively deleting files in a directory
   - (x) Add support for "remembering" passwords to share links
-  - ( ) Add support for getting information on a share link (edit permissions, etc)
+  - (x) Add support for getting information on a share link (edit permissions, etc)
   - (x) Add renaming and moving files with sharing editor permissions

@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        SELECT id AS \"id: Uuid\", expires_at,\n        password_hash IS NOT NULL AS \"password_protected!: bool\",\n        edit_permission, created_at AS \"created_at!\", modified_at AS \"modified_at!\"\n        FROM share_link WHERE id = ?\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id: Uuid",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "expires_at",
+        "ordinal": 1,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "password_protected!: bool",
+        "ordinal": 2,
+        "type_info": "Null"
+      },
+      {
+        "name": "edit_permission",
+        "ordinal": 3,
+        "type_info": "Bool"
+      },
+      {
+        "name": "created_at!",
+        "ordinal": 4,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "modified_at!",
+        "ordinal": 5,
+        "type_info": "Datetime"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      true,
+      null,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "2441ac5c553f07bd919ba4b0ed85a49c076fea37ac757e34900ba5adb5e78c84"
+}
