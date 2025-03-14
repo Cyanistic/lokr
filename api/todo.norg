@@ -22,4 +22,6 @@
   - (x) Add renaming and moving files with sharing editor permissions
   - (x) Add user upload and directory size limits
   -- (x) Dynamically update used storage upon upload and deletion
-  - ( ) Generate share link if file owner is NULL (so users can access anonymous files)
+  - (x) Generate share link if file owner is NULL (so users can access anonymous files)
+  - ( ) Automatically remove anonymous files that don't have any active share links
+  - ( ) Find a way to rate limit/prevent abuse of uploads

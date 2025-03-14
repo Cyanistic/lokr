@@ -9,7 +9,7 @@ use axum::{
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_inline_default::serde_inline_default;
-use sqlx::SqlitePool;
+use sqlx::{Executor, Sqlite};
 use tokio::{fs::File, io::AsyncWriteExt};
 use tracing::{error, instrument};
 use utoipa::{IntoParams, ToSchema};
@@ -18,7 +18,7 @@ use uuid::Uuid;
 use crate::{
     auth::SessionAuth,
     error::{AppError, ErrorResponse},
-    share::share_with_link,
+    share::{share_with_link, ShareResponse},
     state::AppState,
     success,
     users::PublicUser,
@@ -64,6 +64,9 @@ pub struct UploadResponse {
     id: Uuid,
     size: i64,
     is_directory: bool,
+    /// Used to handle the case where the file is uploaded
+    /// by an anonymous user.
+    link: Option<ShareResponse>,
 }
 
 /// A request to upload a file
@@ -221,7 +224,7 @@ pub async fn upload_file(
     // If the owner is None, then that means the owner is anonymous
     // in this case we should generate a share link instead of checking
     // for space.
-    let link_id: Option<Uuid> = match owner_id {
+    let link: Option<ShareResponse> = match owner_id {
         Some(owner_id) => {
             let owner = sqlx::query!(
                 "SELECT total_space, used_space FROM user WHERE id = ?",
@@ -246,8 +249,11 @@ pub async fn upload_file(
             None
         }
         None => {
-            // TODO: Handle link creation here
-            None
+            // Create a share link without edit permissions so we don't have to deal with
+            // anonymous users filling up a bunch of space.
+            // Might add ability to password protect in the future, keeping things simple for now.
+            // Will probably prevent abuse in the future using some kind of captcha or cloudflare
+            Some(share_with_link(&state, &mut *tx, file_id, uuid, 60 * 60 * 24, None, false).await?)
         }
     };
 
@@ -294,6 +300,7 @@ pub async fn upload_file(
             id: file_id,
             size: file_size,
             is_directory: metadata.is_directory,
+            link,
         }),
     )
         .into_response())
@@ -664,13 +671,17 @@ pub async fn update_file(
 }
 
 /// Check if a user owns a file
-pub async fn is_owner(pool: &SqlitePool, user: &Uuid, file: &Uuid) -> Result<bool, AppError> {
+pub async fn is_owner<'a, E: Executor<'a, Database = Sqlite>>(
+    db: E,
+    user: &Uuid,
+    file: &Uuid,
+) -> Result<bool, AppError> {
     Ok(sqlx::query!(
         "SELECT owner_id FROM file WHERE id = ? AND owner_id = ?",
         file,
         user
     )
-    .fetch_optional(pool)
+    .fetch_optional(db)
     .await?
     .is_some())
 }
