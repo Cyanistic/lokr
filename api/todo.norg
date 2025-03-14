@@ -12,10 +12,10 @@
   - (x) Add support for checking if a link has a password
   - ( ) Add support for ip address associated sessions
   - (x) Add support for checking users that have share permissions for a file
-  - ( ) Add preferences support
-  -- ( ) Dark/Light Theme
-  -- ( ) Grid/List View by default
-  -- ( ) Sort order preferences
+  - (x) Add preferences support
+  -- (x) Dark/Light Theme
+  -- (x) Grid/List View by default
+  -- (x) Sort order preferences
   - (x) Add support for recursively deleting files in a directory
   - (x) Add support for "remembering" passwords to share links
   - (x) Add support for getting information on a share link (edit permissions, etc)

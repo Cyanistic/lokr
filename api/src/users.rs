@@ -18,7 +18,7 @@ use futures_util::StreamExt;
 use image::{imageops::FilterType, DynamicImage, GenericImageView};
 use serde::{Deserialize, Serialize};
 use serde_inline_default::serde_inline_default;
-use sqlx::prelude::FromRow;
+use sqlx::{prelude::FromRow, Decode, Sqlite};
 use totp_rs::{Algorithm, Secret, TOTP};
 use tracing::instrument;
 use utoipa::{IntoParams, ToSchema};
@@ -261,7 +261,10 @@ pub async fn create_user(
     .to_string();
     let uuid = Uuid::new_v4();
     sqlx::query!(
-        "INSERT INTO user (id, username, password_hash, email, iv, encrypted_private_key, public_key, salt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        r#"
+        INSERT INTO user (id, username, password_hash, email, iv, encrypted_private_key, public_key, salt, theme, grid_view, sort_order)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, true, 0)
+        "#,
         uuid,
         new_user.username,
         password_hash,
@@ -493,6 +496,64 @@ pub async fn check_usage(
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum Theme {
+    System = 0,
+    Dark = 1,
+    Light = 2,
+}
+impl TryFrom<i64> for Theme {
+    type Error = anyhow::Error;
+    fn try_from(value: i64) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Self::System),
+            1 => Ok(Self::Dark),
+            2 => Ok(Self::Light),
+            _ => Err(anyhow!("Invalid theme value")),
+        }
+    }
+}
+
+impl<'r> Decode<'r, Sqlite> for Theme {
+    fn decode(
+        value: <Sqlite as sqlx::Database>::ValueRef<'r>,
+    ) -> Result<Self, sqlx::error::BoxDynError> {
+        let value: i64 = <i64 as Decode<Sqlite>>::decode(value)?;
+        Ok(value.try_into()?)
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum FileSortOrder {
+    Name = 0,
+    Modified = 1,
+    Created = 2,
+}
+
+impl TryFrom<i64> for FileSortOrder {
+    type Error = anyhow::Error;
+
+    fn try_from(value: i64) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Self::Name),
+            1 => Ok(Self::Modified),
+            2 => Ok(Self::Created),
+            _ => Err(anyhow!("Invalid file sort order value")),
+        }
+    }
+}
+
+impl<'r> Decode<'r, Sqlite> for FileSortOrder {
+    fn decode(
+        value: <Sqlite as sqlx::Database>::ValueRef<'r>,
+    ) -> Result<Self, sqlx::error::BoxDynError> {
+        let value: i64 = <i64 as Decode<Sqlite>>::decode(value)?;
+        Ok(value.try_into()?)
+    }
+}
+
 #[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 /// A struct representing the currently logged in user
@@ -529,6 +590,12 @@ pub struct SessionUser {
     totp_enabled: bool,
     /// Whether the user has verified their TOTP key
     totp_verified: bool,
+    /// The theme preference of the user
+    theme: Theme,
+    /// Default sort order for files
+    sort_order: FileSortOrder,
+    /// Whether the user prefers a grid view for files
+    grid_view: bool,
 }
 
 #[utoipa::path(
@@ -552,7 +619,9 @@ pub async fn get_logged_in_user(
         SessionUser,
         r#"SELECT id AS "id: _", username, email,
             iv, public_key, encrypted_private_key, salt,
-            avatar AS avatar_extension, totp_enabled, totp_verified
+            avatar AS avatar_extension, totp_enabled, totp_verified,
+            theme AS "theme: Theme",
+            sort_order AS "sort_order: FileSortOrder", grid_view
             FROM user WHERE id = ?"#,
         user.id
     )
@@ -1183,3 +1252,41 @@ fn verify_password(state: &AppState, password: &str, password_hash: &str) -> Res
 // Dummy function to avoid generate documentation for this path
 #[allow(unused)]
 async fn get_avatar() {}
+
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct Preferences {
+    theme: Theme,
+    grid_view: bool,
+    sort_order: FileSortOrder,
+}
+
+#[utoipa::path(
+    put,
+    path = "/api/profile/preferences",
+    description = "Update the currently authenticated user's preferences",
+    request_body(content = Preferences, description = "The preferences to update to"),
+    responses(
+        (status = OK, description = "Successfully updated preferences", body = SuccessResponse),
+    ),
+)]
+#[instrument(err, skip(state))]
+pub async fn update_preferences(
+    State(state): State<AppState>,
+    SessionAuth(user): SessionAuth,
+    Json(req): Json<Preferences>,
+) -> Result<Response, AppError> {
+    let theme = req.theme as u8;
+    let grid_view = req.grid_view as u8;
+    let sort_order = req.sort_order as u8;
+    sqlx::query!(
+        "UPDATE user SET theme = ?, grid_view = ?, sort_order = ? WHERE id = ?",
+        theme,
+        grid_view,
+        sort_order,
+        user.id
+    )
+    .execute(&state.pool)
+    .await?;
+    Ok((StatusCode::OK, success!("Successfully updated preferences")).into_response())
+}
