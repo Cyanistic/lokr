@@ -13,6 +13,7 @@ use axum::{
 use axum_extra::{headers::Cookie, TypedHeader};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use sqlx::{Executor, Sqlite};
 use tracing::instrument;
 use utoipa::ToSchema;
 use uuid::Uuid;
@@ -69,7 +70,7 @@ pub enum ShareResponseType {
 #[serde(rename_all = "camelCase")]
 pub struct ShareResponse {
     #[serde(flatten)]
-    type_: ShareResponseType,
+    pub type_: ShareResponseType,
     edit_permission: bool,
     created_at: DateTime<Utc>,
     modified_at: DateTime<Utc>,
@@ -108,8 +109,16 @@ pub async fn share_file(
         ShareRequestType::Link { expires, password } => Ok((
             StatusCode::CREATED,
             Json(
-                share_with_link(&state, body.id, Some(user.id), expires, password, body.edit)
-                    .await?,
+                share_with_link(
+                    &state,
+                    &state.pool,
+                    body.id,
+                    Some(user.id),
+                    expires,
+                    password,
+                    body.edit,
+                )
+                .await?,
             ),
         )
             .into_response()),
@@ -117,8 +126,9 @@ pub async fn share_file(
 }
 
 /// Helper function for sharing a file with using a link
-pub async fn share_with_link(
+pub async fn share_with_link<'a, E: Executor<'a, Database = Sqlite>>(
     state: &AppState,
+    db: E,
     file_id: Uuid,
     user: Option<Uuid>,
     expires: u64,
@@ -178,7 +188,7 @@ pub async fn share_with_link(
         password_hash,
         edit
     )
-    .fetch_one(&state.pool)
+    .fetch_one(db)
     .await?;
 
     Ok(ShareResponse {
