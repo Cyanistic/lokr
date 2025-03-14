@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                        WITH RECURSIVE ancestors AS (\n                            SELECT\n                                id,\n                                parent_id\n                            FROM file\n                            WHERE id = ? -- the id of the parent file goes here\n                            UNION ALL\n                            SELECT\n                                f.id,\n                                f.parent_id\n                            FROM file f\n                            JOIN ancestors a ON f.id = a.parent_id\n                        ),\n                        children AS (\n                            SELECT\n                                id,\n                                parent_id\n                            FROM file\n                            WHERE id = ? -- the id of the current file goes here\n                            UNION ALL\n                            SELECT\n                                f.id,\n                                f.parent_id\n                            FROM file f\n                            JOIN children c ON f.parent_id = c.id\n                        )\n                        SELECT owner_id AS \"owner_id: Uuid\",\n                        is_directory AS \"is_directory!\"\n                        FROM file \n                        LEFT JOIN share_user AS su\n                        ON su.file_id = file.id AND su.user_id = ?\n                        LEFT JOIN share_link AS sl\n                        ON sl.file_id = file.id AND sl.id = ? AND (expires_at IS NULL OR DATETIME(expires_at) >= CURRENT_TIMESTAMP)\n                        WHERE file.id IN (\n                            SELECT id FROM ancestors\n                            EXCEPT\n                            SELECT id FROM children\n                        )\n                        AND \n                            -- Ensure that the user has permission to edit the file\n                            (owner_id = ? OR su.edit_permission OR sl.edit_permission)\n                        LIMIT 1\n                        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "owner_id: Uuid",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "is_directory!",
+        "ordinal": 1,
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": [
+      true,
+      false
+    ]
+  },
+  "hash": "41997fc6fd3032743264752d88b499101c43cac6b6aac3495a5f805f59c3e443"
+}

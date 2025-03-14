@@ -19,4 +19,4 @@
   - (x) Add support for recursively deleting files in a directory
   - (x) Add support for "remembering" passwords to share links
   - ( ) Add support for getting information on a share link (edit permissions, etc)
-  - ( ) Add renaming and moving files with sharing editor permissions
+  - (x) Add renaming and moving files with sharing editor permissions
