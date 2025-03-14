@@ -21,7 +21,7 @@ use crate::{
     state::AppState,
     success,
     users::PublicUser,
-    utils::Normalize,
+    utils::{get_file_users, Normalize},
     SuccessResponse, UPLOAD_DIR,
 };
 
@@ -267,6 +267,7 @@ pub struct LinkParams {
     path = "/api/file/{id}",
     description = "Delete a file. Recursively deletes all children if the file is a directory",
     params(
+            LinkParams,
             ("id" = Uuid, Path, description = "The id of the file to delete"),
         ),
     responses(
@@ -719,16 +720,15 @@ pub struct FileResponse {
         example = FileMetadata::example
     )]
     pub files: HashMap<Uuid, FileMetadata>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     #[schema(example = "same kind of thing as files, but with `PublicUser` schema...")]
-    pub users: Option<HashMap<Uuid, PublicUser>>,
+    pub users: HashMap<Uuid, PublicUser>,
     #[schema(example = "123e4567-e89b-12d3-a456-426614174000")]
     pub root: Vec<Uuid>,
 }
 #[utoipa::path(
     get,
     path = "/api/file",
-    description = "Get the metadata of a file or directory. Also returns the children of a directory. This does not return a `users` object for the time being, as all files and directories are assumed to be owned by the querying user.",
+    description = "Get the metadata of a file or directory. Also returns the children of a directory.",
     params(
         FileQuery
     ),
@@ -857,7 +857,7 @@ pub async fn get_file_metadata(
         Ok((
             StatusCode::OK,
             Json(FileResponse {
-                users: None,
+                users: get_file_users(&state.pool, &files).await?,
                 files,
                 root,
             }),

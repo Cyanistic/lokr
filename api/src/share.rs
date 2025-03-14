@@ -126,12 +126,7 @@ pub async fn share_with_link(
     edit: bool,
 ) -> Result<ShareResponse, AppError> {
     let link = Uuid::new_v4();
-    let expires = if expires > 0 {
-        Some(Utc::now() + Duration::from_secs(expires))
-    } else {
-        None
-    };
-
+    let expires = (expires > 0).then(|| Utc::now() + Duration::from_secs(expires));
     // Check if the user owns the file
     // If the no user is provided, the file must be an anonymous file
     // which can be shared with a one-time link
@@ -431,7 +426,7 @@ pub async fn get_user_shared_file(
         Ok((
             StatusCode::OK,
             Json(FileResponse {
-                users: Some(get_file_users(&state.pool, &files).await?),
+                users: get_file_users(&state.pool, &files).await?,
                 files,
                 root,
             }),
@@ -516,7 +511,7 @@ pub async fn get_link_shared_file(
         // If neither, then reject the request.
         let password = match (link_request, cookie.get(&link_id.to_string())) {
             (Some(password), _) => password,
-            (_, Some(password)) => urlencoding::decode(&password)?.to_string(),
+            (_, Some(password)) => urlencoding::decode(password)?.to_string(),
             (None, None) => return Err(AppError::UserError((
                 StatusCode::UNAUTHORIZED,
                 "This link requires a password. Please provide a password inside the request body"
@@ -652,7 +647,7 @@ pub async fn get_link_shared_file(
             AppendHeaders(vec![])
         },
         Json(FileResponse {
-            users: Some(get_file_users(&state.pool, &files).await?),
+            users: get_file_users(&state.pool, &files).await?,
             files,
             root,
         }),
@@ -868,7 +863,7 @@ pub struct ShareUpdateRequest {
     description = "Update permissions for a directly shared file or link.",
     request_body(content = ShareUpdateRequest, description = "The type of file sharing being used"),
     responses(
-        (status = OK, description = " Successfully deleted/revoked file permissions", body = SuccessResponse),
+        (status = OK, description = "Successfully updated file permissions", body = SuccessResponse),
         (status = BAD_REQUEST, description = "Invalid request body", body = ErrorResponse),
         (status = NOT_FOUND, description = "File not found", body = ErrorResponse),
     ),
@@ -963,4 +958,54 @@ pub async fn update_share_permission(
         }
     }
     Ok((StatusCode::OK, success!("Successfully updated permissions")).into_response())
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/shared/{link_id}",
+    description = "Get information on an active link",
+    responses(
+        (status = OK, description = " Successfully retrieved link information", body = SuccessResponse),
+        (status = BAD_REQUEST, description = "Invalid link", body = ErrorResponse),
+        (status = NOT_FOUND, description = "File not found", body = ErrorResponse),
+    ),
+    security(
+        ("lokr_session_cookie" = [])
+    )
+)]
+pub async fn get_link_info(
+    State(state): State<AppState>,
+    Path(link_id): Path<Uuid>,
+) -> Result<Response, AppError> {
+    let Some(link) = sqlx::query!(
+        r#"
+        SELECT id AS "id: Uuid", expires_at,
+        password_hash IS NOT NULL AS "password_protected!: bool",
+        edit_permission, created_at AS "created_at!", modified_at AS "modified_at!"
+        FROM share_link WHERE id = ?
+        "#,
+        link_id
+    )
+    .fetch_optional(&state.pool)
+    .await?
+    else {
+        return Err(AppError::UserError((
+            StatusCode::NOT_FOUND,
+            "Link does not exist".into(),
+        )));
+    };
+    Ok((
+        StatusCode::OK,
+        Json(ShareResponse {
+            type_: ShareResponseType::Link {
+                link_id: link.id,
+                expires_at: link.expires_at.map(|time| time.and_utc()),
+                password_protected: link.password_protected,
+            },
+            edit_permission: link.edit_permission,
+            created_at: link.created_at.and_utc(),
+            modified_at: link.modified_at.and_utc(),
+        }),
+    )
+        .into_response())
 }
