@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE user SET theme = ?, grid_view = ?, sort_order = ? WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "9ae873167615921112a4f5df47e1c9821d98422acdd4ad232dba2578fe328ab1"
+}
