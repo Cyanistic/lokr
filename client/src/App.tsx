@@ -47,8 +47,24 @@ function Navigation(){
 function Home(){
   return (
     <div className = 'main'>
-      <h1>Lokr</h1>
-      <p>Encrypted File Sharing Website</p>
+      <div className='home-main'>
+        <h1>Lokr</h1>
+        <img src="https://www.pngall.com/wp-content/uploads/10/Lock-PNG-Images.png" alt="Lokr logo" />
+      </div>
+      <div className='home-body'>
+        <b>Encrypted File Sharing Website</b>
+        <b>
+          Upload and share your files securely while maintaining
+          annonimity. Lokr encrypts your files with end-to-end 
+          encryption so that only you and people you allow can read 
+          the data on your files. No account required to upload and 
+          share files.
+        </b>
+        <b>
+          Start uploading your files by clicking the + icon on the 
+          bottom right of the screen and pressing the upload button.
+        </b>
+      </div>
       <Upload />
     </div>
   )
