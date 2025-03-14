@@ -20,3 +20,6 @@
   - (x) Add support for "remembering" passwords to share links
   - (x) Add support for getting information on a share link (edit permissions, etc)
   - (x) Add renaming and moving files with sharing editor permissions
+  - (x) Add user upload and directory size limits
+  -- (x) Dynamically update used storage upon upload and deletion
+  - ( ) Generate share link if file owner is NULL (so users can access anonymous files)

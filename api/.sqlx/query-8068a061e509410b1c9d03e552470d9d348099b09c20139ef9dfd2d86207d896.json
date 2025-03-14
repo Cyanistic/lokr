@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id AS \"id: _\", username, email,\n            iv, public_key, encrypted_private_key, salt,\n            avatar AS avatar_extension, totp_enabled, totp_verified,\n            theme AS \"theme: Theme\",\n            sort_order AS \"sort_order: FileSortOrder\", grid_view\n            FROM user WHERE id = ?",
+  "query": "SELECT id AS \"id: _\", username, email,\n            iv, public_key, encrypted_private_key, salt,\n            avatar AS avatar_extension, totp_enabled, totp_verified,\n            theme AS \"theme: Theme\",\n            sort_order AS \"sort_order: FileSortOrder\", grid_view,\n            total_space, used_space\n            FROM user WHERE id = ?",
   "describe": {
     "columns": [
       {
@@ -67,6 +67,16 @@
         "name": "grid_view",
         "ordinal": 12,
         "type_info": "Bool"
+      },
+      {
+        "name": "total_space",
+        "ordinal": 13,
+        "type_info": "Integer"
+      },
+      {
+        "name": "used_space",
+        "ordinal": 14,
+        "type_info": "Integer"
       }
     ],
     "parameters": {
@@ -85,8 +95,10 @@
       false,
       false,
       false,
+      false,
+      false,
       false
     ]
   },
-  "hash": "2b3f4600655e0825e60e59b9f13e45b6df052132300a4b85924c9a6e6b610f28"
+  "hash": "8068a061e509410b1c9d03e552470d9d348099b09c20139ef9dfd2d86207d896"
 }

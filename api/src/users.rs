@@ -595,7 +595,14 @@ pub struct SessionUser {
     /// Default sort order for files
     sort_order: FileSortOrder,
     /// Whether the user prefers a grid view for files
+    #[schema(example = true)]
     grid_view: bool,
+    /// The total amount of space available to the user
+    #[schema(example = 1_000_000_000)]
+    total_space: i64,
+    /// The amount of space used by the user
+    #[schema(example = 0)]
+    used_space: i64,
 }
 
 #[utoipa::path(
@@ -621,7 +628,8 @@ pub async fn get_logged_in_user(
             iv, public_key, encrypted_private_key, salt,
             avatar AS avatar_extension, totp_enabled, totp_verified,
             theme AS "theme: Theme",
-            sort_order AS "sort_order: FileSortOrder", grid_view
+            sort_order AS "sort_order: FileSortOrder", grid_view,
+            total_space, used_space
             FROM user WHERE id = ?"#,
         user.id
     )
