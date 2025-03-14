@@ -281,11 +281,14 @@ pub struct LinkParams {
 #[instrument(err, skip(state))]
 pub async fn delete_file(
     State(state): State<AppState>,
-    SessionAuth(user): SessionAuth,
+    user: Option<SessionAuth>,
     Query(params): Query<LinkParams>,
     Path(id): Path<Uuid>,
 ) -> Result<Response, AppError> {
-    // Check if the user owns the file
+    // Check if the user owns the file or has edit
+    // access to the file. In the case of edit access,
+    // only children are able to be deleted
+    let uuid = user.map(|user| user.0.id);
     if sqlx::query!(
         r#"
         WITH RECURSIVE ancestors AS (
@@ -320,9 +323,9 @@ pub async fn delete_file(
         LIMIT 1
         "#,
         id,
-        user.id,
+        uuid,
         params.link_id,
-        id,
+        uuid,
         id,
         id
     )
@@ -390,6 +393,7 @@ pub async fn delete_file(
 #[serde(rename_all = "camelCase", tag = "type")]
 pub enum UpdateFile {
     /// Move the file to a new parent
+    #[serde(rename_all = "camelCase")]
     Move {
         /// The new parent id of the file
         parent_id: Option<Uuid>,
@@ -400,6 +404,7 @@ pub enum UpdateFile {
         encrypted_key: String,
     },
     /// Rename the file
+    #[serde(rename_all = "camelCase")]
     Rename {
         /// The new encrypted name of the file
         #[schema(
@@ -416,6 +421,7 @@ pub enum UpdateFile {
     description = "Update a file or directory. Can be used to move or rename a file",
     request_body(content = UpdateFile, content_type = "application/json"),
     params(
+            LinkParams,
             ("id" = Uuid, Path, description = "The id of the file to update"),
         ),
     responses(
@@ -430,46 +436,161 @@ pub enum UpdateFile {
 #[instrument(err, skip(state))]
 pub async fn update_file(
     State(state): State<AppState>,
-    SessionAuth(user): SessionAuth,
+    user: Option<SessionAuth>,
+    Query(params): Query<LinkParams>,
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateFile>,
 ) -> Result<Response, AppError> {
-    // Check if the user owns the file
-    if !is_owner(&state.pool, &user.id, &id).await? {
+    let uuid = user.map(|user| user.0.id);
+    // Check if the user owns the file or has
+    // permission to edit the file
+    let Some(target) = sqlx::query!(
+        r#"
+        WITH RECURSIVE ancestors AS (
+            SELECT
+                id,
+                parent_id
+            FROM file
+            WHERE id = ?  -- the file we're checking
+            UNION ALL
+            SELECT
+                f.id,
+                f.parent_id
+            FROM file f
+            JOIN ancestors a ON f.id = a.parent_id
+        )
+        SELECT owner_id AS "owner_id: Uuid",
+        is_directory AS "is_directory!"
+        FROM file 
+        LEFT JOIN share_user AS su
+        ON su.file_id = file.id AND su.user_id = ?
+        LEFT JOIN share_link AS sl
+        ON sl.file_id = file.id AND sl.id = ? AND (expires_at IS NULL OR DATETIME(expires_at) >= CURRENT_TIMESTAMP)
+        WHERE file.id IN (SELECT id FROM ancestors) AND (
+            owner_id = ? OR (
+                -- Only allow the users that have share access to update the file
+                -- if it is a child of a directory being shared with them, not
+                -- the file itself
+                (su.edit_permission AND su.file_id != ?) OR 
+                (sl.edit_permission AND sl.file_id != ?)
+            )
+        )
+        LIMIT 1
+        "#,
+        id,
+        uuid,
+        params.link_id,
+        uuid,
+        id,
+        id
+    )
+    .fetch_optional(&state.pool)
+    .await? else {
         // Return an error if the user doen't own the file
         // or the file doesn't exist
         // This is to prevent users from updating files they don't own
         // or attempting to snoop on files they don't have access to
         return Err(AppError::UserError((
             StatusCode::NOT_FOUND,
-            "Source file not found".into(),
+            "Unable to find file to update".into(),
         )));
-    }
+    };
+
     match body {
         UpdateFile::Move {
             parent_id,
             encrypted_key,
         } => {
-            // Check if the new parent is owned by the user
-            let Some(parent_file) = sqlx::query!(
-                "SELECT is_directory FROM file WHERE id = ? AND owner_id = ?",
-                parent_id,
-                user.id
-            )
-            .fetch_optional(&state.pool)
-            .await?
-            else {
-                return Err(AppError::UserError((
-                    StatusCode::NOT_FOUND,
-                    "Destination file not found".into(),
-                )));
+            // Make sure that the target parent file being has the same owner to
+            // prevent tampering with the source file.
+            // We also include a children query here to ensure that the
+            // user is not attempting to move a parent directory into one
+            // of its children, as that could cause a cycle.
+            // For now we do not want to allow files to change owners, as this would mean that
+            // we would need to check if the new owner has space for the children before being
+            // able to approve the move.
+            let (is_directory, owner_id) = match parent_id {
+                Some(parent_id) => {
+                    let Some(parent) = sqlx::query!(
+                                r#"
+                        WITH RECURSIVE ancestors AS (
+                            SELECT
+                                id,
+                                parent_id
+                            FROM file
+                            WHERE id = ? -- the id of the parent file goes here
+                            UNION ALL
+                            SELECT
+                                f.id,
+                                f.parent_id
+                            FROM file f
+                            JOIN ancestors a ON f.id = a.parent_id
+                        ),
+                        children AS (
+                            SELECT
+                                id,
+                                parent_id
+                            FROM file
+                            WHERE id = ? -- the id of the current file goes here
+                            UNION ALL
+                            SELECT
+                                f.id,
+                                f.parent_id
+                            FROM file f
+                            JOIN children c ON f.parent_id = c.id
+                        )
+                        SELECT owner_id AS "owner_id: Uuid",
+                        is_directory AS "is_directory!"
+                        FROM file 
+                        LEFT JOIN share_user AS su
+                        ON su.file_id = file.id AND su.user_id = ?
+                        LEFT JOIN share_link AS sl
+                        ON sl.file_id = file.id AND sl.id = ? AND (expires_at IS NULL OR DATETIME(expires_at) >= CURRENT_TIMESTAMP)
+                        WHERE file.id IN (
+                            SELECT id FROM ancestors
+                            EXCEPT
+                            SELECT id FROM children
+                        )
+                        AND 
+                            -- Ensure that the user has permission to edit the file
+                            (owner_id = ? OR su.edit_permission OR sl.edit_permission)
+                        LIMIT 1
+                        "#,
+                        parent_id,
+                        id,
+                        uuid,
+                        params.link_id,
+                        uuid
+                    )
+                        .fetch_optional(&state.pool)
+                    .await?
+                    else {
+                        return Err(AppError::UserError((
+                            StatusCode::NOT_FOUND,
+                            "Unable to move file".into(),
+                        )));
+                    };
+                    (parent.is_directory, parent.owner_id)
+                }
+                // If the parent id is null, then we are moving the file to the root directory
+                // We know that, in this case, root is a directory and the owner is the same as the
+                // user moving the file
+                None => (true, uuid),
             };
 
-            // Check that the new parent is a directory
-            if !parent_file.is_directory {
+            if !is_directory {
                 return Err(AppError::UserError((
-                    StatusCode::BAD_REQUEST,
+                    StatusCode::FORBIDDEN,
                     "Cannot set file parent to non-directories".into(),
+                )));
+            }
+
+            // Ensure that the owner of this file is the same
+            // as the owner of the file being moved
+            if owner_id != target.owner_id {
+                return Err(AppError::UserError((
+                    StatusCode::FORBIDDEN,
+                    "Cannot move file to a different owner".into(),
                 )));
             }
 

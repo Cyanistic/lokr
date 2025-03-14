@@ -386,10 +386,6 @@ pub async fn authenticate_user(
         (status = UNAUTHORIZED, description = "User is not logged in", body = ErrorResponse)
     )
 )]
-/// Utilizes the `State` and `SessionAuth` extractors to ensure the user is actually logged in
-/// Can't start the variables with an underscore because the `utoipa::path` macro will have a
-/// stroke and refuse to compile
-#[allow(unused_variables)]
 pub async fn logout(
     State(state): State<AppState>,
     SessionAuth(user): SessionAuth,
