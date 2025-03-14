@@ -14,6 +14,8 @@ CREATE TABLE user (
 	theme INTEGER NOT NULL DEFAULT 0,
 	grid_view BOOLEAN NOT NULL DEFAULT TRUE,
 	sort_order INTEGER NOT NULL DEFAULT 0,
+	total_space INTEGER NOT NULL DEFAULT 1_000_000_000 CHECK(total_space >= 0), -- Give everyone 1GB of total space
+	used_space INTEGER NOT NULL DEFAULT 0 CHECK(used_space >= 0), -- This includes the space of file content and metadata
 	created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	modified_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

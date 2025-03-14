@@ -18,6 +18,7 @@ use uuid::Uuid;
 use crate::{
     auth::SessionAuth,
     error::{AppError, ErrorResponse},
+    share::share_with_link,
     state::AppState,
     success,
     users::PublicUser,
@@ -138,6 +139,10 @@ pub async fn upload_file(
         )));
     };
 
+    // Begin a transaction to prevent a race condition across threads
+    // that could allow a user to upload more than they are allowed to
+    let mut tx = state.pool.begin().await?;
+
     // Get the owner id of the file so we can reuse it, as the file owner for children should
     // be the same as the the owner id of the parent
     let owner_id = match metadata.parent_id {
@@ -173,7 +178,7 @@ pub async fn upload_file(
                 link_id,
                 uuid
             )
-            .fetch_optional(&state.pool)
+            .fetch_optional(&mut *tx)
             .await?
             {
                 Some(parent_file) => {
@@ -211,6 +216,41 @@ pub async fn upload_file(
     } else {
         0
     };
+
+    // Check if the owner has enough space to upload the file
+    // If the owner is None, then that means the owner is anonymous
+    // in this case we should generate a share link instead of checking
+    // for space.
+    let link_id: Option<Uuid> = match owner_id {
+        Some(owner_id) => {
+            let owner = sqlx::query!(
+                "SELECT total_space, used_space FROM user WHERE id = ?",
+                owner_id
+            )
+            .fetch_one(&mut *tx)
+            .await?;
+            let row_space = metadata.nonce.len()
+                + metadata.encrypted_key.len()
+                + metadata.encrypted_file_name.len()
+                + metadata
+                    .encrypted_mime_type
+                    .as_ref()
+                    .map(|e| e.len())
+                    .unwrap_or(1);
+            if owner.used_space + row_space as i64 + file_size > owner.total_space {
+                return Err(AppError::UserError((
+                    StatusCode::PAYMENT_REQUIRED,
+                    "File owner does not have enough free space".into(),
+                )));
+            }
+            None
+        }
+        None => {
+            // TODO: Handle link creation here
+            None
+        }
+    };
+
     match sqlx::query!(
         r#"
         INSERT INTO file (id, owner_id, uploader_id, parent_id, encrypted_key, encrypted_name, mime, nonce, is_directory, size)
@@ -227,7 +267,7 @@ pub async fn upload_file(
         metadata.is_directory,
         file_size,
     )
-    .execute(&state.pool)
+    .execute(&mut *tx)
     .await {
         // If a FOREIGN KEY constraint is violated, it likely means that the parent id is invalid
         // this is a user error and not a server error, so report it as such.
@@ -244,6 +284,9 @@ pub async fn upload_file(
         Err(e) => return Err(e.into()),
         _ => {}
     }
+
+    // Everything went well, commit the transaction
+    tx.commit().await?;
 
     Ok((
         StatusCode::OK,

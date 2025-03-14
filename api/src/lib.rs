@@ -30,6 +30,7 @@ use utoipa_axum::{router::OpenApiRouter, routes};
 use utoipa_swagger_ui::SwaggerUi;
 
 use axum::{
+    extract::DefaultBodyLimit,
     http::{
         header::{
             ACCEPT, AUTHORIZATION, CONTENT_ENCODING, CONTENT_LENGTH, CONTENT_TYPE, COOKIE,
@@ -273,6 +274,8 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
     // Setup the router along with the OpenApi documentation router
     // for easy docs generation.
     let (api_router, open_api): (Router, _) = OpenApiRouter::with_openapi(ApiDoc::openapi())
+        .routes(routes!(upload::upload_file))
+        .route_layer(DefaultBodyLimit::max(1_000_000_000))
         .routes(routes!(users::create_user))
         .routes(routes!(users::authenticate_user))
         .routes(routes!(users::logout))
@@ -284,7 +287,6 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
         .routes(routes!(users::get_user))
         .routes(routes!(users::upload_avatar))
         .routes(routes!(users::update_preferences))
-        .routes(routes!(upload::upload_file))
         .routes(routes!(upload::delete_file))
         .routes(routes!(upload::update_file))
         .routes(routes!(upload::get_file_metadata))

@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT total_space, used_space FROM user WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "total_space",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "used_space",
+        "ordinal": 1,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "814e53204e1d7fd369f5d75774369a362c503e48efa2439e070a621688979ab4"
+}
