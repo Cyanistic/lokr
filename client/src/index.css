@@ -67,13 +67,14 @@ button:focus-visible {
   align-items: center;
   margin: 0;
   flex-direction: column; /* Center content vertically */
+  gap: 15px;
 }
 * {
   box-sizing: border-box; /* Include padding and borders in the element's total width and height */
 }
 .about-box {
   width: 80%; /* Default width for responsive design */
-  max-width: 700px; /* Max width on larger screens */
+  max-width: 800px; /* Max width on larger screens */
   padding: 20px;
   font-size: 16px;
   background-color: light-dark(#2f27ce, #3a31d8); /* White background */
@@ -88,6 +89,26 @@ button:focus-visible {
   font-size: 16px;
   color: white;
   text-align: justify;
+}
+
+.home-main img {
+  width: 250px;
+}
+
+.home-body {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  gap: 20px;
+}
+.home-body b {
+  width: 80%;
+  max-width: 700px;
+}
+
+.uploadFile {
+  margin: 15px
 }
 
 
