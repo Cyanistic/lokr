@@ -1,5 +1,20 @@
-import React, { useState, useEffect, useRef } from "react";
-import { fetchUsernames } from "../utils";
+import React, { useState, useEffect } from "react";
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Button,
+  Select,
+  MenuItem,
+  Autocomplete,
+  Box,
+  IconButton,
+  Typography,
+} from "@mui/material";
+import CloseIcon from "@mui/icons-material/Close";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 
 interface ShareModalProps {
   open: boolean;
@@ -9,195 +24,223 @@ interface ShareModalProps {
 const ShareModal: React.FC<ShareModalProps> = ({ open, onClose }) => {
   const [file, setFile] = useState<File | null>(null);
   const [username, setUsername] = useState("");
+  const [autocompleteOptions, setAutocompleteOptions] = useState<string[]>([]);
   const [permission, setPermission] = useState("viewer");
-  const [filteredUsers, setFilteredUsers] = useState<string[]>([]);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [generalAccess, setGeneralAccess] = useState<"restricted" | "anyone">("restricted");
+  const [anyonePermission, setAnyonePermission] = useState<"viewer" | "editor">("viewer");
+  const [password, setPassword] = useState("");
+  const [expiration, setExpiration] = useState<string>("12 hours");
+  const [sharedFiles, setSharedFiles] = useState([]);
+  const [selectedActiveLink, setSelectedActiveLink] = useState("");
 
-  // Fetch usernames from API for autocomplete
-  useEffect(() => {
-    if (username.length >= 3) {
-      fetchUsernames(username, 10, 0);
-    } else {
-      setFilteredUsers([]); // Clear dropdown if input is too short
+  // Fetch usernames for Autocomplete
+  const fetchUsernames = async (query: string) => {
+    try {
+      const response = await fetch(`http://localhost:6969/api/users/search/${query}?limit=10&offset=0`);
+      if (!response.ok) throw new Error("Failed to fetch usernames");
+      const data = await response.json();
+      setAutocompleteOptions(data.map((user: { username: string }) => user.username));
+    } catch (error) {
+      console.error("Error fetching usernames:", error);
+      setAutocompleteOptions([]);
     }
-  }, [username]);
+  };
 
-  // Close dropdown if clicking outside
+  // Handle Username Input Change
+  const handleUsernameChange = async (event: any, value: string) => {
+    setUsername(value);
+    if (value.length >= 3) {
+      await fetchUsernames(value);
+    } else {
+      setAutocompleteOptions([]);
+    }
+  };
+
+  // Fetch Shared Files (active links)
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setFilteredUsers([]);
+    const fetchSharedFiles = async () => {
+      try {
+        const response = await fetch("http://localhost:6969/api/shared");
+        if (!response.ok) throw new Error("Failed to fetch shared files");
+        const data = await response.json();
+        setSharedFiles(data);
+      } catch (error) {
+        console.error("Error fetching shared files:", error);
       }
     };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
-  // Handle username selection
-  const handleSelectUsername = (selectedUsername: string) => {
-    setUsername(selectedUsername);
-    setFilteredUsers([]); // Close dropdown immediately
-  };
+    if (open) fetchSharedFiles();
+  }, [open]);
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files && event.target.files.length > 0) {
-      setFile(event.target.files[0]);
-    }
-  };
-
-  const handleShare = () => {
-    if (!file) {
-      alert("Please select a file to share.");
-      return;
-    }
-
-    if (!username) {
-      alert("Please enter a username.");
-      return;
-    }
+  // Handle Sharing a File
+  const handleShare = async () => {
+    if (!file) return alert("Please select a file to share.");
+    if (!username) return alert("Please enter a username.");
 
     const shareData = {
       fileName: file.name,
       username,
       permission,
+      generalAccess,
+      anyonePermission: generalAccess === "anyone" ? anyonePermission : undefined,
+      password: generalAccess === "restricted" ? password : undefined,
+      expiration,
     };
 
-    console.log("Sharing file with data:", shareData);
-    onClose();
+    try {
+      const response = await fetch("http://localhost:6969/api/share", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(shareData),
+      });
+
+      if (!response.ok) throw new Error("Failed to share file");
+      alert("File shared successfully!");
+      onClose();
+    } catch (error) {
+      console.error("Error sharing file:", error);
+    }
   };
 
-  if (!open) return null;
+  // Handle Deleting a Shared Link
+  const handleDeleteLink = async (linkId: string) => {
+    try {
+      const response = await fetch(`http://localhost:6969/api/shared/link/${linkId}`, { method: "DELETE" });
+      if (!response.ok) throw new Error("Failed to delete shared link");
+      alert("Shared link deleted successfully!");
+      setSharedFiles(sharedFiles.filter((file: any) => file.linkId !== linkId));
+    } catch (error) {
+      console.error("Error deleting shared link:", error);
+    }
+  };
+
+  // Handle Copying a Link
+  const handleCopyLink = () => {
+    const linkToShare = "http://localhost:3000/my-shared-file"; // Replace with dynamic link generation if needed
+    navigator.clipboard.writeText(linkToShare).then(
+      () => alert("Link copied to clipboard!"),
+      (err) => console.error("Failed to copy link:", err)
+    );
+  };
 
   return (
-    <div style={styles.overlay}>
-      <div style={styles.modal}>
-        <h2 style={styles.header}>
-          <span role="img" aria-label="folder" style={{ marginRight: "8px" }}>📁</span>
-          File Sharing
-        </h2>
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
+      <Box display="flex" alignItems="center" justifyContent="space-between" p={2}>
+        <DialogTitle sx={{ padding: 0 }}>📁 File Sharing</DialogTitle>
+        <IconButton onClick={onClose}>
+          <CloseIcon />
+        </IconButton>
+      </Box>
 
-        {/* File Input */}
-        <input type="file" onChange={handleFileChange} style={styles.input} />
+      <DialogContent dividers>
+        {/* File Selection & Autocomplete */}
+        <Box mb={2}>
+          <Typography variant="subtitle1">Select File</Typography>
+          <input type="file" onChange={(e) => e.target.files && setFile(e.target.files[0])} />
+        </Box>
 
-        {/* Username Input with Autocomplete */}
-        <div ref={dropdownRef} style={{ position: "relative" }}>
-          <input
-            type="text"
-            placeholder="Add username..."
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            style={styles.input}
-          />
-          {filteredUsers.length > 0 && (
-            <ul style={styles.autocomplete}>
-              {filteredUsers.map((user, index) => (
-                <li
-                  key={index}
-                  onMouseDown={(e) => {
-                    e.preventDefault(); // Prevents input from losing focus
-                    handleSelectUsername(user);
-                  }}
-                >
-                  {user}
-                </li>
-              ))}
-            </ul>
+        <Autocomplete
+          freeSolo
+          options={autocompleteOptions}
+          inputValue={username}
+          onInputChange={handleUsernameChange}
+          renderInput={(params) => <TextField {...params} label="Add people or groups..." variant="outlined" fullWidth />}
+        />
+
+        <Box mt={2}>
+          <Select value={permission} onChange={(e) => setPermission(e.target.value)} fullWidth>
+            <MenuItem value="viewer">Viewer</MenuItem>
+            <MenuItem value="editor">Editor</MenuItem>
+          </Select>
+        </Box>
+
+        {/* People with Access Section above General Access */}
+        <Box mt={3} p={2} border="1px solid #ddd" borderRadius="8px" bgcolor="#fafafa">
+          <Typography variant="subtitle1">People with access</Typography>
+          <Box display="flex" justifyContent="space-between" alignItems="center">
+            {/* Left Column: List of Names */}
+            <Box>
+              {sharedFiles && sharedFiles.length > 0 ? (
+                sharedFiles.map((link: any) => (
+                  <Typography key={link.linkId}>{link.username || "Unknown User"}</Typography>
+                ))
+              ) : (
+                <Typography>No active links</Typography>
+              )}
+            </Box>
+            {/* Right Column: Dropdown with Expiration Times */}
+            <Box>
+              <Select
+                value={selectedActiveLink}
+                onChange={(e) => setSelectedActiveLink(e.target.value)}
+                displayEmpty
+                sx={{ minWidth: 120 }}
+              >
+                {sharedFiles && sharedFiles.length > 0 ? (
+                  sharedFiles.map((link: any) => (
+                    <MenuItem key={link.linkId} value={link.linkId}>
+                      {link.expiration}
+                    </MenuItem>
+                  ))
+                ) : (
+                  <MenuItem disabled value="">
+                    No active links
+                  </MenuItem>
+                )}
+              </Select>
+            </Box>
+          </Box>
+        </Box>
+
+        {/* General Access Section */}
+        <Box mt={3} p={2} border="1px solid #ddd" borderRadius="8px" bgcolor="#fafafa">
+          <Typography variant="subtitle1">General access</Typography>
+          <Box display="flex" alignItems="center" gap={2} mb={2}>
+            <Select value={generalAccess} onChange={(e) => setGeneralAccess(e.target.value as "restricted" | "anyone")}>
+              <MenuItem value="restricted">Restricted</MenuItem>
+              <MenuItem value="anyone">Anyone with the link</MenuItem>
+            </Select>
+            {generalAccess === "anyone" && (
+              <Select value={anyonePermission} onChange={(e) => setAnyonePermission(e.target.value as "viewer" | "editor")}>
+                <MenuItem value="viewer">Viewer</MenuItem>
+                <MenuItem value="editor">Editor</MenuItem>
+              </Select>
+            )}
+          </Box>
+
+          {generalAccess === "restricted" && (
+            <TextField
+              label="Password (optional)"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              fullWidth
+              sx={{ mb: 2 }}
+            />
           )}
-        </div>
 
-        {/* Permission Dropdown */}
-        <select value={permission} onChange={(e) => setPermission(e.target.value)} style={styles.input}>
-          <option value="viewer">Viewer (Can only view)</option>
-          <option value="editor">Editor (Can edit)</option>
-        </select>
+          <Typography variant="subtitle1">Link Expiration</Typography>
+          <Select value={expiration} onChange={(e) => setExpiration(e.target.value as string)} fullWidth sx={{ mb: 2 }}>
+            <MenuItem value="12 hours">12 hours</MenuItem>
+            <MenuItem value="1 day">1 day</MenuItem>
+            <MenuItem value="7 days">7 days</MenuItem>
+          </Select>
+          <Button variant="outlined" onClick={handleCopyLink} startIcon={<ContentCopyIcon />}>
+            Copy link
+          </Button>
+        </Box>
+      </DialogContent>
 
-        {/* Buttons */}
-        <div style={styles.buttonContainer}>
-          <button onClick={handleShare} style={styles.shareButton}>Share</button>
-          <button onClick={onClose} style={styles.cancelButton}>Cancel</button>
-        </div>
-      </div>
-    </div>
+      <DialogActions>
+        <Button onClick={onClose} variant="outlined">
+          Cancel
+        </Button>
+        <Button onClick={handleShare} variant="contained">
+          Share
+        </Button>
+      </DialogActions>
+    </Dialog>
   );
-};
-
-// 🔹 Styles
-const styles: { [key: string]: React.CSSProperties } = {
-  overlay: {
-    position: "fixed",
-    top: 0,
-    left: 0,
-    width: "100%",
-    height: "100%",
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  modal: {
-    backgroundColor: "#fff",
-    padding: "20px",
-    borderRadius: "10px",
-    width: "400px",
-    textAlign: "center",
-    boxShadow: "0px 4px 10px rgba(0, 0, 0, 0.3)",
-  },
-  header: {
-    fontSize: "22px",
-    fontWeight: "bold",
-    color: "#0044cc",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#e6e6e6",
-    padding: "10px",
-    borderRadius: "5px",
-  },
-  input: {
-    width: "calc(100% - 20px)",
-    padding: "10px",
-    margin: "8px 0",
-    borderRadius: "5px",
-    border: "1px solid #ccc",
-    backgroundColor: "#f9f9f9",
-    color: "#000",
-    display: "block",
-    textAlign: "left",
-  },
-  buttonContainer: {
-    display: "flex",
-    justifyContent: "space-between",
-    marginTop: "10px",
-  },
-  shareButton: {
-    backgroundColor: "#007bff",
-    color: "white",
-    border: "none",
-    padding: "10px 15px",
-    borderRadius: "5px",
-    cursor: "pointer",
-    fontWeight: "bold",
-  },
-  cancelButton: {
-    backgroundColor: "#ccc",
-    color: "black",
-    border: "none",
-    padding: "10px 15px",
-    borderRadius: "5px",
-    cursor: "pointer",
-    fontWeight: "bold",
-  },
-  autocomplete: {
-    listStyle: "none",
-    padding: "0",
-    backgroundColor: "#fff",
-    border: "1px solid #ccc",
-    position: "absolute",
-    width: "calc(100% - 20px)",
-    zIndex: 1000,
-    color: "#000",
-    textAlign: "left",
-  },
 };
 
 export default ShareModal;
