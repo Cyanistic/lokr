@@ -176,3 +176,12 @@ export async function hashPassword(password: string, salt: Uint8Array | null = n
         outputType: "encoded", // return standard encoded string containing parameters needed to verify the key
     })
 }
+
+export async function shareFileKey(fileKey: CryptoKey, receiverKey: CryptoKey): Promise<ArrayBuffer> {
+    return await crypto.subtle.wrapKey(
+        "raw",
+        fileKey,
+        receiverKey,
+        { name: "RSA-OAEP" }
+    );
+}
