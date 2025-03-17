@@ -10,6 +10,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.0",
+    "@mui/icons-material": "^6.4.7",
+    "@mui/material": "^6.4.7",
     "@types/js-cookie": "^3.0.6",
     "argon2-browser": "^1.18.0",
     "hash-wasm": "^4.12.0",
