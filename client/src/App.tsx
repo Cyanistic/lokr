@@ -49,7 +49,7 @@ function Home(){
     <div className = 'main'>
       <div className='home-main'>
         <h1>Lokr</h1>
-        <img src="https://www.pngall.com/wp-content/uploads/10/Lock-PNG-Images.png" alt="Lokr logo" />
+        <img src="/Lockr-temp-logo.png" alt="Lokr logo" />
       </div>
       <div className='home-body'>
         <b>Encrypted File Sharing Website</b>

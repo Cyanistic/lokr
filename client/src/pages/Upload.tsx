@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {Button, useTheme} from '@mui/material';
-import { Fab, Tooltip } from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
+//import { Fab, Tooltip } from '@mui/material';
+//import AddIcon from '@mui/icons-material/Add';
+import './Upload.css'
 
 export default function Upload() {
 
@@ -14,6 +15,9 @@ export default function Upload() {
   const [fileMeta, setFileMeta] = useState<FileMetadata[]>([]);
   const [uploadStatus, setUploadStatus] = useState<string>('');
   const [userPublicKey, setUserPublicKey] = useState<CryptoKey | null>(null);
+  const [isOverlayVisible, setIsOverlayVisible] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState([]);
+  const [dragging, setDragging] = useState(false);
 
 
   // Function to fetch the user's profile (including the public key) from the server
@@ -218,22 +222,75 @@ export default function Upload() {
 
   };
 
-  const handleFABClick = async () => {
+  /*const handleFABClick = async () => {
     const fileInput = document.getElementById('file-input');
     if (fileInput) {
       fileInput.click();
     } else {
       console.warn('File input element not found');
     }
-  }
+  }*/
 
   const theme = useTheme();
+
+  const toggleOverlay = () => {
+    setIsOverlayVisible(!isOverlayVisible);
+  };
+
+  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    handleFileChange;
+    setDragging(false);
+  };
+
+  const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setDragging(true);
+  };
 
 
   return (
     <div className="uploadMain">
+      <Button variant='contained' onClick={toggleOverlay}>Upload Files</Button>
+      
+      {isOverlayVisible && (
+        <div className='overlay'>
+          <div className='upload-container'>
+            <div className={`file-select-box ${dragging ? 'drag-over' : ''}`} onDrop={handleDrop} onDragOver={handleDragOver}>
+              <input type="file" id='file-input' style={{display: 'none'}} onChange={handleFileChange} multiple />
+              <label htmlFor="fileInput" className="file-select-label">
+                <span>Click here or drag and drop files</span>
+              </label>
+            </div>
 
-      <div className="uploadFile">
+            <div className='file-list'>
+              {files.length > 0 && (
+                <div>
+                  <p>Selected {files.length} file(s):</p>
+                  <ul>
+                    {files.map((file, index) => (
+                      <li key={index}>
+                        {fileMeta.find(meta => meta.name === file.name)?.isDirectory ? 'Folder: ' : 'File: '}
+                        {file.name}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <Button variant="contained" onClick={handleSubmit} style={
+                {
+                  backgroundColor: theme.palette.mode === 'dark' ? '#2f27ce': '#3a31d8', 
+                  color: theme.palette.mode === 'dark' ? '#050316' : '#eae9fc' 
+                }
+              }>Upload</Button>
+            </div>
+          </div>
+          <div className='overlay-background' onClick={toggleOverlay}></div>
+        </div>
+      )}
+
+      {/* <div className="uploadFile">
         <div>
           <input type="file" id='file-input' style={{display: 'none'}} onChange={handleFileChange} multiple />
           {files.length > 0 && (
@@ -249,7 +306,7 @@ export default function Upload() {
               </ul>
             </div>
           )}
-          {/*<button onClick={handleSubmit}>Upload</button>*/}
+          {/*<button onClick={handleSubmit}>Upload</button>}
           <Button variant="contained" onClick={handleSubmit} style={
             {
               backgroundColor: theme.palette.mode === 'dark' ? '#2f27ce': '#3a31d8', 
@@ -257,7 +314,7 @@ export default function Upload() {
             }
           }>Upload</Button>
 
-          {/* Tooltip for FAB */}
+          {/* Tooltip for FAB }
           <Tooltip title="Upload File" aria-label="upload">
             <Fab
               color="primary"
@@ -269,10 +326,10 @@ export default function Upload() {
             </Fab>
           </Tooltip>
 
-          {/* Display the upload status */}
+          {/* Display the upload status }
           {uploadStatus && <p>{uploadStatus}</p>}
         </div>
-      </div>
+      </div>} */}
 
     </div>
   );
