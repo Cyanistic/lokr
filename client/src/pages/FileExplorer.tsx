@@ -14,10 +14,15 @@ import {
   FaFilePowerpoint,
   FaFileArchive,
   FaFileCode,
+  FaPlus,
 } from "react-icons/fa";
 import { API } from "../utils";
 import localforage from "localforage";
-
+import {
+  importPublicKey,
+  deriveKeyFromPassword,
+  unwrapPrivateKey,
+} from "../cryptoFunctions";
 
 /** Convert base64 to ArrayBuffer */
 function base64ToArrayBuffer(base64: string): ArrayBuffer {
@@ -28,68 +33,6 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
     bytes[i] = binaryString.charCodeAt(i);
   }
   return bytes.buffer;
-}
-
-/** Import RSA public key from base64/PEM */
-async function importPublicKey(publicKeyPem: string): Promise<CryptoKey> {
-  // Remove headers if present
-  const pemBody = publicKeyPem.replace(/-----[^-]+-----/g, "").trim();
-  const binaryDer = base64ToArrayBuffer(pemBody);
-  return await crypto.subtle.importKey(
-    "spki",
-    binaryDer,
-    { name: "RSA-OAEP", hash: "SHA-256" },
-    true,
-    ["encrypt"]
-  );
-}
-
-/** Derive AES key from password + salt (base64). */
-async function deriveKeyFromPassword(password: string, saltB64: string): Promise<CryptoKey> {
-  const salt = base64ToArrayBuffer(saltB64);
-  const keyMaterial = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(password),
-    { name: "PBKDF2" },
-    false,
-    ["deriveKey"]
-  );
-  return crypto.subtle.deriveKey(
-    {
-      name: "PBKDF2",
-      salt,
-      iterations: 120000,
-      hash: "SHA-256",
-    },
-    keyMaterial,
-    { name: "AES-GCM", length: 256 },
-    true,
-    ["unwrapKey"]
-  );
-}
-
-/** Unwrap private key with derived AES key. */
-async function unwrapPrivateKey(
-  encryptedPrivateKeyB64: string,
-  masterKey: CryptoKey,
-  ivB64: string
-): Promise<CryptoKey | null> {
-  try {
-    const iv = base64ToArrayBuffer(ivB64);
-    const encryptedPrivateKey = base64ToArrayBuffer(encryptedPrivateKeyB64);
-    return await crypto.subtle.unwrapKey(
-      "pkcs8",
-      encryptedPrivateKey,
-      masterKey,
-      { name: "AES-GCM", iv },
-      { name: "RSA-OAEP", hash: "SHA-256" },
-      true,
-      ["decrypt"]
-    );
-  } catch (err) {
-    console.error("Failed to unwrap private key:", err);
-    return null;
-  }
 }
 
 /** Decrypt RSA-encrypted file name with private key. */
@@ -112,7 +55,10 @@ async function rsaDecryptFileName(
 }
 
 /** Encrypt text with user's public key (for new folder creation). */
-async function encryptTextWithPublicKey(publicKey: CryptoKey, text: string): Promise<Uint8Array> {
+async function encryptTextWithPublicKey(
+  publicKey: CryptoKey,
+  text: string
+): Promise<Uint8Array> {
   const encoded = new TextEncoder().encode(text);
   const encrypted = await crypto.subtle.encrypt(
     { name: "RSA-OAEP" },
@@ -181,7 +127,7 @@ const handleDownload = async (fileId: string) => {
     // Create a temporary link to trigger download
     const link = document.createElement("a");
     link.href = url;
-    link.download = "FILE"; // Temporary name for the file
+    link.download = "FILE"; // Temporary file name
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -195,13 +141,11 @@ const handleDownload = async (fileId: string) => {
 const FileRow = ({
   file,
   onOpenFolder,
-  onDecrypt,
   onMove,
   onDelete,
 }: {
   file: FileItem;
   onOpenFolder: (file: FileItem) => void;
-  onDecrypt: (file: FileItem) => void;
   onMove: (file: FileItem) => void;
   onDelete: (file: FileItem) => void;
 }) => (
@@ -235,7 +179,6 @@ const FileRow = ({
     <td style={styles.tableCell}>
       {!file.isDirectory && (
         <>
-          <button onClick={() => onDecrypt(file)}>Decrypt</button>
           <button onClick={() => onMove(file)}>Move</button>
           <button onClick={() => handleDownload(file.id)}>Download</button>
         </>
@@ -249,13 +192,11 @@ const FileRow = ({
 const FileGridItem = ({
   file,
   onOpenFolder,
-  onDecrypt,
   onMove,
   onDelete,
 }: {
   file: FileItem;
   onOpenFolder: (file: FileItem) => void;
-  onDecrypt: (file: FileItem) => void;
   onMove: (file: FileItem) => void;
   onDelete: (file: FileItem) => void;
 }) => (
@@ -276,7 +217,6 @@ const FileGridItem = ({
     <p>Type: {file.fileType}</p>
     {!file.isDirectory && (
       <div>
-        <button onClick={() => onDecrypt(file)}>Decrypt</button>
         <button onClick={() => onMove(file)}>Move</button>
         <button onClick={() => handleDownload(file.id)}>Download</button>
       </div>
@@ -302,6 +242,8 @@ export default function FileExplorer() {
   const [privateKey, setPrivateKey] = useState<CryptoKey | null>(null);
   const [userPublicKey, setUserPublicKey] = useState<CryptoKey | null>(null);
 
+  // Tracks whether the dropdown is open
+  const [isNewMenuOpen, setIsNewMenuOpen] = useState(false);
 
   async function fetchUserProfileAndDecryptKey() {
     try {
@@ -380,7 +322,7 @@ export default function FileExplorer() {
         if (currentDir) {
           return f.parentId === currentDir;
         } else {
-          return !f.parentId; // show items that have no parent => root
+          return !f.parentId;
         }
       });
 
@@ -453,13 +395,6 @@ export default function FileExplorer() {
     const prev = stack.pop() || null;
     setDirStack(stack);
     setCurrentDir(prev);
-  };
-
-  /** Placeholder "decrypt file content" handler. */
-  const handleDecrypt = (file: FileItem) => {
-    alert(
-      `Decrypting file: ${file.name}\nEncrypted key: ${file.encryptedKey}\nNonce: ${file.nonce}`
-    );
   };
 
   /** Move a file to a new parent. */
@@ -540,39 +475,67 @@ export default function FileExplorer() {
     }
   };
 
+  /** Handle "Upload File" option from the dropdown as a placeholder. */
+  function handleNewUploadFile() {
+    alert("File upload logic goes here.");
+    setIsNewMenuOpen(false);
+  }
+
   return (
     <div style={styles.container}>
       <aside style={styles.sidebar}>
         <h2>My Drive</h2>
-        <ul style={styles.navList}>
-          <li
-            style={styles.navItem}
-            onClick={() => {
-              setCurrentDir(null);
-              setDirStack([]);
-            }}
-          >
-            <FaFolder /> My Files
-          </li>
-          <li style={styles.navItem}>
-            <FaUsers /> Shared with me
-          </li>
-          <li style={styles.navItem}>
-            <FaClock /> Recent
-          </li>
-          {dirStack.length > 0 && (
-            <li style={styles.navItem} onClick={handleGoBack}>
-              ← Back
+        <div style={{ position: "relative" }}>
+          <ul style={styles.navList}>
+            <li
+              style={styles.newNavItem}
+              onClick={() => setIsNewMenuOpen((prev) => !prev)}
+            >
+              <FaPlus style={{ fontSize: "1.2rem" }} />
+              New
             </li>
-          )}
-        </ul>
+            {isNewMenuOpen && (
+              <div style={styles.newMenu}>
+                <div style={styles.newMenuItem} onClick={handleNewUploadFile}>
+                  Upload File
+                </div>
+                <div
+                  style={styles.newMenuItem}
+                  onClick={() => {
+                    handleCreateFolder();
+                    setIsNewMenuOpen(false);
+                  }}
+                >
+                  Create Folder
+                </div>
+              </div>
+            )}
+            <li
+              style={styles.navItem}
+              onClick={() => {
+                setCurrentDir(null);
+                setDirStack([]);
+              }}
+            >
+              <FaFolder /> My Files
+            </li>
+            <li style={styles.navItem}>
+              <FaUsers /> Shared with me
+            </li>
+            <li style={styles.navItem}>
+              <FaClock /> Recent
+            </li>
+            {dirStack.length > 0 && (
+              <li style={styles.navItem} onClick={handleGoBack}>
+                ← Back
+              </li>
+            )}
+          </ul>
+        </div>
       </aside>
       <main style={styles.mainContent}>
         <header style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <h1 style={styles.title}>Files</h1>
-          <button onClick={handleCreateFolder} style={styles.newFolderButton}>
-            New Folder
-          </button>
           <div style={styles.controls}>
             <Upload />
             <input
@@ -624,7 +587,6 @@ export default function FileExplorer() {
                   key={file.id}
                   file={file}
                   onOpenFolder={handleOpenFolder}
-                  onDecrypt={handleDecrypt}
                   onMove={handleMove}
                   onDelete={handleDelete}
                 />
@@ -638,7 +600,6 @@ export default function FileExplorer() {
                 key={file.id}
                 file={file}
                 onOpenFolder={handleOpenFolder}
-                onDecrypt={handleDecrypt}
                 onMove={handleMove}
                 onDelete={handleDelete}
               />
@@ -666,6 +627,7 @@ const styles = {
   navList: {
     listStyle: "none",
     padding: 0,
+    margin: 0,
   },
   navItem: {
     padding: "10px",
@@ -673,6 +635,19 @@ const styles = {
     alignItems: "center",
     gap: "10px",
     cursor: "pointer",
+  },
+  newNavItem: {
+    padding: "10px 20px",
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    cursor: "pointer",
+    backgroundColor: "#1a73e8",
+    color: "white",
+    borderRadius: "4px",
+    fontWeight: "bold" as const,
+    marginBottom: "10px",
+    fontSize: "1rem",
   },
   mainContent: {
     flex: 1,
@@ -752,5 +727,20 @@ const styles = {
     backgroundColor: "#fff",
     textAlign: "center" as const,
     color: "black",
+  },
+  newMenu: {
+    position: "absolute" as const,
+    backgroundColor: "#fff",
+    border: "1px solid #ccc",
+    borderRadius: "4px",
+    boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
+    marginTop: "5px",
+    zIndex: 1000,
+  },
+  newMenuItem: {
+    padding: "8px 16px",
+    cursor: "pointer",
+    whiteSpace: "nowrap" as const,
+    display: "block",
   },
 };
