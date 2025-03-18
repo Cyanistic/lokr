@@ -214,7 +214,7 @@ function Profile() {
         const { iv: _, encrypted: encryptedPrivateKey } = await encryptPrivateKey(privateKey, masterKey, iv);
         requestBody.encryptedPrivateKey = bufferToBase64(encryptedPrivateKey);
         // Hash the new password for the backend
-        requestBody.newValue = await hashPassword(requestBody.newValue, passwordSalt); 
+        requestBody.newValue = await hashPassword(requestBody.newValue, passwordSalt);
       }
 
       console.log("🚀 Sending request:", JSON.stringify(requestBody, null, 2)); // Log formatted request
@@ -248,104 +248,118 @@ function Profile() {
 
     switch (activeSection) {
       case 'profile':
+        if (loading) {
+          return (
+            <div className="profileInfo">
+              <h3>Profile Information Section</h3>
+              <p>Loading user data...</p>
+            </div>
+          )
+        }
+        if (error) {
+          <div className="profileInfo">
+            <h3>Security and Privacy Section</h3>
+            <p style={{ color: "red" }}>Error: {error}</p>
+          </div>
+        }
         return (
           <div className="profileInfo">
             <h3>Profile Information Section</h3>
-            {error ? (
-              <div>
-                <div className='userInfo' style={{ color: 'black' }}>
-                  <p style={{ color: 'black' }}><strong>Username:</strong> {user!.username} </p>
-                  <p style={{ color: 'black' }}><strong>Email:</strong> {user!.email || "No email provided"}</p>
-                  <p style={{ color: 'black' }}><strong>User ID:</strong> {user!.id}</p>
-                  <p style={{ color: 'black' }}><strong>Extension:</strong> {user!.avatarExtension || "No extension provided"}</p>
-                  <h3>Upload your avatar</h3>
-                  <AvatarUpload avatarUrl={avatarUrl} onAvatarChange={(newExt: string) => {
-                    setUser({ ...user!, avatarExtension: newExt })
-                    setAvatarUrl(`${getAvatarUrl({ id: user!.id, avatarExtension: newExt })}?v=${Math.random()}`)
-                  }
-                  } />
-                </div>
-                <p>
-                  <strong>Username:</strong>{" "}
-                  {editingField === "username" ? (
-                    <>
-                      <input
-                        type="text"
-                        value={updatedValue}
-                        onChange={(e) => setUpdatedValue(e.target.value)}
-                      />
-                      <button onClick={() => handleSave("username")}>Save</button>
-                    </>
-                  ) : (
-                    <>
-                      {user!.username}{" "}
-                      <button onClick={() => handleEdit("username", user!.username)}>Edit</button>
-                    </>
-                  )}
-                </p>
-                <p>
-                  <strong>Password:</strong>{" "}
-                  {editingField === "password" ? (
-                    <>
-                      <input
-                        type="password"
-                        placeholder="Enter new password"
-                        value={updatedValue}
-                        onChange={(e) => setUpdatedValue(e.target.value)}
-                      />
-                      <button onClick={() => handleSave("password")}>Save</button>
-                    </>
-                  ) : (
-                    <>
-                      ••••••••{" "}
-                      <button onClick={() => handleEdit("password", "")}>Change Password</button>
-                    </>
-                  )}
-                </p>
+            <div>
+              <div className='userInfo' style={{ color: 'black' }}>
+                <p style={{ color: 'black' }}><strong>Username:</strong> {user!.username} </p>
+                <p style={{ color: 'black' }}><strong>Email:</strong> {user!.email || "No email provided"}</p>
+                <p style={{ color: 'black' }}><strong>User ID:</strong> {user!.id}</p>
+                <p style={{ color: 'black' }}><strong>Extension:</strong> {user!.avatarExtension || "No extension provided"}</p>
+                <h3>Upload your avatar</h3>
+                <AvatarUpload avatarUrl={avatarUrl} onAvatarChange={(newExt: string) => {
+                  setUser({ ...user!, avatarExtension: newExt })
+                  setAvatarUrl(`${getAvatarUrl({ id: user!.id, avatarExtension: newExt })}?v=${Math.random()}`)
+                }
+                } />
               </div>
-            ) : (
-              <p>Loading user data...</p>
-            )}
+              <p>
+                <strong>Username:</strong>{" "}
+                {editingField === "username" ? (
+                  <>
+                    <input
+                      type="text"
+                      value={updatedValue}
+                      onChange={(e) => setUpdatedValue(e.target.value)}
+                    />
+                    <button onClick={() => handleSave("username")}>Save</button>
+                  </>
+                ) : (
+                  <>
+                    {user!.username}{" "}
+                    <button onClick={() => handleEdit("username", user!.username)}>Edit</button>
+                  </>
+                )}
+              </p>
+              <p>
+                <strong>Password:</strong>{" "}
+                {editingField === "password" ? (
+                  <>
+                    <input
+                      type="password"
+                      placeholder="Enter new password"
+                      value={updatedValue}
+                      onChange={(e) => setUpdatedValue(e.target.value)}
+                    />
+                    <button onClick={() => handleSave("password")}>Save</button>
+                  </>
+                ) : (
+                  <>
+                    ••••••••{" "}
+                    <button onClick={() => handleEdit("password", "")}>Change Password</button>
+                  </>
+                )}
+              </p>
+            </div>
           </div >
 
         );
       case 'security':
+        if (loading) {
+          return (
+            <div className="profileInfo">
+              <h3>Security and Privacy Section</h3>
+              <p>Loading user data...</p>
+            </div>
+          )
+        }
+        if (error) {
+          <div className="profileInfo">
+            <h3>Security and Privacy Section</h3>
+            <p style={{ color: "red" }}>Error: {error}</p>
+          </div>
+        }
         return (
           <div className="profileInfo">
             <h3>Security and Privacy Section</h3>
+            {/* Display TOTP Status */}
+            <p>
+              TOTP is currently: <strong>{totpStatus ? "Enabled" : "Disabled"}</strong>
+            </p>
 
-            {/* Handle Loading and Errors */}
-            {loading ? (
-              <p>Loading user data...</p>
-            ) : error ? (
-              <p style={{ color: "red" }}>Error: {error}</p>
-            ) : (
-              <>
-                {/* Display TOTP Status */}
-                <p>
-                  TOTP is currently: <strong>{totpStatus ? "Enabled" : "Disabled"}</strong>
-                </p>
+            <button onClick={handleRegenerateTOTP}>Regenerate TOTP</button>
 
-                <button onClick={handleRegenerateTOTP}>Regenerate TOTP</button>
-
-                {/* Modal for displaying QR code */}
-                {qrCode && (
-                  <div className="modal">
-                    <div className="modal-content">
-                      <h3>Scan the QR code</h3>
-                      <img src={qrCode} alt="TOTP QR Code" style={{ width: "250px", height: "250px" }} />
-                      <button onClick={() => setQrCode(null)}>Close</button>
-                    </div>
-                  </div>
-                )}
-
-                <button onClick={handleVerifyTOTP}>Verify TOTP</button>
-
-                <button onClick={handleEnableTOTP}>
-                  {totpStatus ? "Disable TOTP" : "Enable TOTP"}
-                </button>
-              </>
+            {/* Modal for displaying QR code */}
+            {qrCode && (
+              <div className="modal">
+                <div className="modal-content">
+                  <h3>Scan the QR code</h3>
+                  <img src={qrCode} alt="TOTP QR Code" style={{ width: "250px", height: "250px" }} />
+                  <button onClick={() => setQrCode(null)}>Close</button>
+                </div>
+              </div>
             )}
+
+            <button onClick={handleVerifyTOTP}>Verify TOTP</button>
+
+            <button onClick={handleEnableTOTP}>
+              {totpStatus ? "Disable TOTP" : "Enable TOTP"}
+            </button>
           </div>
         );
       case 'notifications':
