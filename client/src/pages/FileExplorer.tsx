@@ -16,6 +16,7 @@ import {
   FaFileCode,
 } from "react-icons/fa";
 import { BASE_URL } from "../utils";
+import localforage from "localforage";
 
 
 /** Convert base64 to ArrayBuffer */
@@ -166,31 +167,31 @@ interface FileItem {
 
 /** Download raw data from the server (not decrypted). */
 const handleDownload = async (fileId: string) => {
-    try {
-        const response = await fetch(`${BASE_URL}/api/file/data/${fileId}`, {
-            method: "GET",
-            credentials: "include", 
-        });
+  try {
+    const response = await fetch(`${BASE_URL}/api/file/data/${fileId}`, {
+      method: "GET",
+      credentials: "include",
+    });
 
-        if (!response.ok) {
-            throw new Error(`Failed to download file: ${response.statusText}`);
-        }
-
-        // Convert response to a Blob
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-
-        // Create a temporary link to trigger download
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = "FILE"; // Temporary name for the file
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-    } catch (error) {
-        console.error("Error downloading file:", error);
+    if (!response.ok) {
+      throw new Error(`Failed to download file: ${response.statusText}`);
     }
+
+    // Convert response to a Blob
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+
+    // Create a temporary link to trigger download
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "FILE"; // Temporary name for the file
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error("Error downloading file:", error);
+  }
 };
 
 /** Renders a file or folder row in table view. */
@@ -327,23 +328,28 @@ export default function FileExplorer() {
       setUserPublicKey(pubKey);
 
       // 2) If we have an encrypted private key, prompt for password
-      if (encryptedPrivateKey && iv && salt) {
-        const pwd = prompt("Enter your password to decrypt your private key:");
-        if (!pwd) {
-          console.error("No password provided; cannot decrypt private key");
-          return;
-        }
-        // 3) Derive an AES key from password + salt
-        const aesKey = await deriveKeyFromPassword(pwd, salt);
-        // 4) Unwrap the private key
-        const unwrapped = await unwrapPrivateKey(encryptedPrivateKey, aesKey, iv);
-        if (!unwrapped) {
-          console.error("Failed to unwrap private key");
-          return;
-        }
-        setPrivateKey(unwrapped);
+      const storedPrivateKey: CryptoKey | null = await localforage.getItem("privateKey");
+      if (storedPrivateKey != null) {
+        setPrivateKey(storedPrivateKey);
       } else {
-        console.error("Missing fields (encryptedPrivateKey, iv, salt) to decrypt private key");
+        if (encryptedPrivateKey && iv && salt) {
+          const pwd = prompt("Enter your password to decrypt your private key:");
+          if (!pwd) {
+            console.error("No password provided; cannot decrypt private key");
+            return;
+          }
+          // 3) Derive an AES key from password + salt
+          const aesKey = await deriveKeyFromPassword(pwd, salt);
+          // 4) Unwrap the private key
+          const unwrapped = await unwrapPrivateKey(encryptedPrivateKey, aesKey, iv);
+          if (!unwrapped) {
+            console.error("Failed to unwrap private key");
+            return;
+          }
+          setPrivateKey(unwrapped);
+        } else {
+          console.error("Missing fields (encryptedPrivateKey, iv, salt) to decrypt private key");
+        }
       }
     } catch (err) {
       console.error("Error fetching profile or decrypting key:", err);

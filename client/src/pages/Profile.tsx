@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import AvatarUpload from './ProfileAvatar';
-import { useTheme } from '@mui/material';
 import { BASE_URL, isValidValue } from '../utils';
 import DefaultProfile from "/default-profile.webp";
 import { bufferToBase64, deriveKeyFromPassword, encryptPrivateKey, hashPassword } from '../cryptoFunctions';
@@ -242,8 +241,6 @@ function Profile() {
       setError(`Error updating ${field}: ${err instanceof Error ? err.message : "Unknown error"}`);
     }
   };
-
-  const theme = useTheme();
 
   // Define sections as separate components or elements
   const renderContent = () => {

@@ -21,6 +21,7 @@ export default function Upload() {
   const fetchUserProfile = async () => {
     try {
       const response = await fetch(`${BASE_URL}/api/profile`, {
+        credentials: "include",
         method: 'GET',
       });
 
