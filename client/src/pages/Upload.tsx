@@ -4,7 +4,12 @@ import { Fab, Tooltip } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import { API } from '../utils';
 
-export default function Upload() {
+interface Props {
+  parentId?: string | null;
+  parentKey?: CryptoKey | null;
+}
+
+export default function Upload({ parentId }: Props) {
 
   interface FileMetadata {
     name: string;
@@ -186,7 +191,7 @@ export default function Upload() {
         encryptedMimeType: btoa(String.fromCharCode(...encryptedMimeType)),
         isDirectory: fileMeta[ind].isDirectory || false,
         nonce: btoa(String.fromCharCode(...nonce)),
-        parentId: null
+        parentId
       };
 
       try {

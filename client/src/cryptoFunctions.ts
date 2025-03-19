@@ -106,7 +106,7 @@ export async function unwrapPrivateKey(encryptedPrivateKey: ArrayBuffer | string
             { name: "AES-GCM", iv: ivBuffer },
             { name: "RSA-OAEP", hash: "SHA-256" },
             true,
-            ["decrypt"]
+            ["decrypt", "unwrapKey"]
         );
     } catch (error) {
         console.error("Error unwrapping private key:", error);
@@ -185,3 +185,48 @@ export async function shareFileKey(fileKey: CryptoKey, receiverKey: CryptoKey): 
         { name: "RSA-OAEP" }
     );
 }
+
+
+export async function unwrapAESKey(
+    encryptedAESKeyBase64: string,
+    rsaPrivateKey: CryptoKey,
+    algorithm: AesGcmParams | RsaOaepParams = { name: "RSA-OAEP" }
+): Promise<CryptoKey> {
+    // Convert the base64-encoded AES key to an ArrayBuffer
+    const encryptedAESKeyBuffer = fromBase64(encryptedAESKeyBase64).buffer;
+
+    // Unwrap the AES key using the RSA private key
+    const aesKey = await crypto.subtle.unwrapKey(
+        "raw", // format of the key to be unwrapped
+        encryptedAESKeyBuffer, // the wrapped key
+        rsaPrivateKey, // the RSA private key
+        algorithm, // algorithm parameters for unwrapping
+        { name: "AES-GCM", length: 256 }, // algorithm parameters for the unwrapped key
+        true, // whether the key is extractable
+        ["encrypt", "decrypt", "wrapKey", "unwrapKey"] // key usages
+    );
+    return aesKey;
+}
+
+/** Decrypt text using custom key and algorithm
+ * Private key with RSA is assumed by default
+ * . */
+export async function decryptText(
+    encryptedBase64: string,
+    key: CryptoKey,
+    algorithm: AesGcmParams | RsaOaepParams = { name: "RSA-OAEP" }
+): Promise<string> {
+    try {
+        const buffer = base64ToArrayBuffer(encryptedBase64);
+        const decrypted = await crypto.subtle.decrypt(
+            algorithm,
+            key,
+            buffer
+        );
+        return new TextDecoder().decode(new Uint8Array(decrypted));
+    } catch (error) {
+        console.error("RSA decryption failed:", error);
+        return "Decryption failed";
+    }
+}
+

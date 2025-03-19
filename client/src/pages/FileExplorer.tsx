@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Upload from "./Upload";
 import {
   FaFolder,
@@ -22,7 +22,11 @@ import {
   importPublicKey,
   deriveKeyFromPassword,
   unwrapPrivateKey,
+  unwrapAESKey,
+  decryptText,
 } from "../cryptoFunctions";
+import { useSearchParams } from "react-router-dom";
+import { FileMetadata, FileResponse } from "../types";
 
 /** Convert base64 to ArrayBuffer */
 function base64ToArrayBuffer(base64: string): ArrayBuffer {
@@ -33,25 +37,6 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
     bytes[i] = binaryString.charCodeAt(i);
   }
   return bytes.buffer;
-}
-
-/** Decrypt RSA-encrypted file name with private key. */
-async function rsaDecryptFileName(
-  encryptedFileNameB64: string,
-  privateKey: CryptoKey
-): Promise<string> {
-  try {
-    const buffer = base64ToArrayBuffer(encryptedFileNameB64);
-    const decrypted = await crypto.subtle.decrypt(
-      { name: "RSA-OAEP" },
-      privateKey,
-      buffer
-    );
-    return new TextDecoder().decode(new Uint8Array(decrypted));
-  } catch (error) {
-    console.error("RSA decryption failed:", error);
-    return "Decryption failed";
-  }
 }
 
 /** Encrypt text with user's public key (for new folder creation). */
@@ -69,7 +54,7 @@ async function encryptTextWithPublicKey(
 }
 
 /** Return an icon based on file extension. */
-function getFileIcon(fileType: string) {
+function getFileIcon(mimeType: string | undefined) {
   const icons: Record<string, JSX.Element> = {
     ".txt": <FaFileAlt />,
     ".png": <FaFileImage />,
@@ -89,26 +74,13 @@ function getFileIcon(fileType: string) {
     ".js": <FaFileCode />,
     ".ts": <FaFileCode />,
   };
-  return icons[fileType] || <FaFileAlt />;
+  return icons[mimeType ?? ".txt"] || <FaFileAlt />;
 }
 
 /** Extract file extension from name. */
 function getFileExtension(name: string): string {
   const parts = name.split(".");
   return parts.length > 1 ? `.${parts.pop()}` : "";
-}
-
-/** File or folder interface from the server. */
-interface FileItem {
-  id: string;
-  name: string; // Decrypted name
-  isDirectory: boolean;
-  fileType: string;
-  createdAt: string;
-  modifiedAt: string;
-  parentId?: string;
-  encryptedKey?: string;
-  nonce?: string;
 }
 
 /** Download raw data from the server (not decrypted). */
@@ -144,10 +116,10 @@ const FileRow = ({
   onMove,
   onDelete,
 }: {
-  file: FileItem;
-  onOpenFolder: (file: FileItem) => void;
-  onMove: (file: FileItem) => void;
-  onDelete: (file: FileItem) => void;
+  file: FileMetadata;
+  onOpenFolder: (file: FileMetadata) => void;
+  onMove: (file: FileMetadata) => void;
+  onDelete: (file: FileMetadata) => void;
 }) => (
   <tr style={styles.tableRow}>
     <td style={styles.tableCell}>
@@ -157,25 +129,25 @@ const FileRow = ({
         </span>
       ) : (
         <>
-          {getFileIcon(file.fileType)} {file.name}
+          {getFileIcon(file.mimeType)} {file.name}
         </>
       )}
     </td>
     <td style={styles.tableCell}>
-      {new Date(file.createdAt).toLocaleDateString("en-US", {
+      {file.createdAtDate?.toLocaleDateString("en-US", {
         year: "numeric",
         month: "short",
         day: "numeric",
       })}
     </td>
     <td style={styles.tableCell}>
-      {new Date(file.modifiedAt).toLocaleDateString("en-US", {
+      {file.modifiedAtDate?.toLocaleDateString("en-US", {
         year: "numeric",
         month: "short",
         day: "numeric",
       })}
     </td>
-    <td style={styles.tableCell}>{file.fileType}</td>
+    <td style={styles.tableCell}>{getFileExtension(file.name ?? "")}</td>
     <td style={styles.tableCell}>
       {!file.isDirectory && (
         <>
@@ -195,10 +167,10 @@ const FileGridItem = ({
   onMove,
   onDelete,
 }: {
-  file: FileItem;
-  onOpenFolder: (file: FileItem) => void;
-  onMove: (file: FileItem) => void;
-  onDelete: (file: FileItem) => void;
+  file: FileMetadata;
+  onOpenFolder: (file: FileMetadata) => void;
+  onMove: (file: FileMetadata) => void;
+  onDelete: (file: FileMetadata) => void;
 }) => (
   <div style={{ ...styles.gridItem, color: "black" }}>
     <h3>
@@ -208,13 +180,13 @@ const FileGridItem = ({
         </span>
       ) : (
         <>
-          {getFileIcon(file.fileType)} {file.name}
+          {getFileIcon(file.encryptedMimeType)} {file.name}
         </>
       )}
     </h3>
     <p>Created: {new Date(file.createdAt).toLocaleDateString()}</p>
     <p>Modified: {new Date(file.modifiedAt).toLocaleDateString()}</p>
-    <p>Type: {file.fileType}</p>
+    <p>Type: {file.encryptedMimeType}</p>
     {!file.isDirectory && (
       <div>
         <button onClick={() => onMove(file)}>Move</button>
@@ -231,10 +203,20 @@ export default function FileExplorer() {
   const [sortBy, setSortBy] = useState<"name" | "createdAt" | "modifiedAt">("name");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
+  const [params, setParams] = useSearchParams();
+  const parentId = params.get("parentId");
+  // const fileId = params.get("fileId");
 
   // The list of items in the current directory
-  const [files, setFiles] = useState<FileItem[]>([]);
-  const [currentDir, setCurrentDir] = useState<string | null>(null);
+  const [files, setFiles] = useState<Record<string, FileMetadata>>({});
+  const [root, setRoot] = useState<Set<string>>(new Set())
+  const currentDir = useMemo(() => {
+    if (parentId) {
+      return files[parentId].children?.map(f => files[f]);
+    } else {
+      return [...root].map(f => files[f]);
+    }
+  }, [parentId]);
   const [dirStack, setDirStack] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -301,7 +283,7 @@ export default function FileExplorer() {
     setLoading(true);
     try {
       const resp = await API.api.getFileMetadata({
-        id: currentDir ?? undefined,
+        id: parentId ?? undefined,
         depth: 1,
         offset: 0,
         limit: 50,
@@ -311,42 +293,42 @@ export default function FileExplorer() {
         setLoading(false);
         return;
       }
-      const data = await resp.json();
+      const data: FileResponse = await resp.json();
+      setRoot(new Set([...root, ...data.root]));
+      const tempFiles = { ...files, ...data.files };
+      let queue = data.root || [currentDir];
+      let next: string[] = [];
 
-      // data.files: { [fileId]: { ... } }
-      // Instead of using data.root, we gather all items from data.files, then filter by parentId
-      const allFiles = Object.values(data.files);
-
-      // Filter so that we only show direct children of the currentDir (or the root)
-      const filtered = allFiles.filter((f: any) => {
-        if (currentDir) {
-          return f.parentId === currentDir;
-        } else {
-          return !f.parentId;
-        }
-      });
-
-      // Decrypt each name if we have the private key
-      const finalItems = await Promise.all(
-        filtered.map(async (f: any) => {
-          let decryptedName = "EncryptedFile";
-          if (privateKey && f.encryptedFileName) {
-            decryptedName = await rsaDecryptFileName(f.encryptedFileName, privateKey);
+      // BFS traversal to decrypt files
+      while (queue.length > 0) {
+        await Promise.all(queue.map(async (fileId) => {
+          const f = tempFiles[fileId];
+          let unwrapKey: CryptoKey | undefined | null;
+          let unwrapAlgorithm;
+          let mimeType;
+          if (f.parentId) {
+            unwrapAlgorithm = { name: "AES-GCM", iv: base64ToArrayBuffer(f.nonce) } as AesGcmParams;
+            unwrapKey = files[f.parentId].key;
+          } else {
+            unwrapAlgorithm = { name: "RSA-OAEP" } as RsaOaepParams;
+            unwrapKey = privateKey;
           }
-          return {
-            id: f.id,
-            name: decryptedName,
-            isDirectory: f.isDirectory,
-            createdAt: f.createdAt,
-            modifiedAt: f.modifiedAt,
-            fileType: getFileExtension(decryptedName),
-            parentId: f.parentId,
-            encryptedKey: f.encryptedKey,
-            nonce: f.nonce,
-          };
-        })
-      );
-      setFiles(finalItems as FileItem[]);
+          if (!unwrapKey) {
+            return;
+          }
+          const name = await decryptText(f.encryptedFileName, unwrapKey, unwrapAlgorithm);
+          if (f.encryptedMimeType) {
+            mimeType = await decryptText(f.encryptedMimeType, unwrapKey, unwrapAlgorithm);
+          }
+          const key = await unwrapAESKey(f.encryptedKey, unwrapKey, unwrapAlgorithm);
+          if (f.children) {
+            next = [...next, ...f.children];
+          }
+          tempFiles[fileId] = { ...f, name, key, mimeType, createdAtDate: new Date(f.createdAt), modifiedAtDate: new Date(f.modifiedAt) };
+        }))
+        queue = next;
+      }
+      setFiles(tempFiles);
     } catch (err) {
       console.error("Error fetching files:", err);
     }
@@ -359,13 +341,20 @@ export default function FileExplorer() {
   }, [currentDir, privateKey]);
 
   /** Sorting + searching. */
-  const filteredFiles = files.filter((file) =>
-    file.name.toLowerCase().includes(search.toLowerCase())
-  );
-  const sortedFiles = [...filteredFiles].sort((a, b) => {
+  let filteredFiles;
+  if (parentId) {
+    filteredFiles = files[parentId].children?.filter((childId) =>
+      files[childId].name?.toLowerCase().includes(search.toLowerCase())
+    ).map(id => files[id])
+  } else {
+    filteredFiles = [...root].filter((childId) =>
+      files[childId].name?.toLowerCase().includes(search.toLowerCase())
+    ).map(id => files[id])
+  }
+  const sortedFiles = filteredFiles?.sort((a, b) => {
     let comparison = 0;
     if (sortBy === "name") {
-      comparison = a.name.localeCompare(b.name);
+      comparison = (a.name ?? "encryptedFile").localeCompare(b.name ?? "encryptedFile");
     } else if (sortBy === "createdAt") {
       comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
     } else if (sortBy === "modifiedAt") {
@@ -384,21 +373,31 @@ export default function FileExplorer() {
   };
 
   /** Directory navigation. */
-  const handleOpenFolder = (folder: FileItem) => {
+  const handleOpenFolder = (folder: FileMetadata) => {
     if (folder.isDirectory) {
-      setDirStack([...dirStack, currentDir || ""]);
-      setCurrentDir(folder.id);
+      setDirStack([...dirStack, ""]);
+      setParams((params) => {
+        params.set("parentId", folder.id);
+        return params;
+      });
     }
   };
   const handleGoBack = () => {
     const stack = [...dirStack];
     const prev = stack.pop() || null;
     setDirStack(stack);
-    setCurrentDir(prev);
+    setParams((params) => {
+      if (prev) {
+        params.set("parentId", prev);
+      } else {
+        params.delete("parentId");
+      }
+      return params;
+    });
   };
 
   /** Move a file to a new parent. */
-  const handleMove = async (file: FileItem) => {
+  const handleMove = async (file: FileMetadata) => {
     const destination = prompt("Enter destination folder id:");
     if (!destination) return;
     try {
@@ -420,7 +419,7 @@ export default function FileExplorer() {
   };
 
   /** Delete a file/folder. */
-  const handleDelete = async (file: FileItem) => {
+  const handleDelete = async (file: FileMetadata) => {
     if (window.confirm(`Are you sure you want to delete "${file.name}"?`)) {
       try {
         const resp = await API.api.deleteFile(file.id);
@@ -513,7 +512,10 @@ export default function FileExplorer() {
             <li
               style={styles.navItem}
               onClick={() => {
-                setCurrentDir(null);
+                setParams((params) => {
+                  params.delete("parentId");
+                  return params
+                });
                 setDirStack([]);
               }}
             >
@@ -537,7 +539,7 @@ export default function FileExplorer() {
         <header style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <h1 style={styles.title}>Files</h1>
           <div style={styles.controls}>
-            <Upload />
+            <Upload parentId={parentId} />
             <input
               type="text"
               placeholder="Search files..."
@@ -582,9 +584,9 @@ export default function FileExplorer() {
               </tr>
             </thead>
             <tbody>
-              {sortedFiles.map((file) => (
+              {sortedFiles?.map((file) => (
                 <FileRow
-                  key={file.id}
+                  key={`${file.id}-1`}
                   file={file}
                   onOpenFolder={handleOpenFolder}
                   onMove={handleMove}
@@ -595,7 +597,7 @@ export default function FileExplorer() {
           </table>
         ) : (
           <div style={styles.gridContainer}>
-            {sortedFiles.map((file) => (
+            {sortedFiles?.map((file) => (
               <FileGridItem
                 key={file.id}
                 file={file}
