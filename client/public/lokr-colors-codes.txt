@@ -1,0 +1,11 @@
+Your selected colors:
+
+    Text: #eae9fc - rgb(234, 233, 252) - hsl(243, 76%, 95%)
+    Background: #010104 - rgb(1, 1, 4) - hsl(240, 60%, 1%)
+    Primary: #3a31d8 - rgb(58, 49, 216) - hsl(243, 68%, 52%)
+    Secondary: #020024 - rgb(2, 0, 36) - hsl(243, 100%, 7%)
+    Accent: #0600c2 - rgb(6, 0, 194) - hsl(242, 100%, 38%)
+
+Realtime Colors link for selected colors: https://www.realtimecolors.com/?colors=eae9fc-010104-3a31d8-020024-0600c2&fonts=Inter-Inter
+
+Thanks for using RealtimeColors.com!
