@@ -34,13 +34,26 @@ export interface UserUpdate {
 
 export interface FileMetadata {
     id: string;
-    encryptedName: string;
-    encryptedMimeType?: string | null;
+    encryptedFileName: string;
+    encryptedMimeType?: string;
+    mimeType?: string;
     encryptedKey: string;
     isDirectory: boolean;
-    mimeType?: string | null;
+    nonce: string;
+    parentId?: string;
     key?: CryptoKey;
     name?: string;
-    ownerId?: string | null;
-    uploaderId?: string | null;
+    ownerId?: string;
+    uploaderId?: string;
+    children?: string[];
+    createdAt: string;
+    modifiedAt: string;
+    createdAtDate?: Date;
+    modifiedAtDate?: Date;
+}
+
+export interface FileResponse {
+    users: Record<string, PublicUser>;
+    files: Record<string, FileMetadata>;
+    root: string[];
 }
