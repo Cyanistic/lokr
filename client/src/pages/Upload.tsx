@@ -3,13 +3,17 @@ import { Button, useTheme } from '@mui/material';
 import { Fab, Tooltip } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import { API } from '../utils';
+import { FileMetadata } from '../types';
+import { UploadResponse } from '../myApi';
+import { encryptAESKeyWithParentKey, encryptText, generateKeyAndNonce } from '../cryptoFunctions';
 
 interface Props {
   parentId?: string | null;
   parentKey?: CryptoKey | null;
+  onUpload?: (file: FileMetadata) => void;
 }
 
-export default function Upload({ parentId }: Props) {
+export default function Upload({ parentId, parentKey, onUpload }: Props) {
 
   interface FileMetadata {
     name: string;
@@ -69,34 +73,9 @@ export default function Upload({ parentId }: Props) {
     fetchUserProfile();
   }, []);
 
-  // Function to generate a random AES key
-  const generateAESKey = async (): Promise<CryptoKey> => {
-    return await window.crypto.subtle.generateKey(
-      {
-        name: 'AES-GCM',
-        length: 256,
-      },
-      true,
-      ['encrypt', 'decrypt', "wrapKey", "unwrapKey"]
-    );
-  };
-
-  // Function to encrypt text using the public key
-  const encryptTextWithPublicKey = async (publicKey: CryptoKey, text: string): Promise<Uint8Array> => {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(text);
-    const encrypted = await window.crypto.subtle.encrypt(
-      { name: "RSA-OAEP" },
-      publicKey,
-      data
-    );
-    return new Uint8Array(encrypted);
-  };
-
   // Function to encrypt the file content using AES and return the encrypted file
-  const encryptFileWithAES = async (aesKey: CryptoKey, file: File): Promise<[Blob, Uint8Array]> => {
+  const encryptFileWithAES = async (aesKey: CryptoKey, file: File, nonce: Uint8Array): Promise<Blob> => {
     const fileArrayBuffer = await file.arrayBuffer();
-    const nonce = window.crypto.getRandomValues(new Uint8Array(12)); // 12-byte nonce for AES-GCM
 
     const encryptedFile = await window.crypto.subtle.encrypt(
       {
@@ -109,13 +88,7 @@ export default function Upload({ parentId }: Props) {
 
     // Combine the encrypted content with the nonce
     const encryptedArray = new Uint8Array(encryptedFile);
-    return [new Blob([encryptedArray]), nonce];
-  };
-
-  // Encrypt the AES key with the user's public key
-  const encryptAESKeyWithPublicKey = async (publicKey: CryptoKey, aesKey: CryptoKey): Promise<Uint8Array> => {
-    const encryptedKey = await window.crypto.subtle.wrapKey('raw', aesKey, publicKey, { name: "RSA-OAEP" });
-    return new Uint8Array(encryptedKey);
+    return new Blob([encryptedArray])
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -167,25 +140,36 @@ export default function Upload({ parentId }: Props) {
     }
 
     console.log('File ready to upload:', files);
+    let key: CryptoKey;
+    let algorithm: AesGcmParams | RsaOaepParams;
+    if (parentId && parentKey) {
+      key = parentKey;
+    } else {
+      key = userPublicKey;
+    }
 
     // Create a metadata object
     for (const [ind, file] of files.entries()) {
-
       // Generate an AES key for encrypting the file and metadata
-      const aesKey = await generateAESKey();
+      const [aesKey, nonce] = await generateKeyAndNonce();
+      // Encrypt the file content using AES
+      const encryptedFile = await encryptFileWithAES(aesKey, file, nonce);
 
       // Encrypt the file metadata (name and mime type) using AES
-      const encryptedFileName = await encryptTextWithPublicKey(userPublicKey, file.name);
-      const encryptedMimeType = await encryptTextWithPublicKey(userPublicKey, file.type);
+      const encryptedFileName = await encryptText(aesKey, file.name, nonce);
+      const encryptedMimeType = await encryptText(aesKey, file.type, nonce);
 
-      // Encrypt the file content using AES
-      const [encryptedFile, nonce] = await encryptFileWithAES(aesKey, file);
 
+
+      if (parentId) {
+        algorithm = { name: "AES-GCM", iv: nonce };
+      } else {
+        algorithm = { name: "RSA-OAEP" };
+      }
       // Encrypt the AES key using the user's public RSA key
-      const encryptedAESKey = await encryptAESKeyWithPublicKey(userPublicKey, aesKey);
+      const encryptedAESKey = await encryptAESKeyWithParentKey(key, aesKey, algorithm);
 
       const metadata = {
-        fileName: file.name,
         encryptedFileName: btoa(String.fromCharCode(...encryptedFileName)),
         encryptedKey: btoa(String.fromCharCode(...encryptedAESKey)),
         encryptedMimeType: btoa(String.fromCharCode(...encryptedMimeType)),
@@ -202,8 +186,24 @@ export default function Upload({ parentId }: Props) {
         });
 
         if (response.ok) {
+          const data: UploadResponse = await response.json();
           console.log('File uploaded successfully');
           setUploadStatus('File uploaded successfully!');
+          const createdAtDate = new Date();
+          const modifiedAtDate = new Date();
+          if (onUpload) {
+            onUpload({
+              ...metadata,
+              createdAtDate,
+              modifiedAtDate,
+              id: data.id,
+              createdAt: createdAtDate.toDateString(),
+              modifiedAt: modifiedAtDate.toDateString(),
+              key: aesKey,
+              name: file.name,
+              mimeType: file.type,
+            })
+          }
         } else {
           console.log('File upload failed');
           setUploadStatus('File upload failed. Please try again.');
