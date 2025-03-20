@@ -24,6 +24,10 @@ import {
   unwrapPrivateKey,
   unwrapAESKey,
   decryptText,
+  encryptText,
+  encryptAESKeyWithParentKey,
+  generateKeyAndNonce,
+  bufferToBase64,
 } from "../cryptoFunctions";
 import { useSearchParams } from "react-router-dom";
 import { FileMetadata, FileResponse } from "../types";
@@ -39,42 +43,27 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
   return bytes.buffer;
 }
 
-/** Encrypt text with user's public key (for new folder creation). */
-async function encryptTextWithPublicKey(
-  publicKey: CryptoKey,
-  text: string
-): Promise<Uint8Array> {
-  const encoded = new TextEncoder().encode(text);
-  const encrypted = await crypto.subtle.encrypt(
-    { name: "RSA-OAEP" },
-    publicKey,
-    encoded
-  );
-  return new Uint8Array(encrypted);
-}
-
 /** Return an icon based on file extension. */
 function getFileIcon(mimeType: string | undefined) {
   const icons: Record<string, JSX.Element> = {
-    ".txt": <FaFileAlt />,
-    ".png": <FaFileImage />,
-    ".jpg": <FaFileImage />,
-    ".jpeg": <FaFileImage />,
-    ".pdf": <FaFilePdf />,
-    ".doc": <FaFileWord />,
-    ".docx": <FaFileWord />,
-    ".xls": <FaFileExcel />,
-    ".xlsx": <FaFileExcel />,
-    ".ppt": <FaFilePowerpoint />,
-    ".pptx": <FaFilePowerpoint />,
-    ".zip": <FaFileArchive />,
-    ".rar": <FaFileArchive />,
-    ".html": <FaFileCode />,
-    ".css": <FaFileCode />,
-    ".js": <FaFileCode />,
-    ".ts": <FaFileCode />,
+    "text/plain": <FaFileAlt />,
+    "image/png": <FaFileImage />,
+    "image/jpeg": <FaFileImage />,
+    "application/pdf": <FaFilePdf />,
+    "application/msword": <FaFileWord />,
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": <FaFileWord />,
+    "application/vnd.ms-excel": <FaFileExcel />,
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": <FaFileExcel />,
+    "application/vnd.ms-powerpoint": <FaFilePowerpoint />,
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation": <FaFilePowerpoint />,
+    "application/zip": <FaFileArchive />,
+    "application/x-rar-compressed": <FaFileArchive />,
+    "text/html": <FaFileCode />,
+    "text/css": <FaFileCode />,
+    "application/javascript": <FaFileCode />,
+    "application/typescript": <FaFileCode />,
   };
-  return icons[mimeType ?? ".txt"] || <FaFileAlt />;
+  return icons[mimeType ?? "text/plain"] || <FaFileAlt />;
 }
 
 /** Extract file extension from name. */
@@ -180,7 +169,7 @@ const FileGridItem = ({
         </span>
       ) : (
         <>
-          {getFileIcon(file.encryptedMimeType)} {file.name}
+          {getFileIcon(file.mimeType)} {file.name}
         </>
       )}
     </h3>
@@ -212,7 +201,15 @@ export default function FileExplorer() {
   const [root, setRoot] = useState<Set<string>>(new Set())
   const currentDir = useMemo(() => {
     if (parentId) {
-      return files[parentId].children?.map(f => files[f]);
+      if (files[parentId]) {
+        return files[parentId].children?.map(f => files[f]);
+      } else {
+        setParams(params => {
+          params.delete("parentId");
+          return params;
+        });
+        return [];
+      }
     } else {
       return [...root].map(f => files[f]);
     }
@@ -284,7 +281,7 @@ export default function FileExplorer() {
     try {
       const resp = await API.api.getFileMetadata({
         id: parentId ?? undefined,
-        depth: 1,
+        depth: 3,
         offset: 0,
         limit: 50,
       });
@@ -296,18 +293,27 @@ export default function FileExplorer() {
       const data: FileResponse = await resp.json();
       setRoot(new Set([...root, ...data.root]));
       const tempFiles = { ...files, ...data.files };
-      let queue = data.root || [currentDir];
-      let next: string[] = [];
+      let queue;
+      if (data.root.length) {
+        queue = data.root;
+      } else if (parentId) {
+        queue = [parentId];
+      } else {
+        setLoading(false);
+        return;
+      }
 
       // BFS traversal to decrypt files
       while (queue.length > 0) {
+        let next: string[] = [];
         await Promise.all(queue.map(async (fileId) => {
           const f = tempFiles[fileId];
           let unwrapKey: CryptoKey | undefined | null;
           let unwrapAlgorithm;
           let mimeType;
+          const nonce = base64ToArrayBuffer(f.nonce);
           if (f.parentId) {
-            unwrapAlgorithm = { name: "AES-GCM", iv: base64ToArrayBuffer(f.nonce) } as AesGcmParams;
+            unwrapAlgorithm = { name: "AES-GCM", iv: nonce } as AesGcmParams;
             unwrapKey = files[f.parentId].key;
           } else {
             unwrapAlgorithm = { name: "RSA-OAEP" } as RsaOaepParams;
@@ -316,13 +322,13 @@ export default function FileExplorer() {
           if (!unwrapKey) {
             return;
           }
-          const name = await decryptText(f.encryptedFileName, unwrapKey, unwrapAlgorithm);
-          if (f.encryptedMimeType) {
-            mimeType = await decryptText(f.encryptedMimeType, unwrapKey, unwrapAlgorithm);
-          }
           const key = await unwrapAESKey(f.encryptedKey, unwrapKey, unwrapAlgorithm);
+          const name = await decryptText(f.encryptedFileName, key, nonce);
+          if (f.encryptedMimeType) {
+            mimeType = await decryptText(f.encryptedMimeType, key, nonce);
+          }
           if (f.children) {
-            next = [...next, ...f.children];
+            next.push(...f.children);
           }
           tempFiles[fileId] = { ...f, name, key, mimeType, createdAtDate: new Date(f.createdAt), modifiedAtDate: new Date(f.modifiedAt) };
         }))
@@ -331,6 +337,10 @@ export default function FileExplorer() {
       setFiles(tempFiles);
     } catch (err) {
       console.error("Error fetching files:", err);
+      setParams(params => {
+        params.delete("parentId");
+        return params
+      });
     }
     setLoading(false);
   };
@@ -338,17 +348,17 @@ export default function FileExplorer() {
   // Whenever currentDir or privateKey changes, fetch the files
   useEffect(() => {
     fetchFiles();
-  }, [currentDir, privateKey]);
+  }, [parentId, privateKey]);
 
   /** Sorting + searching. */
   let filteredFiles;
   if (parentId) {
-    filteredFiles = files[parentId].children?.filter((childId) =>
-      files[childId].name?.toLowerCase().includes(search.toLowerCase())
+    filteredFiles = files[parentId]?.children?.filter((childId) =>
+      files[childId]?.name?.toLowerCase().includes(search.toLowerCase())
     ).map(id => files[id])
   } else {
     filteredFiles = [...root].filter((childId) =>
-      files[childId].name?.toLowerCase().includes(search.toLowerCase())
+      files[childId]?.name?.toLowerCase().includes(search.toLowerCase())
     ).map(id => files[id])
   }
   const sortedFiles = filteredFiles?.sort((a, b) => {
@@ -375,7 +385,7 @@ export default function FileExplorer() {
   /** Directory navigation. */
   const handleOpenFolder = (folder: FileMetadata) => {
     if (folder.isDirectory) {
-      setDirStack([...dirStack, ""]);
+      setDirStack([...dirStack, folder.id]);
       setParams((params) => {
         params.set("parentId", folder.id);
         return params;
@@ -384,11 +394,13 @@ export default function FileExplorer() {
   };
   const handleGoBack = () => {
     const stack = [...dirStack];
-    const prev = stack.pop() || null;
+    // Remove the last item from the stack
+    stack.pop();
     setDirStack(stack);
     setParams((params) => {
-      if (prev) {
-        params.set("parentId", prev);
+      const last = stack[stack.length - 1];
+      if (last !== undefined) {
+        params.set("parentId", last);
       } else {
         params.delete("parentId");
       }
@@ -424,8 +436,15 @@ export default function FileExplorer() {
       try {
         const resp = await API.api.deleteFile(file.id);
         if (resp.ok) {
-          alert("File deleted successfully");
-          fetchFiles();
+          const newFiles = { ...files };
+          delete newFiles[file.id];
+          if (file.parentId) {
+            newFiles[file.parentId].children = newFiles[file.parentId].children?.filter((id) => id != file.id);
+          } else {
+            root.delete(file.id);
+            setRoot(root);
+          }
+          setFiles(newFiles);
         } else {
           alert("Error deleting file");
         }
@@ -445,25 +464,32 @@ export default function FileExplorer() {
     const folderName = prompt("Enter new folder name:");
     if (!folderName) return;
     try {
-      const encryptedName = await encryptTextWithPublicKey(userPublicKey, folderName);
+      const [aesKey, nonce] = await generateKeyAndNonce();
+      let parentKey: CryptoKey;
+      let algorithm: AesGcmParams | RsaOaepParams;
+      if (parentId) {
+        parentKey = files[parentId].key as CryptoKey;
+        algorithm = { name: "AES-GCM", iv: nonce }
+      } else {
+        parentKey = userPublicKey;
+        algorithm = { name: "RSA-OAEP" }
+      }
+      const encryptedName = await encryptText(aesKey, folderName, nonce);
       const encryptedNameB64 = btoa(String.fromCharCode(...encryptedName));
+      const encryptedKey = bufferToBase64(await encryptAESKeyWithParentKey(parentKey, aesKey, algorithm));
       const metadata = {
         fileName: folderName,
         encryptedFileName: encryptedNameB64,
-        encryptedKey: "",
-        encryptedMimeType: "",
+        encryptedKey: encryptedKey,
         isDirectory: true,
-        nonce: "",
-        parentId: currentDir,
+        nonce: bufferToBase64(nonce.buffer),
+        parentId,
       };
-      const formData = new FormData();
-      formData.append("metadata", JSON.stringify(metadata));
 
       const resp = await API.api.uploadFile({
         metadata,
       });
       if (resp.ok) {
-        alert("Folder created successfully");
         fetchFiles();
       } else {
         alert("Error creating folder");
@@ -539,7 +565,19 @@ export default function FileExplorer() {
         <header style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <h1 style={styles.title}>Files</h1>
           <div style={styles.controls}>
-            <Upload parentId={parentId} />
+            <Upload
+              parentId={parentId}
+              parentKey={parentId ? files[parentId]?.key : null}
+              onUpload={(file) => {
+                files[file.id] = file;
+                if (file.parentId) {
+                  files[file.parentId].children?.push(file.id);
+                } else {
+                  setRoot(new Set([...root, file.id]))
+                }
+                setFiles(files)
+              }}
+            />
             <input
               type="text"
               placeholder="Search files..."

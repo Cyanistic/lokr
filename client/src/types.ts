@@ -40,7 +40,7 @@ export interface FileMetadata {
     encryptedKey: string;
     isDirectory: boolean;
     nonce: string;
-    parentId?: string;
+    parentId?: string | null;
     key?: CryptoKey;
     name?: string;
     ownerId?: string;
