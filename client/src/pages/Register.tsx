@@ -9,7 +9,7 @@ import {
 import { Button, useTheme } from '@mui/material';
 import { LoginUser } from "../types";
 import { DebouncedState, useDebouncedCallback } from "use-debounce";
-import { BASE_URL, validateEmail } from "../utils";
+import { API, validateEmail } from "../utils";
 
 // Helper function to convert Uint8Array to Base64 safely
 function toBase64(bytes: Uint8Array): string {
@@ -36,7 +36,9 @@ export default function Register() {
     const debounceCheck: { [key in keyof LoginUser]: (DebouncedState<(value: string) => Promise<void>>) | null } =
     {
         username: useDebouncedCallback(async (value: string) => {
-            const usernameRes = await fetch(`${BASE_URL}/api/check?username=${value}`);
+            const usernameRes = await API.api.checkUsage({
+                username: value
+            });
             if (usernameRes.ok) {
                 setError({ ...error, username: null });
             } else {
@@ -46,7 +48,9 @@ export default function Register() {
             , 700),
         password: null,
         email: useDebouncedCallback(async (value: string) => {
-            const emailRes = await fetch(`${BASE_URL}/api/check?email=${value}`);
+            const emailRes = await API.api.checkUsage({
+                email: value
+            });
             if (emailRes.ok) {
                 setError({ ...error, email: null });
             } else {
@@ -155,7 +159,7 @@ export default function Register() {
             console.log("Encrypted Private Key (Base64):", encryptedPrivateKeyBase64);
 
             // Prepare Request Data
-            const body = JSON.stringify({
+            const body = {
                 username: user.username,
                 email: user.email || null,
                 password: hashedPassword,
@@ -163,17 +167,15 @@ export default function Register() {
                 encryptedPrivateKey: encryptedPrivateKeyBase64, // Encrypted private key
                 iv: ivBase64, // IV for decryption
                 publicKey: publicKeyBase64 // Public key (plaintext)
-            });
+            };
             console.log(body);
 
             console.log("Sending payload:", body);
 
             // Send request to backend
-            const response = await fetch(`${BASE_URL}/api/register`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
+            const response = await API.api.createUser(
                 body
-            });
+            );
 
             const responseText = await response.text();
             console.log("Server Response:", responseText);

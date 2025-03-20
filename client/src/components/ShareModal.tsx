@@ -25,9 +25,9 @@ import CloseIcon from "@mui/icons-material/Close";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import { AccountCircle, Link } from "@mui/icons-material";
 import { FileMetadata, PublicUser, ShareLink } from "../types";
-import { importPublicKey, shareFileKey } from "../cryptoFunctions";
+import { bufferToBase64, importPublicKey, shareFileKey } from "../cryptoFunctions";
 import DefaultProfile from "/default-profile.webp";
-import { BASE_URL } from "../utils";
+import { API, BASE_URL } from "../utils";
 
 interface ShareModalProps {
   open: boolean;
@@ -51,7 +51,10 @@ const ShareModal: React.FC<ShareModalProps> = ({ open, onClose, file }) => {
   // Fetch usernames for Autocomplete
   const fetchUsernames = async (query: string) => {
     try {
-      const response = await fetch(`${BASE_URL}/api/users/search/${query}?limit=10&offset=0`);
+      const response = await API.api.searchUsers(query, {
+        limit: 10,
+        offset: 0
+      });
       if (!response.ok) throw new Error("Failed to fetch usernames");
       const data = await response.json();
       setAutocompleteOptions(data);
@@ -91,13 +94,11 @@ const ShareModal: React.FC<ShareModalProps> = ({ open, onClose, file }) => {
     switch (item.type) {
       case "user":
         try {
-          const body: any = {
+          const response = await API.api.deleteSharePermission({
             type: "user",
-            fileId: file?.id,
+            fileId: file?.id as string,
             userId: item.id
-          }
-          const response = await fetch(`${BASE_URL}/api/shared`,
-            { method: "DELETE", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+          });
           const data = await response.json();
           if (!response.ok) throw new Error(`${data.message}`);
           delete fields.users[item.id];
@@ -111,12 +112,10 @@ const ShareModal: React.FC<ShareModalProps> = ({ open, onClose, file }) => {
           if (!item.id) {
             return;
           }
-          const body: any = {
+          const response = await API.api.deleteSharePermission({
             type: "link",
             linkId: item.id
-          }
-          const response = await fetch(`${BASE_URL}/api/shared`,
-            { method: "DELETE", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+          });
           const data = await response.json();
           if (!response.ok) throw new Error(`${data.message}`);
           delete fields.links[item.id];
@@ -129,7 +128,13 @@ const ShareModal: React.FC<ShareModalProps> = ({ open, onClose, file }) => {
 
   const fetchActiveField = async (field: "users" | "links") => {
     try {
-      const response = await fetch(`http://localhost:6969/api/shared/${file?.id}/${field}`);
+      let response;
+      if (field == "users") {
+        response = await API.api.getSharedUsers(file?.id as string);
+      } else {
+        response = await API.api.getSharedLinks(file?.id as string);
+
+      }
       if (!response.ok) throw new Error(`Failed to fetch active ${field}`);
       const data = await response.json();
       setFields({ ...fields, [field]: data });
@@ -148,7 +153,6 @@ const ShareModal: React.FC<ShareModalProps> = ({ open, onClose, file }) => {
 
   // Handle Sharing a File
   const handleShare = async (item: PublicUser | { type: "link" }) => {
-    let body;
     switch (item.type) {
       case "user":
         if (!file?.key) {
@@ -158,18 +162,13 @@ const ShareModal: React.FC<ShareModalProps> = ({ open, onClose, file }) => {
         if (!publicKey) {
           return alert("Error importing user's public key");
         }
-        body = {
-          type: "user",
-          id: file.id,
-          userId: username,
-          encryptedKey: await shareFileKey(file.key, publicKey),
-          edit: true
-        };
         try {
-          const response = await fetch("http://localhost:6969/api/share", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
+          const response = await API.api.shareFile({
+            type: "user",
+            id: file.id,
+            userId: username,
+            encryptedKey: bufferToBase64(await shareFileKey(file.key, publicKey)),
+            edit: permission === "editor"
           });
 
           if (!response.ok) throw new Error("Failed to share file");
@@ -194,18 +193,13 @@ const ShareModal: React.FC<ShareModalProps> = ({ open, onClose, file }) => {
           default:
             expires = 0;
         }
-        body = {
-          type: "link",
-          id: file?.id || "0195A1C4CECF778288E548881A2CB1B0",
-          expires: Math.round(expires),
-          password: password || null,
-          edit: permission === "editor"
-        }
         try {
-          const response = await fetch("http://localhost:6969/api/share", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
+          const response = await API.api.shareFile({
+            type: "link",
+            id: file?.id || "0195A1C4CECF778288E548881A2CB1B0",
+            expires: Math.round(expires),
+            password: password || null,
+            edit: permission === "editor"
           });
 
           if (!response.ok) throw new Error("Failed to share file");

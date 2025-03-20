@@ -33,6 +33,8 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({ avatarUrl, onAvatarChange }
     }
 
     try {
+      // Tried to make this work with the new api but it just doesn't
+      // want to work so let's just leave it like this
       const response = await fetch(`${BASE_URL}/api/profile/upload`, {
         method: "PUT",
         body: file,

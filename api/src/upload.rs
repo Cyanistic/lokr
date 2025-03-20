@@ -80,7 +80,7 @@ pub struct UploadRequest {
     #[schema(content_encoding = "application/json")]
     metadata: UploadMetadata,
     /// The encrypted file data as bytes
-    #[schema(format = Binary, content_media_type = "application/octet-stream")]
+    #[schema(format = Binary, content_media_type = "application/octet-stream", required = false)]
     file: String,
     #[schema(example = "", content_media_type = "text/plain")]
     link_id: Option<String>,

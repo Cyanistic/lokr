@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import AvatarUpload from './ProfileAvatar';
-import { BASE_URL, isValidValue } from '../utils';
+import { API, BASE_URL, isValidValue } from '../utils';
 import DefaultProfile from "/default-profile.webp";
 import { bufferToBase64, deriveKeyFromPassword, encryptPrivateKey, hashPassword } from '../cryptoFunctions';
 import localforage from 'localforage';
 import { useSearchParams } from 'react-router-dom';
-import { UserUpdate } from '../types';
+import { UserUpdate } from '../myApi';
 
 // Valid profile sections 
 const Sections = ["profile", "security", "notifications"] as const;
@@ -28,24 +28,24 @@ function Profile() {
 
   //Fetch User data
   useEffect(() => {
-    fetch(`${BASE_URL}/api/profile`, {
-      credentials: "include",
-    })
-
-      .then((response) => {
+    const getData = async () => {
+      try {
+        const response = await API.api.getLoggedInUser();
         if (!response.ok) {
           throw new Error("Failed to fetch user data");
         }
-        return response.json();
-      })
-      .then((data) => {
-        setUser(data); setAvatarUrl(getAvatarUrl(data))
+        const data = await response.json();
+        setUser(data);
+        setAvatarUrl(getAvatarUrl(data));
         if (data.totpEnabled !== undefined) {
           setTotpStatus(data.totpEnabled); //Store TOTP status
         }
-      })
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
+      } catch (err: any) {
+        setError(err.message);
+      }
+      setLoading(false);
+    }
+    getData()
   }, []);
 
   const getAvatarUrl = (user: { id: string; avatarExtension: string }) => {
@@ -69,12 +69,7 @@ function Profile() {
       const requestBody: RegenerateTOTPRequest = { type: "regenerate", password };
       console.log("Sending TOTP Regenerate Request:", JSON.stringify(requestBody, null, 2));
 
-      const response = await fetch("http://localhost:6969/api/totp", {
-        method: "PUT",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(requestBody),
-      });
+      const response = await API.api.updateTotp(requestBody);
 
       console.log("Response status:", response.status);
 
@@ -118,12 +113,7 @@ function Profile() {
       const requestBody: VerifyTOTPRequest = { type: "verify", code };
       console.log("Verifying TOTP:", JSON.stringify(requestBody, null, 2));
 
-      const response = await fetch("http://localhost:6969/api/totp", {
-        method: "PUT",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(requestBody),
-      });
+      const response = await API.api.updateTotp(requestBody);
 
       console.log("Response status:", response.status);
       if (!response.ok) throw new Error(await response.text());
@@ -151,12 +141,7 @@ function Profile() {
 
       console.log(`Sending TOTP ${enable ? "Enable" : "Disable"} Request:`, JSON.stringify(requestBody, null, 2));
 
-      const response = await fetch("http://localhost:6969/api/totp", {
-        method: "PUT",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(requestBody),
-      });
+      const response = await API.api.updateTotp(requestBody);
 
       console.log("Response status:", response.status);
 
@@ -186,17 +171,20 @@ function Profile() {
   const handleSave = async (field: "username" | "password" | "email") => {
     try {
       const passwordSalt: Uint8Array | null = await localforage.getItem("passwordSalt") as Uint8Array | null;
-      const requestBody: UserUpdate = {
-        type: field,
-        newValue: updatedValue,
-        password: await hashPassword(prompt("Enter your current password to confirm change")!, passwordSalt),
-      };
+      const password = prompt("Enter your current password to confirm change");
+      let requestBody: UserUpdate;
 
-      if (!requestBody.password) {
+      if (!password) {
         throw new Error("Password confirmation is required.");
       }
 
       if (field === "password") {
+        requestBody = {
+          type: "password",
+          newValue: updatedValue,
+          password: await hashPassword(password, passwordSalt),
+          encryptedPrivateKey: "",
+        }
         // Encrypt the user's private key with their new password
         const salt: string | undefined | null = await localforage.getItem("salt");
         const privateKey: CryptoKey | undefined | null = await localforage.getItem("privateKey");
@@ -215,16 +203,17 @@ function Profile() {
         requestBody.encryptedPrivateKey = bufferToBase64(encryptedPrivateKey);
         // Hash the new password for the backend
         requestBody.newValue = await hashPassword(requestBody.newValue, passwordSalt);
+      } else {
+        requestBody = {
+          type: field,
+          newValue: updatedValue,
+          password: await hashPassword(password, passwordSalt),
+        }
       }
 
       console.log("🚀 Sending request:", JSON.stringify(requestBody, null, 2)); // Log formatted request
 
-      const response = await fetch(`${BASE_URL}/api/profile`, {
-        method: "PUT",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(requestBody),
-      });
+      const response = await API.api.updateUser(requestBody);
 
       console.log("🔁 Response status:", response.status); // Log response status
 

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import {Button, useTheme} from '@mui/material';
+import { Button, useTheme } from '@mui/material';
 import { Fab, Tooltip } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
-import {BASE_URL} from '../utils';
+import { API } from '../utils';
 
 export default function Upload() {
 
@@ -20,10 +20,7 @@ export default function Upload() {
   // Function to fetch the user's profile (including the public key) from the server
   const fetchUserProfile = async () => {
     try {
-      const response = await fetch(`${BASE_URL}/api/profile`, {
-        credentials: "include",
-        method: 'GET',
-      });
+      const response = await API.api.getLoggedInUser();
 
       if (response.ok) {
         const data = await response.json();
@@ -191,17 +188,12 @@ export default function Upload() {
         nonce: btoa(String.fromCharCode(...nonce)),
         parentId: null
       };
-      const formData = new FormData();
-      // Convert the metadata object to a JSON string
-      const metadataJSON = JSON.stringify(metadata);
-
-      formData.append('file', encryptedFile);
-      formData.append('metadata', metadataJSON);
 
       try {
-        const response = await fetch(`${BASE_URL}/api/upload`, {
-          method: 'POST',
-          body: formData,
+        const response = await API.api.uploadFile({
+          metadata,
+          //@ts-ignore
+          file: encryptedFile
         });
 
         if (response.ok) {
@@ -237,7 +229,7 @@ export default function Upload() {
 
       <div className="uploadFile">
         <div>
-          <input type="file" id='file-input' style={{display: 'none'}} onChange={handleFileChange} multiple />
+          <input type="file" id='file-input' style={{ display: 'none' }} onChange={handleFileChange} multiple />
           {files.length > 0 && (
             <div>
               <p>Selected {files.length} file(s):</p>
@@ -254,8 +246,8 @@ export default function Upload() {
           {/*<button onClick={handleSubmit}>Upload</button>*/}
           <Button variant="contained" onClick={handleSubmit} style={
             {
-              backgroundColor: theme.palette.mode === 'dark' ? '#2f27ce': '#3a31d8', 
-              color: theme.palette.mode === 'dark' ? '#050316' : '#eae9fc' 
+              backgroundColor: theme.palette.mode === 'dark' ? '#2f27ce' : '#3a31d8',
+              color: theme.palette.mode === 'dark' ? '#050316' : '#eae9fc'
             }
           }>Upload</Button>
 
@@ -267,7 +259,7 @@ export default function Upload() {
               onClick={handleFABClick}
               sx={{ position: 'fixed', bottom: 16, right: 16 }}
             >
-              <AddIcon/>
+              <AddIcon />
             </Fab>
           </Tooltip>
 

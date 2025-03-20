@@ -15,7 +15,7 @@ import {
   FaFileArchive,
   FaFileCode,
 } from "react-icons/fa";
-import { BASE_URL } from "../utils";
+import { API } from "../utils";
 import localforage from "localforage";
 
 
@@ -168,10 +168,7 @@ interface FileItem {
 /** Download raw data from the server (not decrypted). */
 const handleDownload = async (fileId: string) => {
   try {
-    const response = await fetch(`${BASE_URL}/api/file/data/${fileId}`, {
-      method: "GET",
-      credentials: "include",
-    });
+    const response = await API.api.getFile(fileId);
 
     if (!response.ok) {
       throw new Error(`Failed to download file: ${response.statusText}`);
@@ -308,9 +305,7 @@ export default function FileExplorer() {
 
   async function fetchUserProfileAndDecryptKey() {
     try {
-      const resp = await fetch("http://localhost:6969/api/profile", {
-        credentials: "include",
-      });
+      const resp = await API.api.getLoggedInUser();
       if (!resp.ok) {
         console.error("Failed to fetch user profile");
         return;
@@ -362,12 +357,13 @@ export default function FileExplorer() {
 
   const fetchFiles = async () => {
     setLoading(true);
-    let url = "http://localhost:6969/api/file?depth=1&offset=0&limit=50";
-    if (currentDir) {
-      url += `&id=${currentDir}`;
-    }
     try {
-      const resp = await fetch(url, { credentials: "include" });
+      const resp = await API.api.getFileMetadata({
+        id: currentDir ?? undefined,
+        depth: 1,
+        offset: 0,
+        limit: 50,
+      });
       if (!resp.ok) {
         console.error("Error fetching file metadata:", resp.statusText);
         setLoading(false);
@@ -470,17 +466,11 @@ export default function FileExplorer() {
   const handleMove = async (file: FileItem) => {
     const destination = prompt("Enter destination folder id:");
     if (!destination) return;
-    const body = {
-      type: "Move",
-      parent_id: destination,
-      encrypted_key: file.encryptedKey || "",
-    };
     try {
-      const resp = await fetch(`http://localhost:6969/api/file/${file.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(body),
+      const resp = await API.api.updateFile(file.id, {
+        type: "move",
+        parentId: destination,
+        encryptedKey: file.encryptedKey || "",
       });
       if (resp.ok) {
         alert("File moved successfully");
@@ -498,10 +488,7 @@ export default function FileExplorer() {
   const handleDelete = async (file: FileItem) => {
     if (window.confirm(`Are you sure you want to delete "${file.name}"?`)) {
       try {
-        const resp = await fetch(`http://localhost:6969/api/file/${file.id}`, {
-          method: "DELETE",
-          credentials: "include",
-        });
+        const resp = await API.api.deleteFile(file.id);
         if (resp.ok) {
           alert("File deleted successfully");
           fetchFiles();
@@ -538,9 +525,8 @@ export default function FileExplorer() {
       const formData = new FormData();
       formData.append("metadata", JSON.stringify(metadata));
 
-      const resp = await fetch("http://localhost:6969/api/upload", {
-        method: "POST",
-        body: formData,
+      const resp = await API.api.uploadFile({
+        metadata,
       });
       if (resp.ok) {
         alert("Folder created successfully");

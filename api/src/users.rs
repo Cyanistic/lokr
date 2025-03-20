@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, fs::File, io::BufWriter, ops::ControlFlow};
+use std::{cmp::Ordering, fs::File, io::BufWriter, marker::PhantomData, ops::ControlFlow};
 
 use anyhow::anyhow;
 use argon2::{
@@ -1167,11 +1167,15 @@ pub struct AvatarResponse {
     extension: String,
 }
 
+#[derive(ToSchema)]
+#[schema(value_type = String, format = Binary, content_media_type = "application/octet-stream")]
+struct BinaryFile(PhantomData<Vec<u8>>);
+
 #[utoipa::path(
     put,
     path = "/api/profile/upload",
     description = "Upload a profile image",
-    request_body(content = String, description = "The image to upload", content_type = "application/octet-stream"),
+    request_body(content = BinaryFile, description = "The image to upload", content_type = "application/octet-stream"),
     responses(
         (status = OK, description = "Image uploaded successfully", body = AvatarResponse),
         (status = BAD_REQUEST, description = "Invalid image", body = ErrorResponse)
