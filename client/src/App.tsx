@@ -8,7 +8,8 @@ import TestPreviewPage from "./pages/TestPreviewPage";
 import { isAuthenticated, logout } from "./utils.ts";
 import { ProtectedRoute } from "./utils/ProtectedRoute.tsx";
 import React from "react";
-
+import { FaLink, FaShieldAlt, FaLock } from "react-icons/fa";
+import "./SecurityFeatures.css";
 const Profile = React.lazy(() => import("./pages/Profile.tsx"));
 const FileExplorer = React.lazy(() => import("./pages/FileExplorer.tsx"));
 
@@ -31,7 +32,6 @@ function App() {
           />
           <Route path="/home" element={<Home />} />
           <Route path="/about" element={<About />} />
-          <Route path="/downloads" element={<Downloads />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route element={<ProtectedRoute />}>
@@ -77,31 +77,67 @@ function Navigation() {
 
 //Home Page
 function Home() {
+  const features = [
+    {
+      icon: <FaLink size={24} />, 
+      title: "Secure Link Sharing", 
+      description: "Generate secure, expiring links for file sharing with optional password protection."
+    },
+    {
+      icon: <FaShieldAlt size={24} />, 
+      title: "2FA Protection", 
+      description: "Add an extra layer of security with two-factor authentication for your account."
+    },
+    {
+      icon: <FaLock size={24} />, 
+      title: "End-to-End Encryption", 
+      description: "Military-grade encryption ensures your files remain private and secure."
+    }
+  ];
+
   return (
-    <div className="main">
-      <div className="home-main">
-        <h1>Lokr</h1>
-        <img
-          src="https://www.pngall.com/wp-content/uploads/10/Lock-PNG-Images.png"
-          alt="Lokr logo"
-        />
+    <div className = 'main'>
+      <div className='main-home-box'>
+
+        <div className='left-home-box'>
+          <h1>Secure File Sharing <br /> Made <span style={{color: "#81E6D9"}}>Simple</span></h1>
+          <p>Share files with confidence using encryption and
+            advanced privacy features.
+          </p>
+          <div className='home-buttons'>
+            <a href="/register">
+              <button className='b1'>Start Sharing</button>
+            </a>
+            <a href="/about">
+              <button className='b2'>Learn More</button>
+            </a>
+          </div>
+        </div>
+
+
+        <div className='right-home-box'>
+          <Upload />
+        </div>
       </div>
-      <div className="home-body">
-        <b>Encrypted File Sharing Website</b>
-        <b>
-          Upload and share your files securely while maintaining annonimity.
-          Lokr encrypts your files with end-to-end encryption so that only you
-          and people you allow can read the data on your files. No account
-          required to upload and share files.
-        </b>
-        <b>
-          Start uploading your files by clicking the + icon on the bottom right
-          of the screen and pressing the upload button.
-        </b>
-      </div>
-      <div className='upload-box'>
-        <Upload />
-      </div>
+
+      <section className="security-section">
+        <h2 className="security-title">Advanced Security Features</h2>
+        <p className="security-subtitle">Protect your files with industry-leading security measures</p>
+
+        <div className="security-cards">
+
+          {features.map((feature, index) => (
+            <div key={index} className="security-card">
+              <div className="icon-wrapper">{feature.icon}</div>
+              <h3>{feature.title}</h3>
+              <p>{feature.description}</p>
+            </div>
+          ))}
+          
+        </div>
+      </section>
+
+
     </div>
   );
 }
@@ -172,16 +208,6 @@ function About() {
           </p>
         </div>
       </div>
-    </div>
-  );
-}
-
-//Downloads page
-function Downloads() {
-  return (
-    <div className="main">
-      <h1>Download Page</h1>
-      <p>Placeholder for the Download page</p>
     </div>
   );
 }

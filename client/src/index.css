@@ -6,7 +6,7 @@
   color-scheme: light dark;
   color: light-dark(#050316, #eae9fc);
   background-color: #101e6e;
-  background: light-dark(#fbfbfe, #010104);
+  background: light-dark(#fbfbfe, #151C29);
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -16,11 +16,11 @@
 
 a {
   font-weight: 500;
-  color: light-dark(#3a31d8, #2f27ce);
+  color: #81E6D9;
   text-decoration: inherit;
 }
 a:hover {
-  color: #535bf2;
+  color: #8FFFF1;
 }
 
 body {
@@ -96,9 +96,6 @@ button:focus-visible {
   text-align: justify;
 }
 
-.home-main img {
-  width: 250px;
-}
 
 .home-body {
   display: flex;
@@ -107,9 +104,63 @@ button:focus-visible {
   flex-direction: column;
   gap: 20px;
 }
-.home-body b {
-  width: 80%;
-  max-width: 700px;
+
+.main-home-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5%;
+}
+
+.left-home-box {
+  flex: 1;
+  max-width: 50%;
+}
+
+.left-home-box h1 {
+  font-size: 2.5rem;
+  font-weight: bold;
+}
+
+.left-home-box p {
+  font-size: 1rem;
+  margin: 10px 0 20px;
+  color: #bdbdbd;
+}
+
+.home-buttons {
+  display: flex;
+  gap: 15px;
+  flex-direction: row;
+  justify-content: center;
+}
+
+.b1, .b2 {
+  padding: 12px 20px;
+  border-radius: 5px;
+  font-size: 1rem;
+  cursor: pointer;
+  border: none;
+}
+
+.b1 {
+  background-color: #81E6D9;
+  color: #151C29;
+}
+.b2 {
+  background-color: #304B53;
+  color: white;
+}
+
+.right-home-box {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  margin-top: 100px;
+}
+
+.home-buttons a:hover {
+  color: #151C29;
 }
 
 .uploadFile {
