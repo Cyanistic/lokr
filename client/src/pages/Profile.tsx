@@ -87,12 +87,11 @@ function Profile() {
         return;
       }
 
-      const requestBody: RegenerateTOTPRequest = { type: "regenerate", password };
-      console.log("Sending TOTP Regenerate Request:", JSON.stringify(requestBody, null, 2));
-
+      const passwordSalt: Uint8Array | null = await localforage.getItem("passwordSalt");
+      const hashedPassword = await hashPassword(password, passwordSalt);
+      const requestBody: RegenerateTOTPRequest = { type: "regenerate", password: hashedPassword };
+      
       const response = await API.api.updateTotp(requestBody);
-
-      console.log("Response status:", response.status);
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -105,12 +104,8 @@ function Profile() {
       // Ensure the QR code has the correct format
       let qrCode = responseData.qrCode;
       if (!qrCode.startsWith("data:image/png;base64,")) {
-        console.warn("QR Code missing base64 prefix, fixing it...");
         qrCode = `data:image/png;base64,${qrCode}`; // Manually add prefix
       }
-
-      console.log("Final QR Code URL:", qrCode);
-
       setQrCode(qrCode);
 
     } catch (err) {
@@ -155,8 +150,14 @@ function Profile() {
         return;
       }
 
+      const passwordSalt: Uint8Array | null = await localforage.getItem("passwordSalt");
+      if (!passwordSalt){
+        throw new Error("Passsword salt not found");
+      }
+
+      const hashedPassword = await hashPassword(password, passwordSalt);
       const enable = !totpStatus;
-      const requestBody: EnableTOTPRequest = { type: "enable", enable, password };
+      const requestBody: EnableTOTPRequest = { type: "enable", enable, password: hashedPassword };
 
       console.log(`Sending TOTP ${enable ? "Enable" : "Disable"} Request:`, JSON.stringify(requestBody, null, 2));
 
