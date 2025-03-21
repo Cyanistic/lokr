@@ -46,6 +46,7 @@ function Navigation() {
       <Link to="/home">Home</Link>
       <Link to="/about">About Lokr</Link>
       <Link to="/downloads">Downloads</Link>
+      <Link to="profile">Profile</Link>
       {isAuthenticated() ? (
         <Link to="/home" onClick={async (e) => {
           e.preventDefault();

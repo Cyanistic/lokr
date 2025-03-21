@@ -14,6 +14,7 @@ function Profile() {
   type RegenerateTOTPRequest = { type: "regenerate"; password: string };
   type VerifyTOTPRequest = { type: "verify"; code: string };
   type EnableTOTPRequest = { type: "enable"; enable: boolean; password: string };
+  type Session = {number: number; createdAt: string; lastUsedAt: string; userAgent?: string | null; };
 
   const [user, setUser] = useState<{ username: string; email: string | null; id: string; avatarExtension: string | null } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -25,6 +26,7 @@ function Profile() {
   const [params, setParams] = useSearchParams();
   const [avatarUrl, setAvatarUrl] = useState<string>(DefaultProfile);
   const activeSection = isValidValue(params.get("section"), Sections) ?? "profile";
+  const [sessions, setSessions] = useState<Session[]>([]);
 
   //Fetch User data
   useEffect(() => {
@@ -41,11 +43,31 @@ function Profile() {
           setTotpStatus(data.totpEnabled); //Store TOTP status
         }
       } catch (err: any) {
+
         setError(err.message);
       }
       setLoading(false);
     }
     getData()
+  }, []);
+
+  //Fetch Sessions
+  useEffect(() => {
+    fetch(`${BASE_URL}/api/sessions`, {
+      credentials: "include",
+    })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error("Failed to fetch sessions");
+        }
+        return response.json();
+      })
+      .then((sessionData) => {
+        setSessions(sessionData);
+      })
+      .catch((err) => {
+        console.error("Failed to fetch sessions:", err);
+      });
   }, []);
 
   const getAvatarUrl = (user: { id: string; avatarExtension: string }) => {
@@ -159,6 +181,32 @@ function Profile() {
       alert("Failed to update TOTP settings.");
     }
   };
+
+  const handleDeleteSession = async (sessionNumber: number) => {
+    const confirmDelete = confirm("Are you sure you want to delete session #${sessionNumber}?");
+    if (!confirmDelete) return;
+
+    try {
+      const response = await fetch(`${BASE_URL}/api/session/${sessionNumber}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+  
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText);
+      }
+
+      alert("Session deleted");
+
+      //Remove deleted session from the state
+      setSessions(prev => prev.filter(session => session.number !== sessionNumber));
+    } catch (err) {
+      console.error("Error deleting session:", err);
+      alert("Failed to delete session.");
+    }
+  
+  }
 
 
   //Start editing a field
@@ -349,7 +397,48 @@ function Profile() {
             <button onClick={handleEnableTOTP}>
               {totpStatus ? "Disable TOTP" : "Enable TOTP"}
             </button>
+
+            
+              {/* Sessions List */}
+            <div style = {sessionStyles.container}>
+            <h4>Sessions</h4>
+            {sessions.length === 0 ? (
+              <p>No sessions found.</p>
+            ) : (
+              <ul style={sessionStyles.list}>
+                {sessions.map((session, index) => (
+                  <li key={session.number} style={sessionStyles.item}>
+                    <p>
+                      <strong>{index === 0 ? "Current Session" : `Session #${session.number}`}</strong>
+                    </p>
+                    <p><strong>Created:</strong> {new Date(session.createdAt).toLocaleString()}</p>
+                    <p><strong>Last Used:</strong> {new Date(session.lastUsedAt).toLocaleString()}</p>
+                    <p><strong>User Agent:</strong> {session.userAgent || "Unknown"}</p>
+
+                    {/* Delete session button except for current*/}
+                    {index !== 0 && (
+                      <button onClick={() => handleDeleteSession(session.number)}
+                        style={{
+                        marginTop: "10px",
+                        backgroundColor: "#e74c3c",
+                        color: "white",
+                        border: "none",
+                        padding: "6px 12px",
+                        borderRadius: "4px",
+                        cursor: "pointer", 
+                      }}>
+                      Delete Session
+                      </button>
+                    )}
+
+                  </li>
+                ))}
+              </ul>
+            )}
+            </div>
+
           </div>
+          
         );
       case 'notifications':
         return <div>Notifications Settings Section</div>;
@@ -395,6 +484,27 @@ function Profile() {
       color: 'black', // Force text color to black
       overflowY: 'auto',
     }
+  };
+
+  const sessionStyles = {
+    container: {
+      marginTop: "30px",
+      padding: "15px",
+      border: "1px solid #eee",
+      borderRadius: "10px",
+      backgroundColor: "#f9f9f9",
+    },
+    list: {
+      listStyle: "none",
+      paddingLeft: 0,
+    },
+    item: {
+      marginBottom: "15px",
+      padding: "10px",
+      backgroundColor: "#fff",
+      borderRadius: "5px",
+      boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+    },
   };
 
   return (
