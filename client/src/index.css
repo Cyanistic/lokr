@@ -5,7 +5,6 @@
 
   color-scheme: light dark;
   color: light-dark(#050316, #eae9fc);
-  background-color: #101e6e;
   background: light-dark(#fbfbfe, #151C29);
 
   font-synthesis: none;

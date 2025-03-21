@@ -1,0 +1,60 @@
+:root {
+    --background-color: #f5f5f5;
+    --text-color: black;
+    --sidebar-bg: #e2e8f0;
+    --button-bg: #444;
+    --button-hover-bg: #555;
+    --active-bg: #0066cc;
+}
+  
+@media (prefers-color-scheme: dark) {
+    :root {
+      --background-color: #151C29;
+      --text-color: white;
+      --sidebar-bg: #1e293b;
+      --button-bg: #333;
+      --button-hover-bg: #444;
+      --active-bg: #0088ff;
+    }
+}
+
+.profile-container {
+    display: flex;
+    height: 100vh;
+    background-color: var(--background-color);
+}
+  
+.profile-sidebar {
+    width: 250px;
+    background-color: var(--sidebar-bg);
+    padding: 20px;
+    color: var(--text-color);
+    display: flex;
+    flex-direction: column;
+}
+  
+.profile-button {
+    background-color: #304B53;
+    color: white;
+    border: none;
+    padding: 15px;
+    margin-bottom: 10px;
+    text-align: left;
+    font-size: 16px;
+    cursor: pointer;
+    border-radius: 5px;
+    transition: background-color 0.3s;
+}
+  
+.profile-button.active {
+    background-color: #81E6D9;
+    color: #151C29; /* Highlight the active button */
+}
+  
+.profile-content {
+    flex-grow: 1;
+    padding: 20px;
+    background-color: var(--background-color);
+    color: var(--text-color);
+    overflow-y: auto;
+}
