@@ -6,6 +6,7 @@ import { bufferToBase64, deriveKeyFromPassword, encryptPrivateKey, hashPassword 
 import localforage from 'localforage';
 import { useSearchParams } from 'react-router-dom';
 import { UserUpdate } from '../types';
+import "./Profile.css"
 
 // Valid profile sections 
 const Sections = ["profile", "security", "notifications"] as const;
@@ -266,11 +267,9 @@ function Profile() {
           <div className="profileInfo">
             <h3>Profile Information Section</h3>
             <div>
-              <div className='userInfo' style={{ color: 'black' }}>
-                <p style={{ color: 'black' }}><strong>Username:</strong> {user!.username} </p>
-                <p style={{ color: 'black' }}><strong>Email:</strong> {user!.email || "No email provided"}</p>
-                <p style={{ color: 'black' }}><strong>User ID:</strong> {user!.id}</p>
-                <p style={{ color: 'black' }}><strong>Extension:</strong> {user!.avatarExtension || "No extension provided"}</p>
+              <div className='userInfo'>
+                <p ><strong>Username:</strong> {user!.username} </p>
+                <p ><strong>Email:</strong> {user!.email || "No email provided"}</p>
                 <h3>Upload your avatar</h3>
                 <AvatarUpload avatarUrl={avatarUrl} onAvatarChange={(newExt: string) => {
                   setUser({ ...user!, avatarExtension: newExt })
@@ -287,12 +286,12 @@ function Profile() {
                       value={updatedValue}
                       onChange={(e) => setUpdatedValue(e.target.value)}
                     />
-                    <button onClick={() => handleSave("username")}>Save</button>
+                    <button className='b1' onClick={() => handleSave("username")}>Save</button>
                   </>
                 ) : (
                   <>
                     {user!.username}{" "}
-                    <button onClick={() => handleEdit("username", user!.username)}>Edit</button>
+                    <button className='b1' onClick={() => handleEdit("username", user!.username)}>Edit</button>
                   </>
                 )}
               </p>
@@ -306,12 +305,12 @@ function Profile() {
                       value={updatedValue}
                       onChange={(e) => setUpdatedValue(e.target.value)}
                     />
-                    <button onClick={() => handleSave("password")}>Save</button>
+                    <button className='b1'onClick={() => handleSave("password")}>Save</button>
                   </>
                 ) : (
                   <>
                     ••••••••{" "}
-                    <button onClick={() => handleEdit("password", "")}>Change Password</button>
+                    <button className='b1' onClick={() => handleEdit("password", "")}>Change Password</button>
                   </>
                 )}
               </p>
@@ -342,7 +341,7 @@ function Profile() {
               TOTP is currently: <strong>{totpStatus ? "Enabled" : "Disabled"}</strong>
             </p>
 
-            <button onClick={handleRegenerateTOTP}>Regenerate TOTP</button>
+            <button className='b1' onClick={handleRegenerateTOTP}>Regenerate TOTP</button>
 
             {/* Modal for displaying QR code */}
             {qrCode && (
@@ -350,14 +349,14 @@ function Profile() {
                 <div className="modal-content">
                   <h3>Scan the QR code</h3>
                   <img src={qrCode} alt="TOTP QR Code" style={{ width: "250px", height: "250px" }} />
-                  <button onClick={() => setQrCode(null)}>Close</button>
+                  <button className='b1' onClick={() => setQrCode(null)}>Close</button>
                 </div>
               </div>
             )}
 
-            <button onClick={handleVerifyTOTP}>Verify TOTP</button>
+            <button className='b1' onClick={handleVerifyTOTP}>Verify TOTP</button>
 
-            <button onClick={handleEnableTOTP}>
+            <button className='b1' onClick={handleEnableTOTP}>
               {totpStatus ? "Disable TOTP" : "Enable TOTP"}
             </button>
           </div>
@@ -369,56 +368,13 @@ function Profile() {
     }
   };
 
-  // Inline styles
-  const styles: { [key: string]: React.CSSProperties } = {
-    container: {
-      display: 'flex',
-      height: '100vh',
-      backgroundColor: '#f5f5f5',
-    },
-    sidebar: {
-      width: '250px',
-      backgroundColor: '#333',
-      padding: '20px',
-      color: 'white',
-      display: 'flex',
-      flexDirection: 'column',
-    },
-    button: {
-      backgroundColor: '#444',
-      color: 'white',
-      border: 'none',
-      padding: '15px',
-      marginBottom: '10px',
-      textAlign: 'left',
-      fontSize: '16px',
-      cursor: 'pointer',
-      borderRadius: '5px',
-      transition: 'background-color 0.3s',
-    },
-    active: {
-      backgroundColor: '#0066cc', // Highlight the active button
-    },
-    content: {
-      flexGrow: 1,
-      padding: '20px',
-      backgroundColor: 'white', // Ensure background is white
-      color: 'black', // Force text color to black
-      overflowY: 'auto',
-    }
-  };
-
   return (
     <div className='main'>
-      <h2>Profile</h2>
-      <div style={styles.container}>
+      <div className="profile-container">
         {/* Left Sidebar with buttons */}
-        <div style={styles.sidebar}>
+        <div className="profile-sidebar">
           <button
-            style={{
-              ...styles.button,
-              ...(activeSection === 'profile' ? styles.active : {}),
-            }}
+            className={`profile-button ${activeSection === 'profile' ? 'active' : ''}`}
             onClick={() => setParams(prev => {
               prev.set("section", 'profile');
               return prev
@@ -427,10 +383,7 @@ function Profile() {
             Profile Information
           </button>
           <button
-            style={{
-              ...styles.button,
-              ...(activeSection === 'security' ? styles.active : {}),
-            }}
+            className={`profile-button ${activeSection === 'security' ? 'active' : ''}`}
             onClick={() => setParams(prev => {
               prev.set("section", 'security');
               return prev
@@ -439,10 +392,7 @@ function Profile() {
             Security and Privacy
           </button>
           <button
-            style={{
-              ...styles.button,
-              ...(activeSection === 'notifications' ? styles.active : {}),
-            }}
+            className={`profile-button ${activeSection === 'notifications' ? 'active' : ''}`}
             onClick={() => setParams(prev => {
               prev.set("section", 'notifications');
               return prev
@@ -452,20 +402,9 @@ function Profile() {
           </button>
         </div>
         {/* Right content area */}
-        <div style={styles.content}>
+        <div className="profile-content">
           {renderContent()}
         </div>
-      </div>
-      <div className='profileBody'>
-        <div className='profilePicBody'>
-          {/*<input type="file" onChange={getFile}> </input>*/}
-          {/*imageUrl ? (
-            <img src={imageUrl} alt="Profile" style={{ maxWidth: '200px', maxHeight: '200px', marginTop: '10px' }} />
-          ) : (
-            <p>No image selected</p> // Optional message when no image is selected
-          )*/}
-        </div>
-
       </div>
     </div>
 

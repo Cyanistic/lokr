@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import {Button, useTheme} from '@mui/material';
 import { BASE_URL } from "../utils";
 
 type AvatarUploadProps = {
@@ -52,8 +51,6 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({ avatarUrl, onAvatarChange }
 
   };
 
-  const theme = useTheme();
-
   return (
     <div style={{ textAlign: "center" }}>
       <img
@@ -71,7 +68,7 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({ avatarUrl, onAvatarChange }
         />
       </div>
       {error && <p style={{ color: "red", marginBottom: "20px" }}>{error}</p>} {/* Error spacing */}
-      {/*<button
+      <button className="b1"
         onClick={handleUpload}
         style={{
           padding: "10px 20px",
@@ -81,8 +78,8 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({ avatarUrl, onAvatarChange }
         }}
       >
         Upload Avatar
-      </button>*/}
-      <Button variant="contained" 
+      </button>
+      {/*<Button variant="contained" 
         onClick={handleUpload} 
         style={{padding: "10px 20px",
           fontSize: "16px",
@@ -92,7 +89,7 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({ avatarUrl, onAvatarChange }
           color: theme.palette.mode === 'dark' ? '#050316' : '#eae9fc', 
           textTransform: 'none'}}
         >Upload Avatar
-      </Button>
+      </Button>*/}
     </div>
   );
 };

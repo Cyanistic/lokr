@@ -82,8 +82,14 @@
   gap: 1rem;
 }
 
-.profileInfo p {
-  color: black !important;
+.b1 {
+  background-color: #81E6D9;
+  color: #151C29;
+}
+
+.b2 {
+  background-color: #304B53;
+  color: white;
 }
 
 .upload-box{
