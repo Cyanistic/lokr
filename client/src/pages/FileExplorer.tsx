@@ -42,6 +42,8 @@ import { useWindowSize } from "../components/hooks/useWindowSize";
 import { GridMenuIcon } from "@mui/x-data-grid";
 import ShareModal from "../components/ShareModal";
 import FileInfoModal from "../components/FileInfoModal";
+import './FileExplorer.css';
+
 
 /** Convert base64 to ArrayBuffer */
 function base64ToArrayBuffer(base64: string): ArrayBuffer {
@@ -106,7 +108,7 @@ const FileGridItem = ({
   onDelete: (file: FileMetadata) => void;
   onDownload: (file: FileMetadata) => void;
 }) => (
-  <div style={{ ...styles.gridItem, color: "black" }}>
+  <div className="gridItem">
     <h3>
       {file.isDirectory ? (
         <span onClick={() => onOpenFolder(file)} style={{ cursor: "pointer", color: "blue" }}>
