@@ -40,6 +40,10 @@ p {
   color: light-dark(#050316, #eae9fc);
 }
 
+b {
+  color: light-dark(#050316, #eae9fc);
+}
+
 button {
   border-radius: 8px;
   border: 1px solid transparent;
@@ -174,8 +178,5 @@ button:focus-visible {
   }
   a:hover {
     color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
   }
 }

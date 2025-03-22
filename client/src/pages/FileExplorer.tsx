@@ -45,6 +45,7 @@ import ShareModal from "../components/ShareModal";
 import FileInfoModal from "../components/FileInfoModal";
 import FileMoveModal from "../components/FileMoveModal";
 import { BreadcrumbsNavigation } from "../components/BreadcrumbsNavigation";
+import './FileExplorer.css';
 
 /** Return an icon based on file extension. */
 export function getFileIcon(mimeType: string | undefined) {
@@ -120,7 +121,7 @@ const FileGridItem = ({
   onDelete: (file: FileMetadata) => void;
   onDownload: (file: FileMetadata) => void;
 }) => (
-  <div style={{ ...styles.gridItem, color: "black" }}>
+  <div className="gridItem">
     <h3>
       {file.isDirectory ? (
         <span
