@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-//import {Button, useTheme} from '@mui/material';
-//import { Fab, Tooltip } from '@mui/material';
-//import AddIcon from '@mui/icons-material/Add';
 import {BASE_URL} from '../utils';
 import { useDropzone } from "react-dropzone";
 import './Upload.css'
+import { GrUploadOption } from "react-icons/gr";
 
-export default function Upload() {
+interface UploadProps {
+  isOverlay?: boolean;
+  onClose?: () => void;
+}
+
+export default function Upload({ isOverlay = false, onClose }: UploadProps) {
 
   interface FileMetadata {
     name: string;
@@ -18,6 +21,7 @@ export default function Upload() {
   const [uploadStatus, setUploadStatus] = useState<string>('');
   const [userPublicKey, setUserPublicKey] = useState<CryptoKey | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const overlayRef = useRef<HTMLDivElement | null>(null);
 
 
   // Function to fetch the user's profile (including the public key) from the server
@@ -218,17 +222,6 @@ export default function Upload() {
 
   };
 
-  /*const handleFABClick = async () => {
-    const fileInput = document.getElementById('file-input');
-    if (fileInput) {
-      fileInput.click();
-    } else {
-      console.warn('File input element not found');
-    }
-  }*/
-
-  //const theme = useTheme();
-
   const { getRootProps, getInputProps } = useDropzone({
 
     onDrop: (acceptedFiles) => {
@@ -241,12 +234,37 @@ export default function Upload() {
     },
   });
 
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (isOverlay && overlayRef.current && !overlayRef.current.contains(event.target as Node)) {
+        onClose?.();
+      }
+    };
+
+    if (isOverlay) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isOverlay, onClose]);
+
 
   return (
-      <div className="file-upload-container">
+      <div ref={overlayRef} className={isOverlay ? "upload-overlay" : "file-upload-container"}>
+        {isOverlay && (
+          <button className="close-button" onClick={() => onClose?.()}>
+            X
+          </button>
+        )}
         <div {...getRootProps()} className="dropzone">
           <input {...getInputProps()} className="hidden" style={{display: "none"}}/>
-          <p>Drag & Drop Files</p>
+          <div className='dropzone-text'>
+            <div className='upload-icon'><GrUploadOption size={30} /></div>
+            <p>Drag & Drop Files</p>
+            <p style={{fontSize:14, color: "gray"}}>Max File Size: 1GB</p>
+          </div>
         </div>
         <input
           type="file"
@@ -277,49 +295,8 @@ export default function Upload() {
             </button>
           )}
         </div>
-      {/*
-      <div className="uploadFile">
-        <div>
-          <input type="file" id='file-input' style={{display: 'none'}} onChange={handleFileChange} multiple />
-          {files.length > 0 && (
-            <div>
-              <p>Selected {files.length} file(s):</p>
-              <ul>
-                {files.map((file, index) => (
-                  <li key={index}>
-                    {fileMeta.find(meta => meta.name === file.name)?.isDirectory ? 'Folder: ' : 'File: '}
-                    {file.name}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {/*<button onClick={handleSubmit}>Upload</button>}
-          <Button variant="contained" onClick={handleSubmit} style={
-            {
-              backgroundColor: theme.palette.mode === 'dark' ? '#2f27ce': '#3a31d8', 
-              color: theme.palette.mode === 'dark' ? '#050316' : '#eae9fc' 
-            }
-          }>Upload</Button>
-
-          {/* Tooltip for FAB }
-          <Tooltip title="Upload File" aria-label="upload">
-            <Fab
-              color="primary"
-              aria-label="upload"
-              onClick={handleFABClick}
-              sx={{ position: 'fixed', bottom: 16, right: 16 }}
-            >
-              <AddIcon/>
-            </Fab>
-          </Tooltip>
-
-          {/* Display the upload status }
-        </div>
+        {uploadStatus && <p>{uploadStatus}</p>}
       </div>
-      */}
-      {uploadStatus && <p>{uploadStatus}</p>}
-    </div>
   );
 
 }

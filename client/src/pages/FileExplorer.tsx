@@ -17,6 +17,7 @@ import {
 } from "react-icons/fa";
 import { BASE_URL } from "../utils";
 import localforage from "localforage";
+import './FileExplorer.css';
 
 
 /** Convert base64 to ArrayBuffer */
@@ -208,11 +209,11 @@ const FileRow = ({
   onMove: (file: FileItem) => void;
   onDelete: (file: FileItem) => void;
 }) => (
-  <tr style={styles.tableRow}>
-    <td style={styles.tableCell}>
+  <tr className="tableRow">
+    <td className="tableCell">
       {file.isDirectory ? (
-        <span onClick={() => onOpenFolder(file)} style={{ cursor: "pointer", color: "blue" }}>
-          <FaFolder /> {file.name}
+        <span onClick={() => onOpenFolder(file)} style={{ cursor: "pointer"}}>
+          <FaFolder color="#f3f32b"/> {file.name}
         </span>
       ) : (
         <>
@@ -220,30 +221,30 @@ const FileRow = ({
         </>
       )}
     </td>
-    <td style={styles.tableCell}>
+    <td className="tableCell">
       {new Date(file.createdAt).toLocaleDateString("en-US", {
         year: "numeric",
         month: "short",
         day: "numeric",
       })}
     </td>
-    <td style={styles.tableCell}>
+    <td className="tableCell">
       {new Date(file.modifiedAt).toLocaleDateString("en-US", {
         year: "numeric",
         month: "short",
         day: "numeric",
       })}
     </td>
-    <td style={styles.tableCell}>{file.fileType}</td>
-    <td style={styles.tableCell}>
+    <td className="tableCell">{file.fileType}</td>
+    <td className="tableCell">
       {!file.isDirectory && (
         <>
-          <button onClick={() => onDecrypt(file)}>Decrypt</button>
-          <button onClick={() => onMove(file)}>Move</button>
-          <button onClick={() => handleDownload(file.id)}>Download</button>
+          <button className="b2" onClick={() => onDecrypt(file)}>Decrypt</button>
+          <button className="b2" onClick={() => onMove(file)}>Move</button>
+          <button className="b2" onClick={() => handleDownload(file.id)}>Download</button>
         </>
       )}
-      <button onClick={() => onDelete(file)}>Delete</button>
+      <button className="b2" onClick={() => onDelete(file)}>Delete</button>
     </td>
   </tr>
 );
@@ -262,11 +263,11 @@ const FileGridItem = ({
   onMove: (file: FileItem) => void;
   onDelete: (file: FileItem) => void;
 }) => (
-  <div style={{ ...styles.gridItem, color: "black" }}>
+  <div className="gridItem">
     <h3>
       {file.isDirectory ? (
-        <span onClick={() => onOpenFolder(file)} style={{ cursor: "pointer", color: "blue" }}>
-          <FaFolder /> {file.name}
+        <span onClick={() => onOpenFolder(file)}>
+          <FaFolder color="#f3f32b"/> {file.name}
         </span>
       ) : (
         <>
@@ -279,12 +280,12 @@ const FileGridItem = ({
     <p>Type: {file.fileType}</p>
     {!file.isDirectory && (
       <div>
-        <button onClick={() => onDecrypt(file)}>Decrypt</button>
-        <button onClick={() => onMove(file)}>Move</button>
-        <button onClick={() => handleDownload(file.id)}>Download</button>
+        <button className="b2" onClick={() => onDecrypt(file)}>Decrypt</button>
+        <button className="b2" onClick={() => onMove(file)}>Move</button>
+        <button className="b2" onClick={() => handleDownload(file.id)}>Download</button>
       </div>
     )}
-    <button onClick={() => onDelete(file)}>Delete</button>
+    <button className="b2" onClick={() => onDelete(file)}>Delete</button>
   </div>
 );
 
@@ -304,6 +305,8 @@ export default function FileExplorer() {
   // The user's decrypted private key and public key
   const [privateKey, setPrivateKey] = useState<CryptoKey | null>(null);
   const [userPublicKey, setUserPublicKey] = useState<CryptoKey | null>(null);
+
+  const [showUpload, setShowUpload] = useState(false);
 
 
   async function fetchUserProfileAndDecryptKey() {
@@ -555,12 +558,12 @@ export default function FileExplorer() {
   };
 
   return (
-    <div style={styles.container}>
-      <aside style={styles.sidebar}>
+    <div className="container">
+      <aside className="sidebar">
         <h2>My Drive</h2>
-        <ul style={styles.navList}>
+        <ul className="navList">
           <li
-            style={styles.navItem}
+            className="navItem"
             onClick={() => {
               setCurrentDir(null);
               setDirStack([]);
@@ -568,37 +571,39 @@ export default function FileExplorer() {
           >
             <FaFolder /> My Files
           </li>
-          <li style={styles.navItem}>
+          <li className="navItem">
             <FaUsers /> Shared with me
           </li>
-          <li style={styles.navItem}>
+          <li className="navItem">
             <FaClock /> Recent
           </li>
           {dirStack.length > 0 && (
-            <li style={styles.navItem} onClick={handleGoBack}>
+            <li className="navItem" onClick={handleGoBack}>
               ← Back
             </li>
           )}
         </ul>
       </aside>
-      <main style={styles.mainContent}>
+      <main className="mainContent">
         <header style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <h1 style={styles.title}>Files</h1>
-          <button onClick={handleCreateFolder} style={styles.newFolderButton}>
+          <h1 className="title">Files</h1>
+          <button className="newFolderButton" onClick={handleCreateFolder}>
             New Folder
           </button>
-          <div style={styles.controls}>
-            <Upload />
+          <div className="controls">
+            {/*<Upload />*/}
+            <button className="b1" onClick={() => setShowUpload(true)}>Upload File</button>
+            {showUpload && <Upload isOverlay={true} onClose={() => setShowUpload(false)} />}
             <input
               type="text"
               placeholder="Search files..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              style={styles.searchBar}
+              className="searchBar"
             />
             <button
               onClick={() => setViewMode(viewMode === "list" ? "grid" : "list")}
-              style={styles.toggleButton}
+              className="toggleButton"
             >
               {viewMode === "list" ? <FaTh /> : <FaList />} Toggle View
             </button>
@@ -607,29 +612,29 @@ export default function FileExplorer() {
         {loading ? (
           <p>Loading files...</p>
         ) : viewMode === "list" ? (
-          <table style={{ ...styles.table, borderCollapse: "collapse" }}>
+          <table className="table">
             <thead>
-              <tr style={styles.tableHeader}>
-                <th style={styles.tableHeaderCell}>
+              <tr className="tableHeader">
+                <th className="tableHeaderCell">
                   Name{" "}
-                  <button onClick={() => handleSort("name")} style={styles.sortButton}>
+                  <button onClick={() => handleSort("name")} className="sortButton">
                     {sortBy === "name" ? (sortOrder === "asc" ? " ↑" : " ↓") : " ↕"}
                   </button>
                 </th>
-                <th style={styles.tableHeaderCell}>
+                <th className="tableHeaderCell">
                   Created At{" "}
-                  <button onClick={() => handleSort("createdAt")} style={styles.sortButton}>
+                  <button onClick={() => handleSort("createdAt")} className="sortButton">
                     {sortBy === "createdAt" ? (sortOrder === "asc" ? " ↑" : " ↓") : " ↕"}
                   </button>
                 </th>
-                <th style={styles.tableHeaderCell}>
+                <th className="tableHeaderCell">
                   Modified At{" "}
-                  <button onClick={() => handleSort("modifiedAt")} style={styles.sortButton}>
+                  <button onClick={() => handleSort("modifiedAt")} className="sortButton">
                     {sortBy === "modifiedAt" ? (sortOrder === "asc" ? " ↑" : " ↓") : " ↕"}
                   </button>
                 </th>
-                <th style={styles.tableHeaderCell}>Type</th>
-                <th style={styles.tableHeaderCell}>Actions</th>
+                <th className="tableHeaderCell">Type</th>
+                <th className="tableHeaderCell">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -646,7 +651,7 @@ export default function FileExplorer() {
             </tbody>
           </table>
         ) : (
-          <div style={styles.gridContainer}>
+          <div className="gridContainer">
             {sortedFiles.map((file) => (
               <FileGridItem
                 key={file.id}
@@ -664,107 +669,3 @@ export default function FileExplorer() {
   );
 }
 
-/** Styles. */
-const styles = {
-  container: {
-    display: "flex",
-    height: "100vh",
-    backgroundColor: "#f8f9fa",
-  },
-  sidebar: {
-    width: "250px",
-    padding: "20px",
-    backgroundColor: "#fff",
-    boxShadow: "2px 0px 5px rgba(0,0,0,0.1)",
-  },
-  navList: {
-    listStyle: "none",
-    padding: 0,
-  },
-  navItem: {
-    padding: "10px",
-    display: "flex",
-    alignItems: "center",
-    gap: "10px",
-    cursor: "pointer",
-  },
-  mainContent: {
-    flex: 1,
-    padding: "20px",
-  },
-  title: {
-    color: "black",
-    fontSize: "2rem",
-    fontWeight: "bold",
-    marginBottom: "10px",
-  },
-  controls: {
-    display: "flex",
-    alignItems: "center",
-    gap: "10px",
-    marginBottom: "20px",
-    flex: 1,
-  },
-  searchBar: {
-    flex: 1,
-    padding: "8px",
-    borderRadius: "4px",
-    border: "1px solid #ccc",
-  },
-  toggleButton: {
-    padding: "5px 10px",
-    cursor: "pointer",
-    borderRadius: "4px",
-    border: "none",
-    backgroundColor: "#007bff",
-    color: "white",
-  },
-  newFolderButton: {
-    padding: "5px 10px",
-    cursor: "pointer",
-    borderRadius: "4px",
-    border: "1px solid #007bff",
-    backgroundColor: "white",
-    color: "#007bff",
-    marginRight: "10px",
-  },
-  table: {
-    width: "100%",
-    marginTop: "20px",
-  },
-  tableHeader: {
-    backgroundColor: "#f1f1f1",
-  },
-  tableHeaderCell: {
-    padding: "10px",
-    textAlign: "left" as const,
-  },
-  tableCell: {
-    padding: "10px",
-    textAlign: "left" as const,
-  },
-  tableRow: {
-    borderBottom: "1px solid #ddd",
-    height: "40px",
-  },
-  sortButton: {
-    background: "none",
-    border: "none",
-    cursor: "pointer",
-    marginLeft: "5px",
-  },
-  gridContainer: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))",
-    gap: "10px",
-    marginTop: "20px",
-  },
-  gridItem: {
-    padding: "10px",
-    border: "1px solid #ccc",
-    borderRadius: "4px",
-    backgroundColor: "#fff",
-    textAlign: "center" as const,
-    color: "black",
-  },
-};
