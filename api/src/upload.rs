@@ -784,8 +784,6 @@ pub struct FileResponse {
     pub users: HashMap<Uuid, PublicUser>,
     #[schema(example = "123e4567-e89b-12d3-a456-426614174000")]
     pub root: Vec<Uuid>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub ancestors: Option<Vec<FileMetadata>>,
 }
 #[utoipa::path(
     get,
@@ -959,33 +957,7 @@ pub async fn get_file_metadata(
         .fetch_all(&state.pool);
         // Run both database queries concurrently
         let (query, ancestor_query) = tokio::try_join!(query, ancestor_query)?;
-        let ancestors: Vec<FileMetadata> = ancestor_query
-            .into_iter()
-            .map(|row| FileMetadata {
-                id: row.id,
-                created_at: row.created_at.and_utc(),
-                modified_at: row.modified_at.and_utc(),
-                owner_id: row.owner_id,
-                uploader_id: row.uploader_id,
-                upload: UploadMetadata {
-                    encrypted_file_name: row.encrypted_name,
-                    encrypted_mime_type: row.mime,
-                    encrypted_key: row.encrypted_key,
-                    nonce: row.nonce,
-                    is_directory: row.is_directory,
-                    parent_id: row.parent_id,
-                },
-                children: Vec::new(),
-            })
-            .collect();
-        (query, Some(ancestors))
-    } else {
-        (query.await?, None)
-    };
-    // Convert the query result into a tree structure
-    let (files, root) = query
-        .into_iter()
-        .map(|row| FileMetadata {
+        let ancestors = ancestor_query.into_iter().map(|row| FileMetadata {
             id: row.id,
             created_at: row.created_at.and_utc(),
             modified_at: row.modified_at.and_utc(),
@@ -1000,7 +972,31 @@ pub async fn get_file_metadata(
                 parent_id: row.parent_id,
             },
             children: Vec::new(),
-        })
+        });
+        (query, Some(ancestors))
+    } else {
+        (query.await?, None)
+    };
+    // Convert the query result into a tree structure
+    let (files, root) = ancestors
+        .into_iter()
+        .flatten()
+        .chain(query.into_iter().map(|row| FileMetadata {
+            id: row.id,
+            created_at: row.created_at.and_utc(),
+            modified_at: row.modified_at.and_utc(),
+            owner_id: row.owner_id,
+            uploader_id: row.uploader_id,
+            upload: UploadMetadata {
+                encrypted_file_name: row.encrypted_name,
+                encrypted_mime_type: row.mime,
+                encrypted_key: row.encrypted_key,
+                nonce: row.nonce,
+                is_directory: row.is_directory,
+                parent_id: row.parent_id,
+            },
+            children: Vec::new(),
+        }))
         .normalize();
     if params.id.is_some() && files.is_empty() {
         Err(AppError::UserError((
@@ -1011,7 +1007,6 @@ pub async fn get_file_metadata(
         Ok((
             StatusCode::OK,
             Json(FileResponse {
-                ancestors,
                 users: get_file_users(&state.pool, &files).await?,
                 files,
                 root,
