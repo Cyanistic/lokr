@@ -32,6 +32,7 @@ import {
 import { useSearchParams } from "react-router-dom";
 import { FileMetadata, FileResponse } from "../types";
 import { useErrorToast } from "../components/ErrorToastProvider";
+import FileSearch from "../components/FileSearch";
 
 /** Convert base64 to ArrayBuffer */
 function base64ToArrayBuffer(base64: string): ArrayBuffer {
@@ -45,7 +46,7 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
 }
 
 /** Return an icon based on file extension. */
-function getFileIcon(mimeType: string | undefined) {
+export function getFileIcon(mimeType: string | undefined) {
   const icons: Record<string, JSX.Element> = {
     "text/plain": <FaFileAlt />,
     "image/png": <FaFileImage />,
@@ -64,7 +65,11 @@ function getFileIcon(mimeType: string | undefined) {
     "application/javascript": <FaFileCode />,
     "application/typescript": <FaFileCode />,
   };
-  return icons[mimeType ?? "text/plain"] || <FaFileAlt />;
+  if (mimeType) {
+    return icons[mimeType ?? "text/plain"] || <FaFileAlt />;
+  } else {
+    return <FaFolder style={{ cursor: "pointer", color: "blue" }} />
+  }
 }
 
 /** Extract file extension from name. */
@@ -187,7 +192,6 @@ const FileGridItem = ({
 
 /** Main FileExplorer Component. */
 export default function FileExplorer() {
-  const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<"name" | "createdAt" | "modifiedAt">("name");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
@@ -296,33 +300,14 @@ export default function FileExplorer() {
         return;
       }
       const data: FileResponse = await resp.json();
-      setRoot(new Set([...root, ...data.root]));
+      setRoot(new Set(data.root));
       const tempFiles = { ...files, ...data.files };
       let queue: string[] = [];
       const stack = [];
-      if (data.ancestors) {
-        stack.push(...data.ancestors);
-      }
-      if (parentId) {
-        stack.push(tempFiles[parentId]);
-      }
-      setDirStack(stack);
-      if (data.ancestors?.length && parentId && data.ancestors?.length > 0) {
-        for (const [k, f] of (data.ancestors as FileMetadata[]).entries()) {
-          if (k == 0) {
-            queue = [f.id];
-          }
-          tempFiles[f.id] = f;
-          if (k + 1 < data.ancestors.length) {
-            tempFiles[f.id].children = [data.ancestors[k + 1].id];
-          } else {
-            tempFiles[f.id].children = [parentId];
-          }
-        }
+      if (data.root.length) {
+        queue = data.root;
       } else if (parentId) {
         queue = [parentId];
-      } else if (data.root.length) {
-        queue = data.root;
       } else {
         setLoading(false);
         return;
@@ -330,9 +315,11 @@ export default function FileExplorer() {
 
       // BFS traversal to decrypt files
       let times = 0;
+      let found = false;
       while (queue.length > 0) {
         let next: string[] = [];
         await Promise.allSettled(queue.map(async (fileId) => {
+          found ||= fileId === parentId;
           const f = tempFiles[fileId];
           let unwrapKey: CryptoKey | undefined | null;
           let unwrapAlgorithm;
@@ -359,9 +346,16 @@ export default function FileExplorer() {
           }
           tempFiles[fileId] = { ...f, name, key, mimeType, createdAtDate: new Date(f.createdAt), modifiedAtDate: new Date(f.modifiedAt) };
         }))
+        if (!found && parentId) {
+          stack.push(tempFiles[queue[0]]);
+        }
         times += 1;
         queue = next;
       }
+      if (parentId) {
+        stack.push(tempFiles[parentId]);
+      }
+      setDirStack(stack);
       setFiles(tempFiles);
     } catch (err) {
       console.error("Error fetching files:", err);
@@ -383,9 +377,7 @@ export default function FileExplorer() {
 
   /** Sorting + searching. */
   let filteredFiles;
-  filteredFiles = currentDir?.filter((child) =>
-    child.name?.toLowerCase().includes(search.toLowerCase())
-  )
+  filteredFiles = currentDir;
   const sortedFiles = filteredFiles?.sort((a, b) => {
     let comparison = 0;
     if (sortBy === "name") {
@@ -609,13 +601,7 @@ export default function FileExplorer() {
                 setFiles(tempFiles)
               }}
             />
-            <input
-              type="text"
-              placeholder="Search files..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              style={styles.searchBar}
-            />
+            <FileSearch loading={loading} files={files} onNavigateToPath={() => { }} />
             <button
               onClick={() => setViewMode(viewMode === "list" ? "grid" : "list")}
               style={styles.toggleButton}
