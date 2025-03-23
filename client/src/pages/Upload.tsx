@@ -6,6 +6,7 @@ import { API } from '../utils';
 import { FileMetadata } from '../types';
 import { UploadResponse } from '../myApi';
 import { encryptAESKeyWithParentKey, encryptText, generateKeyAndNonce } from '../cryptoFunctions';
+import { useErrorToast } from '../components/ErrorToastProvider';
 
 interface Props {
   parentId?: string | null;
@@ -24,6 +25,7 @@ export default function Upload({ parentId, parentKey, onUpload }: Props) {
   const [fileMeta, setFileMeta] = useState<FileMetadata[]>([]);
   const [uploadStatus, setUploadStatus] = useState<string>('');
   const [userPublicKey, setUserPublicKey] = useState<CryptoKey | null>(null);
+  const { showError } = useErrorToast();
 
 
   // Function to fetch the user's profile (including the public key) from the server
@@ -31,17 +33,14 @@ export default function Upload({ parentId, parentKey, onUpload }: Props) {
     try {
       const response = await API.api.getLoggedInUser();
 
-      if (response.ok) {
-        const data = await response.json();
-        const publicKeyPem = data.publicKey; // Assuming the public key is in the profile data
+      if (!response.ok) throw response.error;
+      const data = await response.json();
+      const publicKeyPem = data.publicKey; // Assuming the public key is in the profile data
 
-        const cryptoKey = await importPublicKey(publicKeyPem);
-        setUserPublicKey(cryptoKey); // Store the user's public key
-      } else {
-        console.error('Failed to fetch user profile');
-      }
+      const cryptoKey = await importPublicKey(publicKeyPem);
+      setUserPublicKey(cryptoKey); // Store the user's public key
     } catch (error) {
-      console.error('Error fetching user profile:', error);
+      showError('Error fetching user profile.', error);
     }
   };
 
@@ -127,15 +126,15 @@ export default function Upload({ parentId, parentKey, onUpload }: Props) {
 
 
     if (files.length === 0) {
-      console.log('No file selected');
-      setUploadStatus('No file selected');
+      setUploadStatus("");
+      showError("No file selected.");
       return;
     }
 
     // Ensure public key is loaded before proceeding
     if (!userPublicKey) {
-      console.error('User public key not loaded');
-      setUploadStatus('User public key not loaded');
+      setUploadStatus("");
+      showError('Could not upload file. User public key not loaded.');
       return;
     }
 
@@ -185,32 +184,27 @@ export default function Upload({ parentId, parentKey, onUpload }: Props) {
           file: encryptedFile
         });
 
-        if (response.ok) {
-          const data: UploadResponse = await response.json();
-          console.log('File uploaded successfully');
-          setUploadStatus('File uploaded successfully!');
-          const createdAtDate = new Date();
-          const modifiedAtDate = new Date();
-          if (onUpload) {
-            onUpload({
-              ...metadata,
-              createdAtDate,
-              modifiedAtDate,
-              id: data.id,
-              createdAt: createdAtDate.toDateString(),
-              modifiedAt: modifiedAtDate.toDateString(),
-              key: aesKey,
-              name: file.name,
-              mimeType: file.type,
-            })
-          }
-        } else {
-          console.log('File upload failed');
-          setUploadStatus('File upload failed. Please try again.');
+        if (!response.ok) throw response.error;
+        const data: UploadResponse = await response.json();
+        console.log('File uploaded successfully');
+        setUploadStatus('File uploaded successfully!');
+        const createdAtDate = new Date();
+        const modifiedAtDate = new Date();
+        if (onUpload) {
+          onUpload({
+            ...metadata,
+            createdAtDate,
+            modifiedAtDate,
+            id: data.id,
+            createdAt: createdAtDate.toDateString(),
+            modifiedAt: modifiedAtDate.toDateString(),
+            key: aesKey,
+            name: file.name,
+            mimeType: file.type,
+          })
         }
       } catch (error) {
-        console.error('Error during file upload', error);
-        setUploadStatus('Error during file upload.');
+        showError('Error during file upload.', error);
       }
 
     }
