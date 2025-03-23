@@ -94,7 +94,8 @@ export type FileMetadata = UploadMetadata & {
 };
 
 export interface FileResponse {
-  /** @example {"123e4567-e89b-12d3-a456-426614174000":{"children":["21f981a7-d21f-4aa5-9f6b-09005235236a"],"createdAt":"2025-03-20T03:04:05.491371245Z","encryptedFileName":"encryptedFileName","encryptedKey":"encryptedKey","encryptedMimeType":"encryptedMimeType","id":"123e4567-e89b-12d3-a456-426614174000","isDirectory":true,"modifiedAt":"2025-03-20T03:04:05.491371245Z","nonce":"exampleNonce","ownerId":"dae2b0f0-d84b-42c8-aebd-58a71ee1fb86","uploaderId":"dae2b0f0-d84b-42c8-aebd-58a71ee1fb86"},"21f981a7-d21f-4aa5-9f6b-09005235236a":{"createdAt":"2025-03-20T03:04:05.491371245Z","encryptedFileName":"encryptedFileName","encryptedKey":"encryptedKey","encryptedMimeType":"encryptedMimeType","id":"21f981a7-d21f-4aa5-9f6b-09005235236a","isDirectory":false,"modifiedAt":"2025-03-20T03:04:05.491371245Z","nonce":"exampleNonce","ownerId":"dae2b0f0-d84b-42c8-aebd-58a71ee1fb86","parentId":"123e4567-e89b-12d3-a456-426614174000","uploaderId":"dae2b0f0-d84b-42c8-aebd-58a71ee1fb86"}} */
+  ancestors?: any[] | null;
+  /** @example {"123e4567-e89b-12d3-a456-426614174000":{"children":["21f981a7-d21f-4aa5-9f6b-09005235236a"],"createdAt":"2025-03-23T02:05:34.492955664Z","encryptedFileName":"encryptedFileName","encryptedKey":"encryptedKey","encryptedMimeType":"encryptedMimeType","id":"123e4567-e89b-12d3-a456-426614174000","isDirectory":true,"modifiedAt":"2025-03-23T02:05:34.492955664Z","nonce":"exampleNonce","ownerId":"dae2b0f0-d84b-42c8-aebd-58a71ee1fb86","uploaderId":"dae2b0f0-d84b-42c8-aebd-58a71ee1fb86"},"21f981a7-d21f-4aa5-9f6b-09005235236a":{"createdAt":"2025-03-23T02:05:34.492955664Z","encryptedFileName":"encryptedFileName","encryptedKey":"encryptedKey","encryptedMimeType":"encryptedMimeType","id":"21f981a7-d21f-4aa5-9f6b-09005235236a","isDirectory":false,"modifiedAt":"2025-03-23T02:05:34.492955664Z","nonce":"exampleNonce","ownerId":"dae2b0f0-d84b-42c8-aebd-58a71ee1fb86","parentId":"123e4567-e89b-12d3-a456-426614174000","uploaderId":"dae2b0f0-d84b-42c8-aebd-58a71ee1fb86"}} */
   files: Record<string, FileMetadata>;
   /** @example "123e4567-e89b-12d3-a456-426614174000" */
   root: string[];
@@ -779,6 +780,11 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
          * @default 50
          */
         limit: number;
+        /**
+         * Whether to include the ancestors of the
+         * chain of the file in the response
+         */
+        includeAncestors?: boolean;
       },
       params: RequestParams = {},
     ) =>
@@ -1087,6 +1093,11 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
          * @default 50
          */
         limit: number;
+        /**
+         * Whether to include the ancestors of the
+         * chain of the file in the response
+         */
+        includeAncestors?: boolean;
       },
       params: RequestParams = {},
     ) =>
@@ -1209,6 +1220,11 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
          * @default 50
          */
         limit: number;
+        /**
+         * Whether to include the ancestors of the
+         * chain of the file in the response
+         */
+        includeAncestors?: boolean;
       },
       data: string | null,
       params: RequestParams = {},

@@ -56,4 +56,5 @@ export interface FileResponse {
     users: Record<string, PublicUser>;
     files: Record<string, FileMetadata>;
     root: string[];
+    ancestors?: FileMetadata[];
 }

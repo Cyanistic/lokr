@@ -105,7 +105,12 @@ pub async fn get_file_users(
         }
         acc
     });
-    let mut builder: QueryBuilder<'_, Sqlite> = QueryBuilder::new("SELECT id, username, email, public_key, avatar AS avatar_extension, NULL AS password_salt FROM user WHERE id IN (");
+    let mut builder: QueryBuilder<'_, Sqlite> = QueryBuilder::new(
+        r#"
+        SELECT id, username, email, public_key,
+        avatar AS avatar_extension, NULL AS password_salt
+        FROM user WHERE id IN ("#,
+    );
     let mut separated = builder.separated(", ");
     for user in &user_set {
         separated.push_bind(user);

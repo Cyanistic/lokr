@@ -289,24 +289,24 @@ pub async fn get_user_shared_file(
     if params.id.is_some() {
         let access_query = sqlx::query_scalar!(
             r#"
-        WITH RECURSIVE ancestors AS (
-            SELECT
-                id,
-                parent_id
-            FROM file
-            WHERE id = ?  -- the file we're checking
-            UNION ALL
-            SELECT
-                f.id,
-                f.parent_id
-            FROM file f
-            JOIN ancestors a ON f.id = a.parent_id
-        )
-        SELECT COUNT(*)
-        FROM share_user
-        WHERE user_id = ? AND
-        file_id IN (SELECT id FROM ancestors);
-        "#,
+            WITH RECURSIVE ancestors AS (
+                SELECT
+                    id,
+                    parent_id
+                FROM file
+                WHERE id = ?  -- the file we're checking
+                UNION ALL
+                SELECT
+                    f.id,
+                    f.parent_id
+                FROM file f
+                JOIN ancestors a ON f.id = a.parent_id
+            )
+            SELECT COUNT(*)
+            FROM share_user
+            WHERE user_id = ? AND
+            file_id IN (SELECT id FROM ancestors);
+            "#,
             params.id,
             user.id,
         )
@@ -404,8 +404,114 @@ pub async fn get_user_shared_file(
         params.limit,
         params.offset
     )
-    .fetch_all(&state.pool)
-    .await?;
+    .fetch_all(&state.pool);
+
+    // If the user has requested to include ancestors, we need to run a second query
+    // We want to speed up computation, so if the user requests ancestors
+    // then run the query to get them concurrently with the main query
+    let (query, ancestors) = if params.include_ancestors {
+        let ancestor_query = sqlx::query!(
+            r#"
+            WITH RECURSIVE ancestors AS (
+              -- Anchor member: start at the requested file.
+              SELECT
+                0 AS depth,
+                f.id,
+                -- If the file is directly shared (joined via share_user), hide its parent_id.
+                IIF(su.file_id IS NOT NULL, NULL, f.parent_id) AS parent_id,
+                f.encrypted_name,
+                COALESCE(su.encrypted_key, f.encrypted_key) AS encrypted_key,
+                f.nonce,
+                f.owner_id,
+                f.uploader_id,
+                f.is_directory,
+                f.mime,
+                f.size,
+                f.created_at,
+                f.modified_at,
+                -- Mark whether this file is directly shared.
+                IIF(su.file_id IS NOT NULL, 1, 0) AS directly_shared
+              FROM file f
+              LEFT JOIN share_user su
+                ON f.id = su.file_id AND su.user_id = ?  -- parameter: current user's id
+              WHERE f.id = ?                              -- parameter: requested file id
+                AND (su.user_id IS NULL OR su.user_id = ?)
+                AND f.owner_id != ?                       -- parameter: current user's id
+
+              UNION ALL
+
+              -- Recursive member: get ancestors only if the previous file was not directly shared.
+              SELECT
+                a.depth + 1 AS depth,
+                f.id,
+                IIF(su.file_id IS NOT NULL, NULL, f.parent_id) AS parent_id,
+                f.encrypted_name,
+                f.encrypted_key,
+                f.nonce,
+                f.owner_id,
+                f.uploader_id,
+                f.is_directory,
+                f.mime,
+                f.size,
+                f.created_at,
+                f.modified_at,
+                IIF(su.file_id IS NOT NULL, 1, 0) AS directly_shared
+              FROM file f
+              JOIN ancestors a ON f.id = a.parent_id
+              LEFT JOIN share_user su
+                ON f.id = su.file_id AND su.user_id = ?  -- parameter: current user's id again
+              WHERE a.directly_shared = 0
+            )
+            SELECT 
+                depth AS "depth!: u32",
+                id AS "id: Uuid",
+                parent_id AS "parent_id: Uuid", 
+                encrypted_name, 
+                encrypted_key, 
+                owner_id AS "owner_id: Uuid",
+                uploader_id AS "uploader_id: Uuid",
+                nonce, 
+                is_directory AS "is_directory!",
+                mime,
+                size,
+                created_at,
+                modified_at
+            FROM ancestors
+            WHERE depth > 0
+            ORDER BY depth DESC
+        "#,
+            user.id,
+            params.id,
+            user.id,
+            user.id,
+            user.id
+        )
+        .fetch_all(&state.pool);
+        // Run both database queries concurrently
+        let (query, ancestor_query) = tokio::try_join!(query, ancestor_query)?;
+        let ancestors: Vec<FileMetadata> = ancestor_query
+            .into_iter()
+            .map(|row| FileMetadata {
+                id: row.id,
+                created_at: row.created_at.and_utc(),
+                modified_at: row.modified_at.and_utc(),
+                owner_id: row.owner_id,
+                uploader_id: row.uploader_id,
+                upload: UploadMetadata {
+                    encrypted_file_name: row.encrypted_name,
+                    encrypted_mime_type: row.mime,
+                    encrypted_key: row.encrypted_key,
+                    nonce: row.nonce,
+                    is_directory: row.is_directory,
+                    parent_id: row.parent_id,
+                },
+                children: Vec::new(),
+            })
+            .collect();
+        (query, Some(ancestors))
+    } else {
+        (query.await?, None)
+    };
 
     // Convert the query result into a tree structure
     let (files, root) = query
@@ -436,6 +542,7 @@ pub async fn get_user_shared_file(
         Ok((
             StatusCode::OK,
             Json(FileResponse {
+                ancestors,
                 users: get_file_users(&state.pool, &files).await?,
                 files,
                 root,
@@ -622,8 +729,113 @@ pub async fn get_link_shared_file(
         params.limit,
         params.offset
     )
-    .fetch_all(&state.pool)
-    .await?;
+    .fetch_all(&state.pool);
+
+    // If the user has requested to include ancestors, we need to run a second query
+    // We want to speed up computation, so if the user requests ancestors
+    // then run the query to get them concurrently with the main query
+    let (query, ancestors) = if params.include_ancestors {
+        let ancestor_query = sqlx::query!(
+            r#"
+                WITH RECURSIVE ancestors AS (
+                -- Anchor: start from the requested file
+                SELECT
+                    0 AS depth,
+                    f.id,
+                    -- If this file is directly shared, do not leak its parent.
+                    IIF(sl.file_id IS NOT NULL, NULL, f.parent_id) AS parent_id,
+                    f.encrypted_name,
+                    f.encrypted_key,
+                    f.nonce,
+                    f.owner_id,
+                    f.uploader_id,
+                    f.is_directory,
+                    f.mime,
+                    f.size,
+                    f.created_at,
+                    f.modified_at,
+                    IIF(sl.file_id IS NOT NULL, 1, 0) AS directly_shared
+                FROM file f
+                LEFT JOIN share_link sl 
+                    ON f.id = sl.file_id 
+                    AND sl.id = ?                             -- Parameter: share_link id
+                    AND (sl.expires_at IS NULL OR DATETIME(sl.expires_at) >= CURRENT_TIMESTAMP)
+                WHERE f.id = ?                              -- Parameter: requested file id
+
+                UNION ALL
+
+                -- Recursive: walk upward only if the previous row was not directly shared.
+                SELECT
+                    a.depth + 1 AS depth,
+                    f.id,
+                    IIF(sl.file_id IS NOT NULL, NULL, f.parent_id) AS parent_id,
+                    f.encrypted_name,
+                    f.encrypted_key,
+                    f.nonce,
+                    f.owner_id,
+                    f.uploader_id,
+                    f.is_directory,
+                    f.mime,
+                    f.size,
+                    f.created_at,
+                    f.modified_at,
+                    IIF(sl.file_id IS NOT NULL, 1, 0) AS directly_shared
+                FROM file f
+                JOIN ancestors a ON f.id = a.parent_id
+                LEFT JOIN share_link sl 
+                    ON f.id = sl.file_id 
+                    AND sl.id = ?                             -- Parameter: share_link id (again)
+                    AND (sl.expires_at IS NULL OR DATETIME(sl.expires_at) >= CURRENT_TIMESTAMP)
+                WHERE a.directly_shared = 0
+            )
+            SELECT 
+                depth AS "depth!: u32",
+                id AS "id: Uuid",
+                parent_id AS "parent_id: Uuid", 
+                encrypted_name, 
+                encrypted_key, 
+                owner_id AS "owner_id: Uuid",
+                uploader_id AS "uploader_id: Uuid",
+                nonce, 
+                is_directory AS "is_directory!",
+                mime,
+                size,
+                created_at,
+                modified_at
+            FROM ancestors
+            WHERE depth > 0
+            ORDER BY depth DESC
+        "#,
+            link_id,
+            params.id,
+            link_id
+        )
+        .fetch_all(&state.pool);
+        // Run both database queries concurrently
+        let (query, ancestor_query) = tokio::try_join!(query, ancestor_query)?;
+        let ancestors: Vec<FileMetadata> = ancestor_query
+            .into_iter()
+            .map(|row| FileMetadata {
+                id: row.id,
+                created_at: row.created_at.and_utc(),
+                modified_at: row.modified_at.and_utc(),
+                owner_id: row.owner_id,
+                uploader_id: row.uploader_id,
+                upload: UploadMetadata {
+                    encrypted_file_name: row.encrypted_name,
+                    encrypted_mime_type: row.mime,
+                    encrypted_key: row.encrypted_key,
+                    nonce: row.nonce,
+                    is_directory: row.is_directory,
+                    parent_id: row.parent_id,
+                },
+                children: Vec::new(),
+            })
+            .collect();
+        (query, Some(ancestors))
+    } else {
+        (query.await?, None)
+    };
 
     // Convert the query result into a tree structure
     let (files, root) = query
@@ -657,6 +869,7 @@ pub async fn get_link_shared_file(
             AppendHeaders(vec![])
         },
         Json(FileResponse {
+            ancestors,
             users: get_file_users(&state.pool, &files).await?,
             files,
             root,

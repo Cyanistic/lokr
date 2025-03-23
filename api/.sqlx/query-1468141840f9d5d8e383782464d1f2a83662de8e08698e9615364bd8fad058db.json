@@ -1,0 +1,92 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            WITH RECURSIVE ancestors AS (\n                -- Anchor member (root or specified node)\n                SELECT \n                    0 AS depth,\n                    id, \n                    parent_id, \n                    encrypted_name, \n                    encrypted_key, \n                    owner_id,\n                    uploader_id,\n                    nonce, \n                    is_directory, \n                    mime,\n                    size,\n                    created_at,\n                    modified_at\n                FROM file\n                WHERE \n                owner_id = ? AND\n                id = ?\n                UNION ALL\n                \n                -- Recursive member\n                SELECT \n                    a.depth + 1,\n                    f.id, \n                    f.parent_id, \n                    f.encrypted_name, \n                    f.encrypted_key, \n                    f.owner_id,\n                    f.uploader_id,\n                    f.nonce, \n                    f.is_directory, \n                    f.mime,\n                    f.size,\n                    f.created_at,\n                    f.modified_at\n                FROM file f\n                JOIN ancestors a ON f.id = a.parent_id\n            )\n            SELECT \n                depth AS \"depth!: u32\",\n                id AS \"id: Uuid\",\n                parent_id AS \"parent_id: Uuid\", \n                encrypted_name, \n                encrypted_key, \n                owner_id AS \"owner_id: Uuid\",\n                uploader_id AS \"uploader_id: Uuid\",\n                nonce, \n                is_directory AS \"is_directory!\",\n                mime,\n                size,\n                created_at,\n                modified_at\n            FROM ancestors\n            WHERE depth > 0\n            ORDER BY depth DESC\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "depth!: u32",
+        "ordinal": 0,
+        "type_info": "Null"
+      },
+      {
+        "name": "id: Uuid",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "parent_id: Uuid",
+        "ordinal": 2,
+        "type_info": "Blob"
+      },
+      {
+        "name": "encrypted_name",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "encrypted_key",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "owner_id: Uuid",
+        "ordinal": 5,
+        "type_info": "Blob"
+      },
+      {
+        "name": "uploader_id: Uuid",
+        "ordinal": 6,
+        "type_info": "Blob"
+      },
+      {
+        "name": "nonce",
+        "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "is_directory!",
+        "ordinal": 8,
+        "type_info": "Bool"
+      },
+      {
+        "name": "mime",
+        "ordinal": 9,
+        "type_info": "Text"
+      },
+      {
+        "name": "size",
+        "ordinal": 10,
+        "type_info": "Integer"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 11,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "modified_at",
+        "ordinal": 12,
+        "type_info": "Datetime"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      null,
+      false,
+      true,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "1468141840f9d5d8e383782464d1f2a83662de8e08698e9615364bd8fad058db"
+}
