@@ -6,6 +6,7 @@ import { bufferToBase64, deriveKeyFromPassword, encryptPrivateKey, hashPassword 
 import localforage from 'localforage';
 import { useSearchParams } from 'react-router-dom';
 import { UserUpdate } from '../myApi';
+import { useErrorToast } from '../components/ErrorToastProvider';
 
 // Valid profile sections 
 const Sections = ["profile", "security", "notifications"] as const;
@@ -17,7 +18,6 @@ function Profile() {
   type Session = {number: number; createdAt: string; lastUsedAt: string; userAgent?: string | null; };
 
   const [user, setUser] = useState<{ username: string; email: string | null; id: string; avatarExtension: string | null } | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [editingField, setEditingField] = useState<string | null>(null);
   const [updatedValue, setUpdatedValue] = useState<string>("");
   const [qrCode, setQrCode] = useState<string | null>(null);
@@ -27,15 +27,14 @@ function Profile() {
   const [avatarUrl, setAvatarUrl] = useState<string>(DefaultProfile);
   const activeSection = isValidValue(params.get("section"), Sections) ?? "profile";
   const [sessions, setSessions] = useState<Session[]>([]);
+  const { showError } = useErrorToast();
 
   //Fetch User data
   useEffect(() => {
     const getData = async () => {
       try {
         const response = await API.api.getLoggedInUser();
-        if (!response.ok) {
-          throw new Error("Failed to fetch user data");
-        }
+        if (!response.ok) throw response.error;
         const data = await response.json();
         setUser(data);
         setAvatarUrl(getAvatarUrl(data));
@@ -43,8 +42,7 @@ function Profile() {
           setTotpStatus(data.totpEnabled); //Store TOTP status
         }
       } catch (err: any) {
-
-        setError(err.message);
+        showError("Failed to fetch user data. Please try again.", err);
       }
       setLoading(false);
     }
@@ -84,7 +82,7 @@ function Profile() {
     try {
       const password = prompt("Enter your current password:");
       if (!password) {
-        alert("Password is required!");
+        showError("Password is required!");
         return;
       }
 
@@ -96,8 +94,7 @@ function Profile() {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("Server Error:", errorText);
-        alert(`Error: ${errorText}`);
+        showError("Server Error", errorText);
         return;
       }
       const responseData = await response.json();
@@ -112,7 +109,7 @@ function Profile() {
 
     } catch (err) {
       console.error("Error regenerating TOTP:", err);
-      alert("Failed to regenerate TOTP.");
+      showError("Failed to regenerate TOTP.");
     }
   };
 
@@ -123,7 +120,7 @@ function Profile() {
     try {
       const code = prompt("Enter the 6-digit TOTP code:");
       if (!code) {
-        alert("TOTP code is required!");
+        showError("TOTP code is required!");
         return;
       }
 
@@ -133,12 +130,11 @@ function Profile() {
       const response = await API.api.updateTotp(requestBody);
 
       console.log("Response status:", response.status);
-      if (!response.ok) throw new Error(await response.text());
+      if (!response.ok) throw response.error;
 
-      alert("TOTP verified successfully! You can now enable TOTP.");
+      showError("TOTP verified successfully! You can now enable TOTP.");
     } catch (err) {
-      console.error("Error verifying TOTP:", err);
-      alert("Failed to verify TOTP. Please check the code and try again.");
+      showError("Failed to verify TOTP. Please check the code and try again.", err);
     }
   };
 
@@ -149,7 +145,7 @@ function Profile() {
     try {
       const password = prompt("Enter your current password:");
       if (!password) {
-        alert("Password is required!");
+        showError("Password is required!");
         return;
       }
 
@@ -171,15 +167,15 @@ function Profile() {
       if (!response.ok) {
         const errorText = await response.text();
         console.error("Server Error:", errorText);
-        alert(`Error: ${errorText}`);
+        showError(`Error: ${errorText}`);
         return;
       }
 
-      alert(`TOTP ${enable ? "enabled" : "disabled"} successfully!`);
+      showError(`TOTP ${enable ? "enabled" : "disabled"} successfully!`);
       setTotpStatus(enable); //Updates status UI
     } catch (err) {
       console.error("Error toggling TOTP:", err);
-      alert("Failed to update TOTP settings.");
+      showError("Failed to update TOTP settings.");
     }
   };
 
@@ -275,8 +271,7 @@ function Profile() {
       setUser({ ...user!, [field]: updatedValue });
       setEditingField(null);
     } catch (err) {
-      console.error("Error:", err);
-      setError(`Error updating ${field}: ${err instanceof Error ? err.message : "Unknown error"}`);
+      showError(`Error updating ${field}: ${err instanceof Error ? err.message : "Unknown error"}`, err);
     }
   };
 
@@ -294,12 +289,12 @@ function Profile() {
             </div>
           )
         }
-        if (error) {
-          <div className="profileInfo">
-            <h3>Security and Privacy Section</h3>
-            <p style={{ color: "red" }}>Error: {error}</p>
-          </div>
-        }
+        // if (error) {
+        //   <div className="profileInfo">
+        //     <h3>Security and Privacy Section</h3>
+        //     <p style={{ color: "red" }}>Error: {error}</p>
+        //   </div>
+        // }
         return (
           <div className="profileInfo">
             <h3>Profile Information Section</h3>
@@ -366,12 +361,12 @@ function Profile() {
             </div>
           )
         }
-        if (error) {
-          <div className="profileInfo">
-            <h3>Security and Privacy Section</h3>
-            <p style={{ color: "red" }}>Error: {error}</p>
-          </div>
-        }
+        // if (error) {
+        //   <div className="profileInfo">
+        //     <h3>Security and Privacy Section</h3>
+        //     <p style={{ color: "red" }}>Error: {error}</p>
+        //   </div>
+        // }
         return (
           <div className="profileInfo">
             <h3>Security and Privacy Section</h3>
