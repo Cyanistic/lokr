@@ -31,6 +31,7 @@ import {
 } from "../cryptoFunctions";
 import { useSearchParams } from "react-router-dom";
 import { FileMetadata, FileResponse } from "../types";
+import { useErrorToast } from "../components/ErrorToastProvider";
 
 /** Convert base64 to ArrayBuffer */
 function base64ToArrayBuffer(base64: string): ArrayBuffer {
@@ -77,9 +78,7 @@ const handleDownload = async (fileId: string) => {
   try {
     const response = await API.api.getFile(fileId);
 
-    if (!response.ok) {
-      throw new Error(`Failed to download file: ${response.statusText}`);
-    }
+    if (!response.ok) throw response.error;
 
     // Convert response to a Blob
     const blob = await response.blob();
@@ -94,7 +93,7 @@ const handleDownload = async (fileId: string) => {
     document.body.removeChild(link);
     window.URL.revokeObjectURL(url);
   } catch (error) {
-    console.error("Error downloading file:", error);
+    console.error("Error downloading file. Please try again.", error);
   }
 };
 
@@ -200,6 +199,7 @@ export default function FileExplorer() {
   const [files, setFiles] = useState<Record<string, FileMetadata>>({});
   const [root, setRoot] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true);
+  const { showError } = useErrorToast();
 
   const currentDir = useMemo(() => {
     if (parentId) {
@@ -443,14 +443,14 @@ export default function FileExplorer() {
         encryptedKey: file.encryptedKey || "",
       });
       if (resp.ok) {
-        alert("File moved successfully");
+        showError("File moved successfully");
         fetchFiles();
       } else {
-        alert("Error moving file");
+        showError("Error moving file");
       }
     } catch (err) {
       console.error("Error moving file:", err);
-      alert("Error moving file");
+      showError("Error moving file");
     }
   };
 
@@ -470,11 +470,11 @@ export default function FileExplorer() {
           }
           setFiles(newFiles);
         } else {
-          alert("Error deleting file");
+          showError("Error deleting file");
         }
       } catch (err) {
         console.error("Error deleting file:", err);
-        alert("Error deleting file");
+        showError("Error deleting file");
       }
     }
   };
@@ -482,7 +482,7 @@ export default function FileExplorer() {
   /** Create a new folder by encrypting the name with the public key. */
   const handleCreateFolder = async () => {
     if (!userPublicKey) {
-      alert("User public key not loaded");
+      showError("User public key not loaded");
       return;
     }
     const folderName = prompt("Enter new folder name:");
@@ -522,17 +522,17 @@ export default function FileExplorer() {
       if (resp.ok) {
         fetchFiles();
       } else {
-        alert("Error creating folder");
+        showError("Error creating folder");
       }
     } catch (err) {
       console.error("Error creating folder:", err);
-      alert("Error creating folder");
+      showError("Error creating folder");
     }
   };
 
   /** Handle "Upload File" option from the dropdown as a placeholder. */
   function handleNewUploadFile() {
-    alert("File upload logic goes here.");
+    showError("File upload logic goes here.");
     setIsNewMenuOpen(false);
   }
 

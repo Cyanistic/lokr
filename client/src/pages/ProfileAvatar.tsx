@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import {Button, useTheme} from '@mui/material';
+import { Button, useTheme } from '@mui/material';
 import { BASE_URL } from "../utils";
+import { useErrorToast } from "../components/ErrorToastProvider";
 
 type AvatarUploadProps = {
   avatarUrl: string;
@@ -10,6 +11,7 @@ type AvatarUploadProps = {
 const AvatarUpload: React.FC<AvatarUploadProps> = ({ avatarUrl, onAvatarChange }) => {
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { showError } = useErrorToast();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files ? e.target.files[0] : null;
@@ -21,14 +23,14 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({ avatarUrl, onAvatarChange }
         setFile(selectedFile);
         setError(null); // Reset error if file type is valid
       } else {
-        setError("Please upload a PNG or JPG file.");
+        showError("Please upload a PNG or JPG file.");
       }
     }
   };
 
   const handleUpload = async () => {
     if (!file) {
-      setError("No file selected.");
+      showError("No file selected. Please select an avatar image to upload.");
       return;
     }
 
@@ -40,16 +42,12 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({ avatarUrl, onAvatarChange }
         body: file,
       });
 
-      if (!response.ok) {
-        throw new Error("Failed to upload the image. Please try again.");
-      }
+      if (!response.ok) throw await response.json();
 
       const data: { extension: string } = await response.json();
       onAvatarChange(data.extension);
-      // onAvatarChange(`${getAvatarUrl(user!.id, data.extension)}?v=${Math.random()}`)
-      setError(null);
     } catch (err: any) {
-      setError(err.message || "An unknown error occurred.");
+      showError("Failed to upload the image. Please try again.", err);
     }
 
   };
@@ -84,16 +82,18 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({ avatarUrl, onAvatarChange }
       >
         Upload Avatar
       </button>*/}
-      <Button variant="contained" 
-        onClick={handleUpload} 
-        style={{padding: "10px 20px",
+      <Button variant="contained"
+        onClick={handleUpload}
+        style={{
+          padding: "10px 20px",
           fontSize: "16px",
           cursor: "pointer",
-          marginTop: "10px", 
-          backgroundColor: theme.palette.mode === 'dark' ? '#2f27ce': '#3a31d8', 
-          color: theme.palette.mode === 'dark' ? '#050316' : '#eae9fc', 
-          textTransform: 'none'}}
-        >Upload Avatar
+          marginTop: "10px",
+          backgroundColor: theme.palette.mode === 'dark' ? '#2f27ce' : '#3a31d8',
+          color: theme.palette.mode === 'dark' ? '#050316' : '#eae9fc',
+          textTransform: 'none'
+        }}
+      >Upload Avatar
       </Button>
     </div>
   );

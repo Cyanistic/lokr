@@ -28,6 +28,7 @@ import { FileMetadata, PublicUser, ShareLink } from "../types";
 import { bufferToBase64, importPublicKey, shareFileKey } from "../cryptoFunctions";
 import DefaultProfile from "/default-profile.webp";
 import { API, BASE_URL } from "../utils";
+import { useErrorToast } from "./ErrorToastProvider";
 
 interface ShareModalProps {
   open: boolean;
@@ -47,6 +48,7 @@ const ShareModal: React.FC<ShareModalProps> = ({ open, onClose, file }) => {
   const [fields, setFields] = useState<{ users: { [id: string]: PublicUser }, links: { [id: string]: ShareLink } }>({ users: {}, links: {} })
   const [duration, setDuration] = useState<number>(1);
   const [copyToast, setCopyToast] = useState(false);
+  const { showError } = useErrorToast();
 
   // Fetch usernames for Autocomplete
   const fetchUsernames = async (query: string) => {
@@ -55,11 +57,11 @@ const ShareModal: React.FC<ShareModalProps> = ({ open, onClose, file }) => {
         limit: 10,
         offset: 0
       });
-      if (!response.ok) throw new Error("Failed to fetch usernames");
+      if (!response.ok) throw response.error;
       const data = await response.json();
       setAutocompleteOptions(data);
     } catch (error) {
-      console.error("Error fetching usernames:", error);
+      showError("Error fetching usernames.", error);
       setAutocompleteOptions([]);
     }
   };
@@ -99,12 +101,11 @@ const ShareModal: React.FC<ShareModalProps> = ({ open, onClose, file }) => {
             fileId: file?.id as string,
             userId: item.id
           });
-          const data = await response.json();
-          if (!response.ok) throw new Error(`${data.message}`);
+          if (!response.ok) throw response.error;
           delete fields.users[item.id];
           setFields(fields);
         } catch (error) {
-          console.error(`Failed to revoke permissions for ${item.username}`, error);
+          showError(`Failed to revoke permissions for ${item.username}`, error);
         }
         break;
       case "link":
@@ -116,12 +117,11 @@ const ShareModal: React.FC<ShareModalProps> = ({ open, onClose, file }) => {
             type: "link",
             linkId: item.id
           });
-          const data = await response.json();
-          if (!response.ok) throw new Error(`${data.message}`);
+          if (!response.ok) throw response.error;
           delete fields.links[item.id];
           setFields(fields);
         } catch (error) {
-          console.error(`Failed to revoke permissions for ${item.id}`, error);
+          showError(`Failed to revoke permissions for ${item.id}`, error);
         }
     }
   }
@@ -135,11 +135,11 @@ const ShareModal: React.FC<ShareModalProps> = ({ open, onClose, file }) => {
         response = await API.api.getSharedLinks(file?.id as string);
 
       }
-      if (!response.ok) throw new Error(`Failed to fetch active ${field}`);
+      if (!response.ok) throw response.error;
       const data = await response.json();
       setFields({ ...fields, [field]: data });
     } catch (error) {
-      console.error(`Failed to fetch active ${field}`, error);
+      showError(`Failed to fetch active ${field}`, error);
     }
   };
 
@@ -156,11 +156,11 @@ const ShareModal: React.FC<ShareModalProps> = ({ open, onClose, file }) => {
     switch (item.type) {
       case "user":
         if (!file?.key) {
-          return alert("No decrypted file key");
+          return showError("No decrypted file key");
         };
         const publicKey = await importPublicKey(item.publicKey);
         if (!publicKey) {
-          return alert("Error importing user's public key");
+          return showError("Error importing user's public key");
         }
         try {
           const response = await API.api.shareFile({
@@ -171,10 +171,10 @@ const ShareModal: React.FC<ShareModalProps> = ({ open, onClose, file }) => {
             edit: permission === "editor"
           });
 
-          if (!response.ok) throw new Error("Failed to share file");
-          alert("File shared successfully!");
+          if (!response.ok) throw response.error;
+          showError("File shared successfully!");
         } catch (error) {
-          console.error("Error sharing file:", error);
+          showError("Error sharing file. Please try again.", error);
         }
         break;
 
@@ -202,14 +202,14 @@ const ShareModal: React.FC<ShareModalProps> = ({ open, onClose, file }) => {
             edit: permission === "editor"
           });
 
-          if (!response.ok) throw new Error("Failed to share file");
+          if (!response.ok) throw response.error;
           let linkData = await response.json();
           linkData.createdAt = new Date(linkData.createdAt);
           linkData.modifiedAt = new Date(linkData.modifiedAt);
           linkData.id = linkData.linkId;
           setFields({ ...fields, links: { ...fields.links, [linkData.id]: linkData } })
         } catch (error) {
-          console.error("Error sharing file:", error);
+          showError("Error sharing file. Please try again.", error);
         }
         break;
     }
@@ -221,7 +221,7 @@ const ShareModal: React.FC<ShareModalProps> = ({ open, onClose, file }) => {
     const linkToShare = `${window.location.protocol}//${window.location.host}/share?linkId=${linkId}`; // Replace with dynamic link generation if needed
     navigator.clipboard.writeText(linkToShare).then(
       () => setCopyToast(true),
-      (err) => console.error("Failed to copy link:", err)
+      (err) => showError("Failed to copy link. Please try again.", err)
     );
   };
 
