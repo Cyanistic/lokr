@@ -3,7 +3,7 @@ import { createContext, useContext, useState, type ReactNode } from "react"
 import { Snackbar, Alert } from "@mui/material"
 
 type ErrorToastContextType = {
-  showError: (message: string, duration?: number) => void
+  showError: (message: string, ...consoleMessage: any[]) => void
 }
 
 const ErrorToastContext = createContext<ErrorToastContextType | undefined>(undefined)
@@ -23,13 +23,12 @@ type ErrorToastProviderProps = {
 export function ErrorToastProvider({ children }: ErrorToastProviderProps) {
   const [open, setOpen] = useState(false)
   const [message, setMessage] = useState("")
-  const [duration, setDuration] = useState(6000) // Default 6 seconds
+  const [duration, _] = useState(6000) // Default 6 seconds
 
-  const showError = (errorMessage: string, errorDuration?: number) => {
+  const showError = (errorMessage: string, ...consoleMessage: any[]) => {
     setMessage(errorMessage)
-    console.error(errorMessage);
-    if (errorDuration) {
-      setDuration(errorDuration)
+    if (consoleMessage.length) {
+      console.error(errorMessage, consoleMessage);
     }
     setOpen(true)
   }

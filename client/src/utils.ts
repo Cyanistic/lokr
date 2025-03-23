@@ -42,7 +42,7 @@ export async function fetchUsernames(
     offset,
   });
   if (!response.ok)
-    throw new Error(`Failed to fetch usernames: ${await response.text()}`);
+    throw response.error;
   return await response.json();
 }
 
