@@ -199,23 +199,27 @@ export default function FileExplorer() {
   // The list of items in the current directory
   const [files, setFiles] = useState<Record<string, FileMetadata>>({});
   const [root, setRoot] = useState<Set<string>>(new Set())
+  const [loading, setLoading] = useState(true);
+
   const currentDir = useMemo(() => {
     if (parentId) {
       if (files[parentId]) {
         return files[parentId].children?.map(f => files[f]);
       } else {
-        setParams(params => {
-          params.delete("parentId");
-          return params;
-        });
+        if (!loading) {
+          setParams(params => {
+            params.delete("parentId");
+            return params;
+          });
+        }
         return [];
       }
     } else {
       return [...root].map(f => files[f]);
     }
-  }, [parentId]);
-  const [dirStack, setDirStack] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
+  }, [files, parentId, loading]);
+
+  const [dirStack, setDirStack] = useState<FileMetadata[]>([]);
 
   // The user's decrypted private key and public key
   const [privateKey, setPrivateKey] = useState<CryptoKey | null>(null);
@@ -281,9 +285,10 @@ export default function FileExplorer() {
     try {
       const resp = await API.api.getFileMetadata({
         id: parentId ?? undefined,
-        depth: 3,
+        depth: 1,
         offset: 0,
         limit: 50,
+        includeAncestors: true
       });
       if (!resp.ok) {
         console.error("Error fetching file metadata:", resp.statusText);
@@ -293,20 +298,41 @@ export default function FileExplorer() {
       const data: FileResponse = await resp.json();
       setRoot(new Set([...root, ...data.root]));
       const tempFiles = { ...files, ...data.files };
-      let queue;
-      if (data.root.length) {
-        queue = data.root;
+      let queue: string[] = [];
+      const stack = [];
+      if (data.ancestors) {
+        stack.push(...data.ancestors);
+      }
+      if (parentId) {
+        stack.push(tempFiles[parentId]);
+      }
+      setDirStack(stack);
+      if (data.ancestors?.length && parentId && data.ancestors?.length > 0) {
+        for (const [k, f] of (data.ancestors as FileMetadata[]).entries()) {
+          if (k == 0) {
+            queue = [f.id];
+          }
+          tempFiles[f.id] = f;
+          if (k + 1 < data.ancestors.length) {
+            tempFiles[f.id].children = [data.ancestors[k + 1].id];
+          } else {
+            tempFiles[f.id].children = [parentId];
+          }
+        }
       } else if (parentId) {
         queue = [parentId];
+      } else if (data.root.length) {
+        queue = data.root;
       } else {
         setLoading(false);
         return;
       }
 
       // BFS traversal to decrypt files
+      let times = 0;
       while (queue.length > 0) {
         let next: string[] = [];
-        await Promise.all(queue.map(async (fileId) => {
+        await Promise.allSettled(queue.map(async (fileId) => {
           const f = tempFiles[fileId];
           let unwrapKey: CryptoKey | undefined | null;
           let unwrapAlgorithm;
@@ -314,12 +340,13 @@ export default function FileExplorer() {
           const nonce = base64ToArrayBuffer(f.nonce);
           if (f.parentId) {
             unwrapAlgorithm = { name: "AES-GCM", iv: nonce } as AesGcmParams;
-            unwrapKey = files[f.parentId].key;
+            unwrapKey = tempFiles[f.parentId].key;
           } else {
             unwrapAlgorithm = { name: "RSA-OAEP" } as RsaOaepParams;
             unwrapKey = privateKey;
           }
           if (!unwrapKey) {
+            console.error("Could not get parent key");
             return;
           }
           const key = await unwrapAESKey(f.encryptedKey, unwrapKey, unwrapAlgorithm);
@@ -332,6 +359,7 @@ export default function FileExplorer() {
           }
           tempFiles[fileId] = { ...f, name, key, mimeType, createdAtDate: new Date(f.createdAt), modifiedAtDate: new Date(f.modifiedAt) };
         }))
+        times += 1;
         queue = next;
       }
       setFiles(tempFiles);
@@ -347,20 +375,17 @@ export default function FileExplorer() {
 
   // Whenever currentDir or privateKey changes, fetch the files
   useEffect(() => {
+    if (!privateKey) {
+      return;
+    }
     fetchFiles();
   }, [parentId, privateKey]);
 
   /** Sorting + searching. */
   let filteredFiles;
-  if (parentId) {
-    filteredFiles = files[parentId]?.children?.filter((childId) =>
-      files[childId]?.name?.toLowerCase().includes(search.toLowerCase())
-    ).map(id => files[id])
-  } else {
-    filteredFiles = [...root].filter((childId) =>
-      files[childId]?.name?.toLowerCase().includes(search.toLowerCase())
-    ).map(id => files[id])
-  }
+  filteredFiles = currentDir?.filter((child) =>
+    child.name?.toLowerCase().includes(search.toLowerCase())
+  )
   const sortedFiles = filteredFiles?.sort((a, b) => {
     let comparison = 0;
     if (sortBy === "name") {
@@ -385,7 +410,6 @@ export default function FileExplorer() {
   /** Directory navigation. */
   const handleOpenFolder = (folder: FileMetadata) => {
     if (folder.isDirectory) {
-      setDirStack([...dirStack, folder.id]);
       setParams((params) => {
         params.set("parentId", folder.id);
         return params;
@@ -398,7 +422,7 @@ export default function FileExplorer() {
     stack.pop();
     setDirStack(stack);
     setParams((params) => {
-      const last = stack[stack.length - 1];
+      const last = stack[stack.length - 1]?.id;
       if (last !== undefined) {
         params.set("parentId", last);
       } else {
@@ -468,7 +492,13 @@ export default function FileExplorer() {
       let parentKey: CryptoKey;
       let algorithm: AesGcmParams | RsaOaepParams;
       if (parentId) {
-        parentKey = files[parentId].key as CryptoKey;
+        if (files[parentId].key) {
+          parentKey = files[parentId].key;
+        } else {
+          console.error("Could not find folder parent key");
+          console.log(files);
+          return;
+        }
         algorithm = { name: "AES-GCM", iv: nonce }
       } else {
         parentKey = userPublicKey;
@@ -569,13 +599,14 @@ export default function FileExplorer() {
               parentId={parentId}
               parentKey={parentId ? files[parentId]?.key : null}
               onUpload={(file) => {
-                files[file.id] = file;
+                const tempFiles = { ...files };
+                tempFiles[file.id] = file;
                 if (file.parentId) {
-                  files[file.parentId].children?.push(file.id);
+                  tempFiles[file.parentId].children?.push(file.id);
                 } else {
                   setRoot(new Set([...root, file.id]))
                 }
-                setFiles(files)
+                setFiles(tempFiles)
               }}
             />
             <input

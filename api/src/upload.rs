@@ -66,6 +66,7 @@ pub struct UploadResponse {
     is_directory: bool,
     /// Used to handle the case where the file is uploaded
     /// by an anonymous user.
+    #[serde(skip_serializing_if = "Option::is_none")]
     link: Option<ShareResponse>,
 }
 
@@ -705,6 +706,7 @@ pub struct FileMetadata {
 }
 
 #[derive(Deserialize, IntoParams, Debug)]
+#[serde(rename_all = "camelCase")]
 #[serde_inline_default]
 pub struct FileQuery {
     /// The id of the file or directory to get.
@@ -723,6 +725,10 @@ pub struct FileQuery {
     #[param(default = 50)]
     #[serde_inline_default(50)]
     pub limit: u32,
+    /// Whether to include the ancestors of the
+    /// chain of the file in the response
+    #[serde(default)]
+    pub include_ancestors: bool,
 }
 
 impl FileMetadata {
@@ -778,6 +784,8 @@ pub struct FileResponse {
     pub users: HashMap<Uuid, PublicUser>,
     #[schema(example = "123e4567-e89b-12d3-a456-426614174000")]
     pub root: Vec<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ancestors: Option<Vec<FileMetadata>>,
 }
 #[utoipa::path(
     get,
@@ -880,8 +888,100 @@ pub async fn get_file_metadata(
         params.limit,
         params.offset
     )
-    .fetch_all(&state.pool)
-    .await?;
+    .fetch_all(&state.pool);
+    // If the user has requested to include ancestors, we need to run a second query
+    // We want to speed up computation, so if the user requests ancestors
+    // then run the query to get them concurrently with the main query
+    let (query, ancestors) = if params.include_ancestors && params.id.is_some() {
+        let ancestor_query = sqlx::query!(
+            r#"
+            WITH RECURSIVE ancestors AS (
+                -- Anchor member (root or specified node)
+                SELECT 
+                    0 AS depth,
+                    id, 
+                    parent_id, 
+                    encrypted_name, 
+                    encrypted_key, 
+                    owner_id,
+                    uploader_id,
+                    nonce, 
+                    is_directory, 
+                    mime,
+                    size,
+                    created_at,
+                    modified_at
+                FROM file
+                WHERE 
+                owner_id = ? AND
+                id = ?
+                UNION ALL
+                
+                -- Recursive member
+                SELECT 
+                    a.depth + 1,
+                    f.id, 
+                    f.parent_id, 
+                    f.encrypted_name, 
+                    f.encrypted_key, 
+                    f.owner_id,
+                    f.uploader_id,
+                    f.nonce, 
+                    f.is_directory, 
+                    f.mime,
+                    f.size,
+                    f.created_at,
+                    f.modified_at
+                FROM file f
+                JOIN ancestors a ON f.id = a.parent_id
+            )
+            SELECT 
+                depth AS "depth!: u32",
+                id AS "id: Uuid",
+                parent_id AS "parent_id: Uuid", 
+                encrypted_name, 
+                encrypted_key, 
+                owner_id AS "owner_id: Uuid",
+                uploader_id AS "uploader_id: Uuid",
+                nonce, 
+                is_directory AS "is_directory!",
+                mime,
+                size,
+                created_at,
+                modified_at
+            FROM ancestors
+            WHERE depth > 0
+            ORDER BY depth DESC
+        "#,
+            user_id,
+            params.id
+        )
+        .fetch_all(&state.pool);
+        // Run both database queries concurrently
+        let (query, ancestor_query) = tokio::try_join!(query, ancestor_query)?;
+        let ancestors: Vec<FileMetadata> = ancestor_query
+            .into_iter()
+            .map(|row| FileMetadata {
+                id: row.id,
+                created_at: row.created_at.and_utc(),
+                modified_at: row.modified_at.and_utc(),
+                owner_id: row.owner_id,
+                uploader_id: row.uploader_id,
+                upload: UploadMetadata {
+                    encrypted_file_name: row.encrypted_name,
+                    encrypted_mime_type: row.mime,
+                    encrypted_key: row.encrypted_key,
+                    nonce: row.nonce,
+                    is_directory: row.is_directory,
+                    parent_id: row.parent_id,
+                },
+                children: Vec::new(),
+            })
+            .collect();
+        (query, Some(ancestors))
+    } else {
+        (query.await?, None)
+    };
     // Convert the query result into a tree structure
     let (files, root) = query
         .into_iter()
@@ -911,6 +1011,7 @@ pub async fn get_file_metadata(
         Ok((
             StatusCode::OK,
             Json(FileResponse {
+                ancestors,
                 users: get_file_users(&state.pool, &files).await?,
                 files,
                 root,
