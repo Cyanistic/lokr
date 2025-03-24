@@ -1,16 +1,17 @@
 import './App.css'
 import { BrowserRouter, Routes, Route, Link, Navigate, useNavigate } from 'react-router-dom'
 import Register from './pages/Register'
-import Profile from './pages/Profile'
-import FileExplorer from './pages/FileExplorer'
 import Login from './pages/Login'
 import Upload from './pages/Upload'
 import TestPage from "./pages/TestPage"
 import { isAuthenticated, logout } from "./utils.ts";
 import { ProtectedRoute } from './utils/ProtectedRoute.tsx'
+import React from 'react';
+
+const Profile = React.lazy(() => import('./pages/Profile.tsx'));
+const FileExplorer = React.lazy(() => import('./pages/FileExplorer.tsx'));
 
 function App() {
-
   return (
     <>
       <BrowserRouter>
@@ -63,7 +64,7 @@ function Navigation() {
 //Home Page
 function Home() {
   return (
-    <div className = 'main'>
+    <div className='main'>
       <div className='home-main'>
         <h1>Lokr</h1>
         <img src="https://www.pngall.com/wp-content/uploads/10/Lock-PNG-Images.png" alt="Lokr logo" />
@@ -72,13 +73,13 @@ function Home() {
         <b>Encrypted File Sharing Website</b>
         <b>
           Upload and share your files securely while maintaining
-          annonimity. Lokr encrypts your files with end-to-end 
-          encryption so that only you and people you allow can read 
-          the data on your files. No account required to upload and 
+          annonimity. Lokr encrypts your files with end-to-end
+          encryption so that only you and people you allow can read
+          the data on your files. No account required to upload and
           share files.
         </b>
         <b>
-          Start uploading your files by clicking the + icon on the 
+          Start uploading your files by clicking the + icon on the
           bottom right of the screen and pressing the upload button.
         </b>
       </div>
@@ -91,7 +92,7 @@ function Home() {
 //About us page
 function About() {
   return (
-    <div className = 'main'>
+    <div className='main'>
       <h1>About Us</h1>
       <div className='about-body'>
 
@@ -109,21 +110,21 @@ function About() {
         </div>
         <div className='about-box'>
           <h2>Privacy and Security First</h2>
-        <p>
-          At Lokr, we believe that privacy is a
-          fundamental human right. With increasing
-          surveillance and data exploitation, oppressive
-          regimes and large corporations alike have tried
-          to strip away individual freedoms under the
-          guise of safety and efficiency. Our response is
-          clear: a platform where your files are shielded
-          by end-to-end encryption, making sure that no
-          one—not even the server—can read your data.
-          Every file you send is protected by cutting-edge
-          cryptographic protocols, ensuring that even if
-          an attacker gains access, your sensitive
-          information remains completely unreadable.
-        </p>
+          <p>
+            At Lokr, we believe that privacy is a
+            fundamental human right. With increasing
+            surveillance and data exploitation, oppressive
+            regimes and large corporations alike have tried
+            to strip away individual freedoms under the
+            guise of safety and efficiency. Our response is
+            clear: a platform where your files are shielded
+            by end-to-end encryption, making sure that no
+            one—not even the server—can read your data.
+            Every file you send is protected by cutting-edge
+            cryptographic protocols, ensuring that even if
+            an attacker gains access, your sensitive
+            information remains completely unreadable.
+          </p>
         </div>
         <div className='about-box'>
           <h2>Seamless and Secure File Sharing</h2>
