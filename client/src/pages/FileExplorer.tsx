@@ -34,6 +34,7 @@ import { FileMetadata, FileResponse } from "../types";
 import { useErrorToast } from "../components/ErrorToastProvider";
 import FileSearch from "../components/FileSearch";
 import JSZip from "jszip";
+import { useThrottledCallback } from "use-debounce";
 
 /** Convert base64 to ArrayBuffer */
 function base64ToArrayBuffer(base64: string): ArrayBuffer {
@@ -50,21 +51,21 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
 export function getFileIcon(mimeType: string | undefined) {
   const icons: Record<string, JSX.Element> = {
     "text/plain": <FaFileAlt />,
-    "image/png": <FaFileImage />,
-    "image/jpeg": <FaFileImage />,
-    "application/pdf": <FaFilePdf />,
-    "application/msword": <FaFileWord />,
+    "image/png": <FaFileImage style={{ color: "#D41632" }} />,
+    "image/jpeg": <FaFileImage style={{ color: "#D41632" }} />,
+    "application/pdf": <FaFilePdf style={{ color: "#D41632" }} />,
+    "application/msword": <FaFileWord style={{ color: "blue" }} />,
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document": <FaFileWord />,
-    "application/vnd.ms-excel": <FaFileExcel />,
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": <FaFileExcel />,
-    "application/vnd.ms-powerpoint": <FaFilePowerpoint />,
-    "application/vnd.openxmlformats-officedocument.presentationml.presentation": <FaFilePowerpoint />,
+    "application/vnd.ms-excel": <FaFileExcel style={{ color: "green" }} />,
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": <FaFileExcel style={{ color: "green" }} />,
+    "application/vnd.ms-powerpoint": <FaFilePowerpoint style={{ color: "orange" }} />,
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation": <FaFilePowerpoint style={{ color: "orange" }} />,
     "application/zip": <FaFileArchive />,
     "application/x-rar-compressed": <FaFileArchive />,
-    "text/html": <FaFileCode />,
-    "text/css": <FaFileCode />,
-    "application/javascript": <FaFileCode />,
-    "application/typescript": <FaFileCode />,
+    "text/html": <FaFileCode style={{ color: "red" }} />,
+    "text/css": <FaFileCode style={{ color: "blue" }} />,
+    "application/javascript": <FaFileCode style={{ color: "yellow" }} />,
+    "application/typescript": <FaFileCode style={{ color: "blue" }} />,
   };
   if (mimeType) {
     return icons[mimeType ?? "text/plain"] || <FaFileAlt />;
@@ -225,13 +226,18 @@ export default function FileExplorer() {
     }
   };
 
+  // Use a callback to throttle the fetchFiles function to avoid excessive API calls
+  // since this is an expensive operation
+  const throttledFetchFiles = useThrottledCallback(() => {
+    fetchFiles({ depth: 20, limit: 1000, includeAncestors: false, updateLoading: false })
+  }, 5000);
+
   /** Download a single file. */
   const downloadFile = async (file: FileMetadata) => {
     if (!file.key) {
       throw new Error("File encryption key not found");
     }
     const response = await API.api.getFile(file.id);
-
     if (!response.ok) throw response.error;
 
     // Convert response to a Blob
@@ -253,42 +259,51 @@ export default function FileExplorer() {
     window.URL.revokeObjectURL(url);
   };
 
-  /** Recursively add folder contents to zip. */
-  async function addFolderToZip(folder: FileMetadata, zip: JSZip) {
-    const folderZip = zip.folder(folder.name ?? "folder");
-    if (!folderZip) {
+  async function downloadFolder(folder: FileMetadata) {
+    const zip = new JSZip();
+    let fileQueue: string[] | undefined = folder.children;
+    const zipFolder = zip.folder(folder.name ?? "folder");
+    if (!zipFolder) {
       showError("Failed to create folder in zip");
       return;
     }
-    for (const childId of folder.children || []) {
-      const child = files[childId];
-      if (!child) {
-        continue;
-      }
-      if (child.isDirectory) {
-        await addFolderToZip(child, folderZip);
-      } else {
-        if (!child?.key) {
-          showError(`Failed to find encryption key for ${folder.id}`);
-          return;
-        }
-        const response = await API.api.getFile(child.id);
-        if (!response.ok) throw response.error;
-        const dataBuffer = await response.arrayBuffer();
-        const fileData = await crypto.subtle.decrypt(
-          { name: "AES-GCM", iv: base64ToArrayBuffer(child.nonce) },
-          child.key,
-          dataBuffer
-        );
-        folderZip.file(child.name || "folder", fileData);
-      }
-    }
-  }
+    let folderQueue: Record<string, JSZip> = { [folder.id]: zipFolder };
 
-  /** Download a folder by zipping its contents. */
-  async function downloadFolder(folder: FileMetadata) {
-    const zip = new JSZip();
-    await addFolderToZip(folder, zip);
+    while (fileQueue && fileQueue.length > 0) {
+      let nextFiles: string[] = [];
+      let nextFolders: Record<string, JSZip> = {};
+
+      await Promise.all(
+        fileQueue.map(async (fileId) => {
+          const f = files[fileId];
+          if (!f) return;
+
+          if (f.isDirectory) {
+            nextFolders[f.id] = folderQueue[f.parentId!].folder(f.name ?? "folder")!;
+            if (f.children) {
+              nextFiles.push(...f.children);
+            }
+          } else {
+            if (!f?.key) {
+              showError(`Failed to find encryption key for ${f.id}`);
+              return;
+            }
+            const response = await API.api.getFile(f.id);
+            if (!response.ok) throw response.error;
+            const dataBuffer = await response.arrayBuffer();
+            const fileData = await crypto.subtle.decrypt(
+              { name: "AES-GCM", iv: base64ToArrayBuffer(f.nonce) },
+              f.key,
+              dataBuffer
+            );
+            folderQueue[f.parentId!].file(f.name || "file", fileData);
+          }
+        })
+      );
+      fileQueue = nextFiles;
+      folderQueue = nextFolders;
+    }
+
     const content = await zip.generateAsync({ type: "blob" });
     const url = window.URL.createObjectURL(content);
 
@@ -355,8 +370,19 @@ export default function FileExplorer() {
     fetchUserProfileAndDecryptKey();
   }, []);
 
-  async function fetchFiles({ depth, limit, offset, includeAncestors, fileId }: { depth?: number, limit?: number, offset?: number, includeAncestors?: boolean, fileId?: string } = { depth: 1, limit: 100, offset: 0, includeAncestors: true, fileId: parentId ?? undefined }) {
-    setLoading(true);
+  async function fetchFiles({
+    depth,
+    limit,
+    offset,
+    includeAncestors,
+    fileId,
+    updateLoading
+  }: {
+    depth?: number, limit?: number, offset?: number, includeAncestors?: boolean, fileId?: string, updateLoading?: boolean
+  } = { depth: 1, limit: 100, offset: 0, includeAncestors: true, fileId: parentId ?? undefined, updateLoading: true }) {
+    if (updateLoading) {
+      setLoading(true);
+    }
     try {
       const resp = await API.api.getFileMetadata({
         id: fileId,
@@ -437,7 +463,9 @@ export default function FileExplorer() {
         return params
       });
     }
-    setLoading(false);
+    if (updateLoading) {
+      setLoading(false);
+    }
   };
 
   // Whenever currentDir or privateKey changes, fetch the files
@@ -686,7 +714,30 @@ export default function FileExplorer() {
                 setFiles(tempFiles)
               }}
             />
-            <FileSearch loading={loading} files={files} onNavigateToPath={() => { }} />
+            <FileSearch
+              loading={loading}
+              files={files}
+              onOpen={throttledFetchFiles}
+              onFileSelected={file => {
+                if (file.isDirectory) {
+                  setParams(params => {
+                    params.set("parentId", file.id);
+                    return params;
+                  })
+                } else {
+                  // TODO: Handle showing file previews here
+                }
+              }}
+              onNavigateToPath={path => {
+                setParams(params => {
+                  if (path) {
+                    params.set("parentId", path);
+                  } else {
+                    params.delete("parentId");
+                  }
+                  return params
+                })
+              }} />
             <button
               onClick={() => setViewMode(viewMode === "list" ? "grid" : "list")}
               style={styles.toggleButton}
