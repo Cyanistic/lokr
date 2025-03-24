@@ -300,6 +300,11 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
         .routes(routes!(share::get_link_info))
         .routes(routes!(session::get_sessions))
         .routes(routes!(session::delete_session))
+        // Serve uploaded files from the uploads directory
+        // These files are encrypted so they can't be accessed directly,
+        // but they can be downloaded by the user who uploaded them.
+        .nest_service("/api/file/data/", ServeDir::new(&*UPLOAD_DIR))
+        .nest_service("/api/avatars/", ServeDir::new(&*AVATAR_DIR))
         .layer(cors)
         .with_state(AppState::new(pool.clone()))
         .split_for_parts();
@@ -307,11 +312,6 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
     let app = Router::new()
         .merge(api_router)
         .merge(SwaggerUi::new("/docs").url("/api-docs/openapi.json", open_api))
-        // Serve uploaded files from the uploads directory
-        // These files are encrypted so they can't be accessed directly,
-        // but they can be downloaded by the user who uploaded them.
-        .nest_service("/api/file/data/", ServeDir::new(&*UPLOAD_DIR))
-        .nest_service("/api/avatars/", ServeDir::new(&*AVATAR_DIR))
         // Serve the client files from the `../client/dist` directory
         // We use a fallback `ServeDir` for this because we send all the requests to the same file and
         // react-router handles the routing on the client side.
