@@ -23,25 +23,41 @@ interface FileSearchProps {
   files: Record<string, FileMetadata>;
   loading: boolean;
   onNavigateToPath: (path?: string | null) => void;
+  onOpen?: () => void;
+  onFileSelected?: (file: FileMetadata) => void;
 }
 
-export default function FileSearch({ files, onNavigateToPath }: FileSearchProps) {
+export default function FileSearch({ files, onNavigateToPath, onOpen, onFileSelected }: FileSearchProps) {
   const fuse = useRef<Fuse<FileMetadata>>(new Fuse([]));
   const [filteredFiles, setFilteredFiles] = useState<FileMetadata[]>([]);
   const [inputValue, setInputValue] = useState("")
   const [open, setOpen] = useState(false)
-  const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null)
+  const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null)
   const [_selectedFileId, setSelectedFileId] = useState<string | null>(null)
 
   useEffect(() => {
     fuse.current = new Fuse(Object.values(files), {
-      keys: ["name"]
+      keys: ["name", "mimeType"],
+      minMatchCharLength: 1
     })
   }, [files]);
+
   useEffect(() => {
-    const items = fuse.current.search(inputValue);
-    setFilteredFiles(items.map(({ item }) => item));
+    if (!inputValue) {
+      const items = Object.values(files);
+      items.sort((a, b) => (a.name ?? "encryptedFile").localeCompare(b.name ?? "encryptedFile"));
+      setFilteredFiles(items);
+    } else {
+      const items = fuse.current.search(inputValue);
+      setFilteredFiles(items.map(({ item }) => item));
+    }
   }, [files, inputValue]);
+
+  useEffect(() => {
+    if (open && onOpen) {
+      onOpen();
+    }
+  }, [open])
 
   const handleMenuOpen = (event: React.MouseEvent<HTMLElement>, fileId: string) => {
     event.stopPropagation() // Prevent the autocomplete item from being selected
@@ -68,8 +84,17 @@ export default function FileSearch({ files, onNavigateToPath }: FileSearchProps)
         onOpen={() => setOpen(true)}
         onClose={() => setOpen(false)}
         inputValue={inputValue}
-        onInputChange={(_event, newInputValue) => {
-          setInputValue(newInputValue)
+        onChange={(_event, newValue) => {
+          if (newValue && onFileSelected) {
+            onFileSelected(newValue);
+          }
+        }}
+        onInputChange={(_event, newInputValue, reason) => {
+          if (reason === "selectOption" || reason === "reset") {
+            setInputValue("");
+          } else {
+            setInputValue(newInputValue)
+          }
         }}
         options={filteredFiles}
         getOptionLabel={(option) => option.name || option.encryptedFileName}
