@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import Upload from "./Upload";
 import {
   FaFolder,
@@ -156,13 +156,9 @@ const FileGridItem = ({
     </h3>
     <p>Created: {new Date(file.createdAt).toLocaleDateString()}</p>
     <p>Modified: {new Date(file.modifiedAt).toLocaleDateString()}</p>
-    <p>Type: {file.encryptedMimeType}</p>
-    {!file.isDirectory && (
-      <div>
-        <button onClick={() => onMove(file)}>Move</button>
-        <button onClick={() => onDownload(file)}>Download</button>
-      </div>
-    )}
+    <p>Type: {file.isDirectory ? "Directory" : file.mimeType}</p>
+    <button onClick={() => onMove(file)}>Move</button>
+    <button onClick={() => onDownload(file)}>Download</button>
     <button onClick={() => onDelete(file)}>Delete</button>
   </div>
 );
@@ -171,9 +167,10 @@ const FileGridItem = ({
 export default function FileExplorer() {
   const [sortBy, setSortBy] = useState<"name" | "createdAt" | "modifiedAt">("name");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
-  const [viewMode, setViewMode] = useState<"list" | "grid">("list");
   const [params, setParams] = useSearchParams();
+  const preferredView = useRef<"list" | "grid">("list");
   const parentId = params.get("parentId");
+  const view = params.get("view") || preferredView.current;
   // const fileId = params.get("fileId");
 
   // The list of items in the current directory
@@ -325,16 +322,17 @@ export default function FileExplorer() {
         console.error("Failed to fetch user profile");
         return;
       }
-      const data = await resp.json();
+      const data = resp.data;
       // data might have: { publicKey, encryptedPrivateKey, iv, salt, ... }
-      const { publicKey: pubPem, encryptedPrivateKey, iv, salt } = data;
+      const { publicKey, encryptedPrivateKey, iv, salt, gridView } = data;
+      preferredView.current = gridView ? "grid" : "list";
 
       // 1) Import the user's public key
-      if (!pubPem) {
+      if (!publicKey) {
         console.error("No public key found in profile");
         return;
       }
-      const pubKey = await importPublicKey(pubPem);
+      const pubKey = await importPublicKey(publicKey);
       setUserPublicKey(pubKey);
 
       // 2) If we have an encrypted private key, prompt for password
@@ -739,16 +737,19 @@ export default function FileExplorer() {
                 })
               }} />
             <button
-              onClick={() => setViewMode(viewMode === "list" ? "grid" : "list")}
+              onClick={() => setParams(params => {
+                params.set("view", view === "list" ? "grid" : "list");
+                return params;
+              })}
               style={styles.toggleButton}
             >
-              {viewMode === "list" ? <FaTh /> : <FaList />} Toggle View
+              {view === "list" ? <FaTh /> : <FaList />} Toggle View
             </button>
           </div>
         </header>
         {loading ? (
           <p>Loading files...</p>
-        ) : viewMode === "list" ? (
+        ) : view === "list" ? (
           <table style={{ ...styles.table, borderCollapse: "collapse" }}>
             <thead>
               <tr style={styles.tableHeader}>

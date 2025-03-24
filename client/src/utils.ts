@@ -9,7 +9,9 @@ export const BASE_URL = import.meta.env.DEV ? "http://localhost:6969" : "";
 
 export const API = new Api({
   baseUrl: BASE_URL,
-  baseApiParams: { credentials: "include" },
+  // Only send credentials (cookies) in development mode to avoid
+  // abuse and cross-origin issues in production
+  baseApiParams: import.meta.env.DEV ? { credentials: "include" } : {},
 });
 
 /* Whether the user is authenticated
@@ -41,8 +43,7 @@ export async function fetchUsernames(
     limit,
     offset,
   });
-  if (!response.ok)
-    throw response.error;
+  if (!response.ok) throw response.error;
   return await response.json();
 }
 
