@@ -33,6 +33,7 @@ import { useSearchParams } from "react-router-dom";
 import { FileMetadata, FileResponse } from "../types";
 import { useErrorToast } from "../components/ErrorToastProvider";
 import FileSearch from "../components/FileSearch";
+import JSZip from "jszip";
 
 /** Convert base64 to ArrayBuffer */
 function base64ToArrayBuffer(base64: string): ArrayBuffer {
@@ -77,42 +78,19 @@ function getFileExtension(name: string): string {
   const parts = name.split(".");
   return parts.length > 1 ? `.${parts.pop()}` : "";
 }
-
-/** Download raw data from the server (not decrypted). */
-const handleDownload = async (fileId: string) => {
-  try {
-    const response = await API.api.getFile(fileId);
-
-    if (!response.ok) throw response.error;
-
-    // Convert response to a Blob
-    const blob = await response.blob();
-    const url = window.URL.createObjectURL(blob);
-
-    // Create a temporary link to trigger download
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "FILE"; // Temporary file name
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(url);
-  } catch (error) {
-    console.error("Error downloading file. Please try again.", error);
-  }
-};
-
 /** Renders a file or folder row in table view. */
 const FileRow = ({
   file,
   onOpenFolder,
   onMove,
   onDelete,
+  onDownload
 }: {
   file: FileMetadata;
   onOpenFolder: (file: FileMetadata) => void;
   onMove: (file: FileMetadata) => void;
   onDelete: (file: FileMetadata) => void;
+  onDownload: (file: FileMetadata) => void;
 }) => (
   <tr style={styles.tableRow}>
     <td style={styles.tableCell}>
@@ -142,12 +120,8 @@ const FileRow = ({
     </td>
     <td style={styles.tableCell}>{getFileExtension(file.name ?? "")}</td>
     <td style={styles.tableCell}>
-      {!file.isDirectory && (
-        <>
-          <button onClick={() => onMove(file)}>Move</button>
-          <button onClick={() => handleDownload(file.id)}>Download</button>
-        </>
-      )}
+      <button onClick={() => onMove(file)}>Move</button>
+      <button onClick={() => onDownload(file)}>Download</button>
       <button onClick={() => onDelete(file)}>Delete</button>
     </td>
   </tr>
@@ -159,11 +133,13 @@ const FileGridItem = ({
   onOpenFolder,
   onMove,
   onDelete,
+  onDownload
 }: {
   file: FileMetadata;
   onOpenFolder: (file: FileMetadata) => void;
   onMove: (file: FileMetadata) => void;
   onDelete: (file: FileMetadata) => void;
+  onDownload: (file: FileMetadata) => void;
 }) => (
   <div style={{ ...styles.gridItem, color: "black" }}>
     <h3>
@@ -183,7 +159,7 @@ const FileGridItem = ({
     {!file.isDirectory && (
       <div>
         <button onClick={() => onMove(file)}>Move</button>
-        <button onClick={() => handleDownload(file.id)}>Download</button>
+        <button onClick={() => onDownload(file)}>Download</button>
       </div>
     )}
     <button onClick={() => onDelete(file)}>Delete</button>
@@ -231,6 +207,101 @@ export default function FileExplorer() {
 
   // Tracks whether the dropdown is open
   const [isNewMenuOpen, setIsNewMenuOpen] = useState(false);
+
+  // Tracks if there is an active download
+  const [downloadTarget, setDownloadTarget] = useState<FileMetadata | null>(null);
+
+  /** Download raw data from the server (not decrypted). */
+  const handleDownload = async (file: FileMetadata) => {
+    try {
+      if (file.isDirectory) {
+        await fetchFiles({ depth: 20, limit: 1000, includeAncestors: false, fileId: file.id });
+        setDownloadTarget(file);
+      } else {
+        await downloadFile(file);
+      }
+    } catch (error) {
+      console.error("Error downloading file/folder. Please try again.", error);
+    }
+  };
+
+  /** Download a single file. */
+  const downloadFile = async (file: FileMetadata) => {
+    if (!file.key) {
+      throw new Error("File encryption key not found");
+    }
+    const response = await API.api.getFile(file.id);
+
+    if (!response.ok) throw response.error;
+
+    // Convert response to a Blob
+    const dataBuffer = await response.arrayBuffer();
+    const fileData = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: base64ToArrayBuffer(file.nonce) },
+      file.key,
+      dataBuffer
+    );
+    const url = window.URL.createObjectURL(new Blob([fileData]));
+
+    // Create a temporary link to trigger download
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = file.name ?? "download"; // Temporary file name
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  };
+
+  /** Recursively add folder contents to zip. */
+  async function addFolderToZip(folder: FileMetadata, zip: JSZip) {
+    const folderZip = zip.folder(folder.name ?? "folder");
+    if (!folderZip) {
+      showError("Failed to create folder in zip");
+      return;
+    }
+    for (const childId of folder.children || []) {
+      const child = files[childId];
+      if (!child) {
+        continue;
+      }
+      if (child.isDirectory) {
+        await addFolderToZip(child, folderZip);
+      } else {
+        if (!child?.key) {
+          showError(`Failed to find encryption key for ${folder.id}`);
+          return;
+        }
+        const response = await API.api.getFile(child.id);
+        if (!response.ok) throw response.error;
+        const dataBuffer = await response.arrayBuffer();
+        const fileData = await crypto.subtle.decrypt(
+          { name: "AES-GCM", iv: base64ToArrayBuffer(child.nonce) },
+          child.key,
+          dataBuffer
+        );
+        folderZip.file(child.name || "folder", fileData);
+      }
+    }
+  }
+
+  /** Download a folder by zipping its contents. */
+  async function downloadFolder(folder: FileMetadata) {
+    const zip = new JSZip();
+    await addFolderToZip(folder, zip);
+    const content = await zip.generateAsync({ type: "blob" });
+    const url = window.URL.createObjectURL(content);
+
+    // Create a temporary link to trigger download
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${folder.name}.zip`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  }
+
 
   async function fetchUserProfileAndDecryptKey() {
     try {
@@ -284,15 +355,15 @@ export default function FileExplorer() {
     fetchUserProfileAndDecryptKey();
   }, []);
 
-  const fetchFiles = async () => {
+  async function fetchFiles({ depth, limit, offset, includeAncestors, fileId }: { depth?: number, limit?: number, offset?: number, includeAncestors?: boolean, fileId?: string } = { depth: 1, limit: 100, offset: 0, includeAncestors: true, fileId: parentId ?? undefined }) {
     setLoading(true);
     try {
       const resp = await API.api.getFileMetadata({
-        id: parentId ?? undefined,
-        depth: 1,
-        offset: 0,
-        limit: 50,
-        includeAncestors: true
+        id: fileId,
+        depth: depth ?? 1,
+        limit: limit ?? 100,
+        offset: offset ?? 0,
+        includeAncestors: includeAncestors ?? true
       });
       if (!resp.ok) {
         console.error("Error fetching file metadata:", resp.statusText);
@@ -300,7 +371,9 @@ export default function FileExplorer() {
         return;
       }
       const data: FileResponse = await resp.json();
-      setRoot(new Set(data.root));
+      if (includeAncestors || !fileId) {
+        setRoot(new Set(data.root));
+      }
       const tempFiles = { ...files, ...data.files };
       let queue: string[] = [];
       const stack = [];
@@ -374,6 +447,18 @@ export default function FileExplorer() {
     }
     fetchFiles();
   }, [parentId, privateKey]);
+
+  // Whenever the files change, check if we need to download a folder
+  useEffect(() => {
+    if (loading || !downloadTarget) {
+      return;
+    }
+    try {
+      downloadFolder(downloadTarget);
+    } finally {
+      setDownloadTarget(null);
+    }
+  }, [files, downloadTarget, loading]);
 
   /** Sorting + searching. */
   let filteredFiles;
@@ -646,6 +731,7 @@ export default function FileExplorer() {
                   onOpenFolder={handleOpenFolder}
                   onMove={handleMove}
                   onDelete={handleDelete}
+                  onDownload={handleDownload}
                 />
               ))}
             </tbody>
@@ -659,6 +745,7 @@ export default function FileExplorer() {
                 onOpenFolder={handleOpenFolder}
                 onMove={handleMove}
                 onDelete={handleDelete}
+                onDownload={handleDownload}
               />
             ))}
           </div>
