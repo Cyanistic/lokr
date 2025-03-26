@@ -71,6 +71,10 @@ button:focus-visible {
 }
 * {
   box-sizing: border-box; /* Include padding and borders in the element's total width and height */
+  /* REALLY IMPORTANT DO NOT REMOVE THIS
+  *  Video for context: https://www.youtube.com/watch?v=cH8VbLM1958
+  */
+  min-width: 0;
 }
 .about-box {
   width: 80%; /* Default width for responsive design */
