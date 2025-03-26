@@ -699,6 +699,7 @@ pub struct FileMetadata {
     pub modified_at: DateTime<Utc>,
     pub owner_id: Option<Uuid>,
     pub uploader_id: Option<Uuid>,
+    pub size: i64,
     /// The children of the directory.
     /// Only present if the file is a directory.
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -748,6 +749,7 @@ impl FileMetadata {
                 is_directory: true,
                 parent_id: None,
             },
+            size: 0,
             created_at: now,
             modified_at: now,
             owner_id: Some(user_id),
@@ -764,6 +766,7 @@ impl FileMetadata {
                 is_directory: false,
                 parent_id: Some(parent_uuid),
             },
+            size: 32,
             created_at: now,
             modified_at: now,
             owner_id: Some(user_id),
@@ -874,7 +877,7 @@ pub async fn get_file_metadata(
                 nonce, 
                 is_directory AS "is_directory!",
                 mime,
-                size,
+                IIF(size - 16 < 0, 0, size - 16) AS "size!: i64",
                 created_at,
                 modified_at
             FROM children ORDER BY depth ASC LIMIT ? OFFSET ?
@@ -906,7 +909,6 @@ pub async fn get_file_metadata(
                     nonce, 
                     is_directory, 
                     mime,
-                    size,
                     created_at,
                     modified_at
                 FROM file
@@ -927,7 +929,6 @@ pub async fn get_file_metadata(
                     f.nonce, 
                     f.is_directory, 
                     f.mime,
-                    f.size,
                     f.created_at,
                     f.modified_at
                 FROM file f
@@ -944,7 +945,9 @@ pub async fn get_file_metadata(
                 nonce, 
                 is_directory AS "is_directory!",
                 mime,
-                size,
+                -- Ancestors are always directories so their size must
+                -- be always be 0
+                0 AS "size!: i64",
                 created_at,
                 modified_at
             FROM ancestors
@@ -971,6 +974,7 @@ pub async fn get_file_metadata(
                 is_directory: row.is_directory,
                 parent_id: row.parent_id,
             },
+            size: row.size,
             children: Vec::new(),
         });
         (query, Some(ancestors))
@@ -995,6 +999,7 @@ pub async fn get_file_metadata(
                 is_directory: row.is_directory,
                 parent_id: row.parent_id,
             },
+            size: row.size,
             children: Vec::new(),
         }))
         .normalize();

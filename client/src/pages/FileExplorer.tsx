@@ -35,6 +35,8 @@ import { useErrorToast } from "../components/ErrorToastProvider";
 import FileSearch from "../components/FileSearch";
 import JSZip from "jszip";
 import { useThrottledCallback } from "use-debounce";
+import FileList from "../components/FileList";
+import { PublicUser } from "../myApi";
 
 /** Convert base64 to ArrayBuffer */
 function base64ToArrayBuffer(base64: string): ArrayBuffer {
@@ -73,60 +75,6 @@ export function getFileIcon(mimeType: string | undefined) {
     return <FaFolder style={{ cursor: "pointer", color: "blue" }} />
   }
 }
-
-/** Extract file extension from name. */
-function getFileExtension(name: string): string {
-  const parts = name.split(".");
-  return parts.length > 1 ? `.${parts.pop()}` : "";
-}
-/** Renders a file or folder row in table view. */
-const FileRow = ({
-  file,
-  onOpenFolder,
-  onMove,
-  onDelete,
-  onDownload
-}: {
-  file: FileMetadata;
-  onOpenFolder: (file: FileMetadata) => void;
-  onMove: (file: FileMetadata) => void;
-  onDelete: (file: FileMetadata) => void;
-  onDownload: (file: FileMetadata) => void;
-}) => (
-  <tr style={styles.tableRow}>
-    <td style={styles.tableCell}>
-      {file.isDirectory ? (
-        <span onClick={() => onOpenFolder(file)} style={{ cursor: "pointer", color: "blue" }}>
-          <FaFolder /> {file.name}
-        </span>
-      ) : (
-        <>
-          {getFileIcon(file.mimeType)} {file.name}
-        </>
-      )}
-    </td>
-    <td style={styles.tableCell}>
-      {file.createdAtDate?.toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-      })}
-    </td>
-    <td style={styles.tableCell}>
-      {file.modifiedAtDate?.toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-      })}
-    </td>
-    <td style={styles.tableCell}>{getFileExtension(file.name ?? "")}</td>
-    <td style={styles.tableCell}>
-      <button onClick={() => onMove(file)}>Move</button>
-      <button onClick={() => onDownload(file)}>Download</button>
-      <button onClick={() => onDelete(file)}>Delete</button>
-    </td>
-  </tr>
-);
 
 /** Renders a file or folder item in grid view. */
 const FileGridItem = ({
@@ -175,22 +123,36 @@ export default function FileExplorer() {
 
   // The list of items in the current directory
   const [files, setFiles] = useState<Record<string, FileMetadata>>({});
+  const [users, setUsers] = useState<Record<string, PublicUser>>({});
   const [root, setRoot] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true);
   const { showError } = useErrorToast();
 
+  // The user's decrypted private key and public key
+  const [privateKey, setPrivateKey] = useState<CryptoKey | null>(null);
+  const [userPublicKey, setUserPublicKey] = useState<CryptoKey | null>(null);
+
+
+  // Whenever currentDir or privateKey changes, fetch the files
+  useEffect(() => {
+    if (!privateKey) {
+      return;
+    }
+    fetchFiles();
+  }, [parentId, privateKey]);
+
   const currentDir = useMemo(() => {
+    if (loading) {
+      return [];
+    }
     if (parentId) {
       if (files[parentId]) {
         return files[parentId].children?.map(f => files[f]);
       } else {
-        if (!loading) {
-          setParams(params => {
-            params.delete("parentId");
-            return params;
-          });
-        }
-        return [];
+        setParams(params => {
+          params.delete("parentId");
+          return params;
+        });
       }
     } else {
       return [...root].map(f => files[f]);
@@ -198,10 +160,6 @@ export default function FileExplorer() {
   }, [files, parentId, loading]);
 
   const [dirStack, setDirStack] = useState<FileMetadata[]>([]);
-
-  // The user's decrypted private key and public key
-  const [privateKey, setPrivateKey] = useState<CryptoKey | null>(null);
-  const [userPublicKey, setUserPublicKey] = useState<CryptoKey | null>(null);
 
   // Tracks whether the dropdown is open
   const [isNewMenuOpen, setIsNewMenuOpen] = useState(false);
@@ -324,9 +282,10 @@ export default function FileExplorer() {
       }
       const data = resp.data;
       // data might have: { publicKey, encryptedPrivateKey, iv, salt, ... }
-      const { publicKey, encryptedPrivateKey, iv, salt, gridView } = data;
+      const { publicKey, encryptedPrivateKey, iv, salt, gridView, id } = data;
       preferredView.current = gridView ? "grid" : "list";
 
+      await localforage.setItem("userId", id);
       // 1) Import the user's public key
       if (!publicKey) {
         console.error("No public key found in profile");
@@ -398,6 +357,7 @@ export default function FileExplorer() {
       if (includeAncestors || !fileId) {
         setRoot(new Set(data.root));
       }
+      setUsers({ ...users, ...data.users });
       const tempFiles = { ...files, ...data.files };
       let queue: string[] = [];
       const stack = [];
@@ -466,14 +426,6 @@ export default function FileExplorer() {
     }
   };
 
-  // Whenever currentDir or privateKey changes, fetch the files
-  useEffect(() => {
-    if (!privateKey) {
-      return;
-    }
-    fetchFiles();
-  }, [parentId, privateKey]);
-
   // Whenever the files change, check if we need to download a folder
   useEffect(() => {
     if (loading || !downloadTarget) {
@@ -501,6 +453,7 @@ export default function FileExplorer() {
     return sortOrder === "asc" ? comparison : -comparison;
   });
 
+  // @ts-ignore
   const handleSort = (column: "name" | "createdAt" | "modifiedAt") => {
     if (sortBy === column) {
       setSortOrder(sortOrder === "asc" ? "desc" : "asc");
@@ -611,22 +564,20 @@ export default function FileExplorer() {
       const encryptedNameB64 = btoa(String.fromCharCode(...encryptedName));
       const encryptedKey = bufferToBase64(await encryptAESKeyWithParentKey(parentKey, aesKey, algorithm));
       const metadata = {
-        fileName: folderName,
+        name: folderName,
         encryptedFileName: encryptedNameB64,
         encryptedKey: encryptedKey,
         isDirectory: true,
         nonce: bufferToBase64(nonce.buffer),
+        uploaderId: await localforage.getItem("userId") || undefined,
         parentId,
       };
 
       const resp = await API.api.uploadFile({
         metadata,
       });
-      if (resp.ok) {
-        fetchFiles();
-      } else {
-        showError("Error creating folder");
-      }
+      if (!resp.ok) throw resp.error;
+      fetchFiles();
     } catch (err) {
       console.error("Error creating folder:", err);
       showError("Error creating folder");
@@ -701,7 +652,9 @@ export default function FileExplorer() {
             <Upload
               parentId={parentId}
               parentKey={parentId ? files[parentId]?.key : null}
-              onUpload={(file) => {
+              onUpload={async (file) => {
+                file.uploaderId = await localforage.getItem("userId") || "";
+                file.ownerId = files[parentId ?? ""]?.ownerId || file.uploaderId;
                 const tempFiles = { ...files };
                 tempFiles[file.id] = file;
                 if (file.parentId) {
@@ -747,47 +700,15 @@ export default function FileExplorer() {
             </button>
           </div>
         </header>
-        {loading ? (
-          <p>Loading files...</p>
-        ) : view === "list" ? (
-          <table style={{ ...styles.table, borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={styles.tableHeader}>
-                <th style={styles.tableHeaderCell}>
-                  Name{" "}
-                  <button onClick={() => handleSort("name")} style={styles.sortButton}>
-                    {sortBy === "name" ? (sortOrder === "asc" ? " ↑" : " ↓") : " ↕"}
-                  </button>
-                </th>
-                <th style={styles.tableHeaderCell}>
-                  Created At{" "}
-                  <button onClick={() => handleSort("createdAt")} style={styles.sortButton}>
-                    {sortBy === "createdAt" ? (sortOrder === "asc" ? " ↑" : " ↓") : " ↕"}
-                  </button>
-                </th>
-                <th style={styles.tableHeaderCell}>
-                  Modified At{" "}
-                  <button onClick={() => handleSort("modifiedAt")} style={styles.sortButton}>
-                    {sortBy === "modifiedAt" ? (sortOrder === "asc" ? " ↑" : " ↓") : " ↕"}
-                  </button>
-                </th>
-                <th style={styles.tableHeaderCell}>Type</th>
-                <th style={styles.tableHeaderCell}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sortedFiles?.map((file) => (
-                <FileRow
-                  key={`${file.id}-1`}
-                  file={file}
-                  onOpenFolder={handleOpenFolder}
-                  onMove={handleMove}
-                  onDelete={handleDelete}
-                  onDownload={handleDownload}
-                />
-              ))}
-            </tbody>
-          </table>
+        {view === "list" ? (
+          <FileList
+            onRowDoubleClick={(fileId) => {
+              const file = files[fileId]!;
+              handleOpenFolder(file);
+            }}
+            files={currentDir ?? []}
+            loading={loading}
+            users={users} />
         ) : (
           <div style={styles.gridContainer}>
             {sortedFiles?.map((file) => (
@@ -801,9 +722,10 @@ export default function FileExplorer() {
               />
             ))}
           </div>
-        )}
-      </main>
-    </div>
+        )
+        }
+      </main >
+    </div >
   );
 }
 
@@ -811,7 +733,7 @@ export default function FileExplorer() {
 const styles = {
   container: {
     display: "flex",
-    height: "100vh",
+    height: "95%",
     backgroundColor: "#f8f9fa",
   },
   sidebar: {
