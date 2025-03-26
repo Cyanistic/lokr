@@ -85,17 +85,17 @@ button:focus-visible {
   max-width: 800px; /* Max width on larger screens */
   padding: 20px;
   font-size: 16px;
-  background-color: light-dark(#2f27ce, #3a31d8); /* White background */
-  color: white;
-  border: 2px solid #1976d2; /* Blue border */
+  background-color: light-dark(#e2e8f0, #1e293b); /* White background */
+  color: light-dark(#050316, #eae9fc);
+  border: 2px solid;
   border-radius: 12px; /* Rounded corners */
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); /* Soft shadow to make it pop */
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2); /* Soft shadow to make it pop */
   transition: box-shadow 0.3s ease, border-color 0.3s ease;
 }
 .about-box p {
   margin: 0;
   font-size: 16px;
-  color: white;
+  color: light-dark(#050316, #eae9fc);
   text-align: justify;
 }
 

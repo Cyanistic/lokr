@@ -257,6 +257,9 @@ export default function Upload({ parentId, parentKey, onUpload, isOverlay = fals
             <div className='upload-icon'><GrUploadOption size={30} /></div>
             <p>Drag & Drop Files</p>
             <p style={{fontSize:14, color: "gray"}}>Max File Size: 1GB</p>
+            <button className="browse-button" onClick={(e) => {e.stopPropagation(); fileInputRef.current?.click()}}>
+              Browse Files
+            </button>
           </div>
         </div>
         <input
@@ -279,9 +282,7 @@ export default function Upload({ parentId, parentKey, onUpload, isOverlay = fals
           </div>
         )}
         <div className="button-container">
-          <button className="browse-button" onClick={() => fileInputRef.current?.click()}>
-            Browse Files
-          </button>
+          
           {files.length > 0 && (
             <button onClick={handleSubmit} className="upload-button">
               Upload Files

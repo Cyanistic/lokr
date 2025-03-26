@@ -55,7 +55,7 @@ function Navigation() {
     <div className="header">
       <Link to="/home">Home</Link>
       <Link to="/about">About Lokr</Link>
-      <Link to="/downloads">Downloads</Link>
+      <Link to="/files">Files</Link>
       {isAuthenticated() ? (
         <Link
           to="/home"

@@ -7,7 +7,7 @@ const TestPage: React.FC = () => {
   return (
     <div style={styles.page}>
       <h1 style={styles.title}>Test Page for ShareModal</h1>
-      <button onClick={() => setModalOpen(true)} style={styles.openButton}>
+      <button onClick={() => setModalOpen(true)} className="b1">
         Open Share Modal
       </button>
 
@@ -24,7 +24,6 @@ const styles: { [key: string]: React.CSSProperties } = {
     alignItems: "center",
     justifyContent: "center",
     height: "100vh",
-    background: "linear-gradient(to bottom, #0044cc, #000066)",
     color: "white",
   },
   title: {
@@ -32,8 +31,6 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontWeight: "bold",
   },
   openButton: {
-    backgroundColor: "#000",
-    color: "white",
     border: "none",
     padding: "12px 20px",
     borderRadius: "5px",
