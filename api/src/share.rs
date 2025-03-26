@@ -392,7 +392,7 @@ pub async fn get_user_shared_file(
                 uploader_id AS "uploader_id: Uuid",
                 is_directory,
                 mime,
-                size,
+                IIF(size - 16 < 0, 0, size - 16) AS "size!: i64",
                 created_at,
                 modified_at
             FROM children ORDER BY depth ASC LIMIT ? OFFSET ?
@@ -426,7 +426,6 @@ pub async fn get_user_shared_file(
                 f.uploader_id,
                 f.is_directory,
                 f.mime,
-                f.size,
                 f.created_at,
                 f.modified_at,
                 -- Mark whether this file is directly shared.
@@ -452,7 +451,6 @@ pub async fn get_user_shared_file(
                 f.uploader_id,
                 f.is_directory,
                 f.mime,
-                f.size,
                 f.created_at,
                 f.modified_at,
                 IIF(su.file_id IS NOT NULL, 1, 0) AS directly_shared
@@ -473,7 +471,9 @@ pub async fn get_user_shared_file(
                 nonce, 
                 is_directory AS "is_directory!",
                 mime,
-                size,
+                -- Ancestors are always directories so their size must
+                -- be always be 0
+                0 AS "size!: i64",
                 created_at,
                 modified_at
             FROM ancestors
@@ -503,6 +503,7 @@ pub async fn get_user_shared_file(
                 is_directory: row.is_directory,
                 parent_id: row.parent_id,
             },
+            size: row.size,
             children: Vec::new(),
         });
         (query, Some(ancestors))
@@ -528,6 +529,7 @@ pub async fn get_user_shared_file(
                 is_directory: row.is_directory,
                 parent_id: row.parent_id,
             },
+            size: row.size,
             children: Vec::new(),
         }))
         .normalize();
@@ -715,7 +717,7 @@ pub async fn get_link_shared_file(
                 uploader_id AS "uploader_id: Uuid",
                 is_directory,
                 mime,
-                size,
+                IIF(size - 16 < 0, 0, size - 16) AS "size!: i64",
                 created_at,
                 modified_at
             FROM children ORDER BY depth ASC LIMIT ? OFFSET ?
@@ -748,7 +750,6 @@ pub async fn get_link_shared_file(
                     f.uploader_id,
                     f.is_directory,
                     f.mime,
-                    f.size,
                     f.created_at,
                     f.modified_at,
                     IIF(sl.file_id IS NOT NULL, 1, 0) AS directly_shared
@@ -773,7 +774,6 @@ pub async fn get_link_shared_file(
                     f.uploader_id,
                     f.is_directory,
                     f.mime,
-                    f.size,
                     f.created_at,
                     f.modified_at,
                     IIF(sl.file_id IS NOT NULL, 1, 0) AS directly_shared
@@ -796,7 +796,9 @@ pub async fn get_link_shared_file(
                 nonce, 
                 is_directory AS "is_directory!",
                 mime,
-                size,
+                -- Ancestors are always directories so their size must
+                -- be always be 0
+                0 AS "size!: i64",
                 created_at,
                 modified_at
             FROM ancestors
@@ -824,6 +826,7 @@ pub async fn get_link_shared_file(
                 is_directory: row.is_directory,
                 parent_id: row.parent_id,
             },
+            size: row.size,
             children: Vec::new(),
         });
         (query, Some(ancestors))
@@ -849,6 +852,7 @@ pub async fn get_link_shared_file(
                 is_directory: row.is_directory,
                 parent_id: row.parent_id,
             },
+            size: row.size,
             children: Vec::new(),
         }))
         .normalize();

@@ -40,6 +40,7 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({ avatarUrl, onAvatarChange }
       const response = await fetch(`${BASE_URL}/api/profile/upload`, {
         method: "PUT",
         body: file,
+        credentials: import.meta.env.DEV ? "include" : "same-origin"
       });
 
       if (!response.ok) throw await response.json();

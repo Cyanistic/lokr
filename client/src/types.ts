@@ -50,6 +50,7 @@ export interface FileMetadata {
     modifiedAt: string;
     createdAtDate?: Date;
     modifiedAtDate?: Date;
+    size: number;
 }
 
 export interface FileResponse {

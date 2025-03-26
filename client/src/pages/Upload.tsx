@@ -185,7 +185,7 @@ export default function Upload({ parentId, parentKey, onUpload }: Props) {
         });
 
         if (!response.ok) throw response.error;
-        const data: UploadResponse = await response.json();
+        const data: UploadResponse = response.data;
         console.log('File uploaded successfully');
         setUploadStatus('File uploaded successfully!');
         const createdAtDate = new Date();
@@ -201,6 +201,7 @@ export default function Upload({ parentId, parentKey, onUpload }: Props) {
             key: aesKey,
             name: file.name,
             mimeType: file.type,
+            size: data.size
           })
         }
       } catch (error) {
