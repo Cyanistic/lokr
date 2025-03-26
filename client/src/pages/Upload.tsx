@@ -184,7 +184,15 @@ export default function Upload({ parentId, parentKey, onUpload }: Props) {
           file: encryptedFile
         });
 
-        if (!response.ok) throw response.error;
+        if (response.status === 402) {
+          showError('Error during file upload. You do not have enough free storage space. Please purchase more.');
+          return;
+        } else if (response.status === 405) {
+          showError('Error during file upload. Your file is too large');
+          return;
+        } else if (!response.ok) {
+          throw response.error;
+        }
         const data: UploadResponse = response.data;
         console.log('File uploaded successfully');
         setUploadStatus('File uploaded successfully!');
@@ -207,9 +215,7 @@ export default function Upload({ parentId, parentKey, onUpload }: Props) {
       } catch (error) {
         showError('Error during file upload.', error);
       }
-
     }
-
   };
 
   const handleFABClick = async () => {
@@ -225,13 +231,12 @@ export default function Upload({ parentId, parentKey, onUpload }: Props) {
 
 
   return (
-    <div className="uploadMain">
-
+    <div className="uploadMain" style={{ minWidth: "100px" }}>
       <div className="uploadFile">
         <div>
           <input type="file" id='file-input' style={{ display: 'none' }} onChange={handleFileChange} multiple />
           {files.length > 0 && (
-            <div>
+            <div style={{ minWidth: "100px" }}>
               <p>Selected {files.length} file(s):</p>
               <ul>
                 {files.map((file, index) => (
@@ -244,12 +249,11 @@ export default function Upload({ parentId, parentKey, onUpload }: Props) {
             </div>
           )}
           {/*<button onClick={handleSubmit}>Upload</button>*/}
-          <Button variant="contained" onClick={handleSubmit} style={
-            {
-              backgroundColor: theme.palette.mode === 'dark' ? '#2f27ce' : '#3a31d8',
-              color: theme.palette.mode === 'dark' ? '#050316' : '#eae9fc'
-            }
-          }>Upload</Button>
+          <Button variant="contained" onClick={handleSubmit} sx={{
+            backgroundColor: theme.palette.mode === 'dark' ? '#2f27ce' : '#3a31d8',
+            color: theme.palette.mode === 'dark' ? '#050316' : '#eae9fc'
+          }}
+          >Upload</Button>
 
           {/* Tooltip for FAB */}
           <Tooltip title="Upload File" aria-label="upload">
@@ -267,8 +271,7 @@ export default function Upload({ parentId, parentKey, onUpload }: Props) {
           {uploadStatus && <p>{uploadStatus}</p>}
         </div>
       </div>
-
-    </div>
+    </div >
   );
 
 }

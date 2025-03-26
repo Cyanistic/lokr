@@ -70,7 +70,8 @@ button:focus-visible {
   gap: 15px;
 }
 * {
-  box-sizing: border-box; /* Include padding and borders in the element's total width and height */
+  /* Include padding and borders in the element's total width and height */
+  box-sizing: border-box;
   /* REALLY IMPORTANT DO NOT REMOVE THIS
   *  Video for context: https://www.youtube.com/watch?v=cH8VbLM1958
   */

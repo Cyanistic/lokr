@@ -122,7 +122,7 @@ export default function FileList({ files, users, loading, onRowDoubleClick: onRo
       flex: 1,
       minWidth: 100,
       renderCell: (params: GridRenderCellParams) => {
-        if (!params?.row?.name) return null
+        if (!params?.row?.name) return null;
         return (
           <Box sx={{ display: "flex", alignItems: "center", gap: 1, pt: 1.5 }}>
             {getFileIcon(params.row.mimeType)}
@@ -148,7 +148,10 @@ export default function FileList({ files, users, loading, onRowDoubleClick: onRo
       field: "createdAtDate",
       headerName: "Created",
       width: 120,
-      valueFormatter: (value: Date) => {
+      valueFormatter: (value?: Date) => {
+        if (!value) {
+          return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
         if (new Date().toDateString() === value.toDateString()) {
           return value.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         } else {
@@ -160,7 +163,10 @@ export default function FileList({ files, users, loading, onRowDoubleClick: onRo
       field: "modifiedAtDate",
       headerName: "Modified",
       width: 120,
-      valueFormatter: (value: Date) => {
+      valueFormatter: (value?: Date) => {
+        if (!value) {
+          return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
         if (new Date().toDateString() === value.toDateString()) {
           return value.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         } else {
@@ -174,10 +180,10 @@ export default function FileList({ files, users, loading, onRowDoubleClick: onRo
       width: 150,
       renderCell: (params: GridRenderCellParams) => {
         if (!params.row || !params.row.uploaderId) return null
-        const uploader = users[params.row.uploaderId];
+        const uploader: PublicUser | undefined = users[params.row.uploaderId];
         return (
           <Box sx={{ display: "flex", alignItems: "center", gap: 1, pt: 1.5 }}>
-            <Avatar src={uploader.avatarExtension ? `${BASE_URL}/api/avatars/${uploader.id}.${uploader.avatarExtension}` : DefaultProfile}
+            <Avatar src={uploader?.avatarExtension ? `${BASE_URL}/api/avatars/${uploader.id}.${uploader.avatarExtension}` : DefaultProfile}
               alt={uploader.username} sx={{ width: 24, height: 24 }} />
             <Typography variant="body2" noWrap>{uploader.username}</Typography>
           </Box>
@@ -190,10 +196,10 @@ export default function FileList({ files, users, loading, onRowDoubleClick: onRo
       width: 150,
       renderCell: (params: GridRenderCellParams) => {
         if (!params.row || !params.row.ownerId) return null
-        const owner = users[params.row.ownerId];
+        const owner: PublicUser | undefined = users[params.row.ownerId];
         return (
           <Box sx={{ display: "flex", alignItems: "center", gap: 1, pt: 1.5 }}>
-            <Avatar src={owner.avatarExtension ? `${BASE_URL}/api/avatars/${owner.id}.${owner.avatarExtension}` : DefaultProfile}
+            <Avatar src={owner?.avatarExtension ? `${BASE_URL}/api/avatars/${owner.id}.${owner.avatarExtension}` : DefaultProfile}
               alt={owner.username} sx={{ width: 24, height: 24 }} />
             <Typography variant="body2" noWrap>{owner.username}</Typography>
           </Box>
@@ -210,7 +216,7 @@ export default function FileList({ files, users, loading, onRowDoubleClick: onRo
         return <FileContextMenu
           fileId={params.row.id as string}
           // TODO: Handle actions on the action button
-          onAction={() => {}}
+          onAction={() => { }}
         />
       },
     },
@@ -268,7 +274,10 @@ export default function FileList({ files, users, loading, onRowDoubleClick: onRo
             outline: 'none'
           },
           "& .MuiDataGrid-cell:focus-within": {
-            outline: 'none'
+            outline: 'neone'
+          },
+          "& *": {
+            minWidth: 0
           }
         }}
         loading={loading}

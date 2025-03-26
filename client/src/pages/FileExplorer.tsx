@@ -281,8 +281,7 @@ export default function FileExplorer() {
         return;
       }
       const data = resp.data;
-      // data might have: { publicKey, encryptedPrivateKey, iv, salt, ... }
-      const { publicKey, encryptedPrivateKey, iv, salt, gridView, id } = data;
+      const { publicKey, encryptedPrivateKey, iv, salt, gridView, id, email, username } = data;
       preferredView.current = gridView ? "grid" : "list";
 
       await localforage.setItem("userId", id);
@@ -293,6 +292,7 @@ export default function FileExplorer() {
       }
       const pubKey = await importPublicKey(publicKey);
       setUserPublicKey(pubKey);
+      setUsers({ ...users, [id]: { publicKey, email, id, username } })
 
       // 2) If we have an encrypted private key, prompt for password
       const storedPrivateKey: CryptoKey | null = await localforage.getItem("privateKey");
@@ -439,9 +439,7 @@ export default function FileExplorer() {
   }, [files, downloadTarget, loading]);
 
   /** Sorting + searching. */
-  let filteredFiles;
-  filteredFiles = currentDir;
-  const sortedFiles = filteredFiles?.sort((a, b) => {
+  const sortedFiles = currentDir?.slice().sort((a, b) => {
     let comparison = 0;
     if (sortBy === "name") {
       comparison = (a.name ?? "encryptedFile").localeCompare(b.name ?? "encryptedFile");
@@ -552,7 +550,6 @@ export default function FileExplorer() {
           parentKey = files[parentId].key;
         } else {
           console.error("Could not find folder parent key");
-          console.log(files);
           return;
         }
         algorithm = { name: "AES-GCM", iv: nonce }
@@ -710,18 +707,22 @@ export default function FileExplorer() {
             loading={loading}
             users={users} />
         ) : (
-          <div style={styles.gridContainer}>
-            {sortedFiles?.map((file) => (
-              <FileGridItem
-                key={file.id}
-                file={file}
-                onOpenFolder={handleOpenFolder}
-                onMove={handleMove}
-                onDelete={handleDelete}
-                onDownload={handleDownload}
-              />
-            ))}
-          </div>
+          <>
+            {loading ? (<p>Loading files</p>) :
+              (<div style={styles.gridContainer}>
+                {sortedFiles?.map((file) => (
+                  <FileGridItem
+                    key={file.id}
+                    file={file}
+                    onOpenFolder={handleOpenFolder}
+                    onMove={handleMove}
+                    onDelete={handleDelete}
+                    onDownload={handleDownload}
+                  />)
+                )
+                }
+              </div>)}
+          </>
         )
         }
       </main >
