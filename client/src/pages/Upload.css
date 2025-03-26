@@ -111,11 +111,14 @@
 .browse-button {
     background-color: #81E6D9;
     color: #151C29;
+    z-index: 100;
+    position: relative;
 }
   
 .upload-button {
     background-color: #304B53;
     color: white;
+    width: 100%;
 }
 
 .close-button {
