@@ -12,6 +12,7 @@ const Profile = React.lazy(() => import('./pages/Profile.tsx'));
 const FileExplorer = React.lazy(() => import('./pages/FileExplorer.tsx'));
 import { FaLink, FaShieldAlt, FaLock } from "react-icons/fa";
 import "./SecurityFeatures.css";
+import "./NavBar.css"
 
 function App() {
   return (
@@ -26,7 +27,6 @@ function App() {
           } />
           <Route path="/home" element={<Home />} />
           <Route path="/about" element={<About />} />
-          <Route path="/downloads" element={<Downloads />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route element={<ProtectedRoute />}>
@@ -45,7 +45,57 @@ function App() {
 function Navigation() {
   const navigate = useNavigate();
   return (
-    <div className='header'>
+    <nav className="navbar">
+      <div className="nav-left">
+        <Link to="/home">
+          <span role="img" aria-label="lock">
+            🔒
+          </span>
+          Lokr
+
+        </Link>
+        <div className="nav-links">
+          <Link to="/about">About</Link>
+          {isAuthenticated() ? (
+            <>
+              <Link to="/test">Share Files</Link>
+              <Link to="/files">Files</Link>          
+            </>
+          ) : (
+            <>
+            
+            </>
+          )}
+        </div>
+      </div>
+
+
+      <div className="nav-actions">
+        {isAuthenticated() ? (
+          <>
+            <Link to="/profile">Profile</Link>
+            <Link to="/home" onClick={async (e) => {
+              e.preventDefault();
+              if (await logout()) {
+                navigate("/home");
+              }
+            }}>Logout</Link>
+          </>
+        ) : (
+          <>
+            <Link to="/login">Sign in</Link>
+            <Link to="/register">
+              <button className='b1'>
+                Get Started
+              </button>
+            </Link>
+          </>
+        )}
+      </div>
+    </nav>
+  )
+}
+    {/* <div className='header'>
       <Link to="/home">Home</Link>
       <Link to="/about">About Lokr</Link>
       <Link to="/files">Files</Link>
@@ -59,9 +109,7 @@ function Navigation() {
       ) : (
         <Link to="/login">Log In</Link>
       )}
-    </div>
-  )
-}
+    </div> */}
 
 //Home Page
 function Home() {
@@ -216,17 +264,6 @@ function About() {
       </div>
     </div>
   )
-}
-
-//Downloads page
-function Downloads() {
-  return (
-    <div className='main'>
-      <h1>Download Page</h1>
-      <p>Placeholder for the Download page</p>
-    </div>
-  )
-
 }
 
 
