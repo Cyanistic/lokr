@@ -12,6 +12,7 @@ import { FaLink, FaShieldAlt, FaLock } from "react-icons/fa";
 import "./SecurityFeatures.css";
 const Profile = React.lazy(() => import("./pages/Profile.tsx"));
 const FileExplorer = React.lazy(() => import("./pages/FileExplorer.tsx"));
+import "./NavBar.css"
 
 function App() {
   return (
@@ -52,27 +53,55 @@ function App() {
 function Navigation() {
   const navigate = useNavigate();
   return (
-    <div className="header">
-      <Link to="/home">Home</Link>
-      <Link to="/about">About Lokr</Link>
-      <Link to="/files">Files</Link>
-      {isAuthenticated() ? (
-        <Link
-          to="/home"
-          onClick={async (e) => {
-            e.preventDefault();
-            if (await logout()) {
-              navigate("/home");
-            }
-          }}
-        >
-          Logout
+    <nav className="navbar">
+      <div className="nav-left">
+        <Link to="/home">
+          <span role="img" aria-label="lock">
+            🔒
+          </span>
+          Lokr
+
         </Link>
-      ) : (
-        <Link to="/login">Log In</Link>
-      )}
-    </div>
-  );
+        <div className="nav-links">
+          <Link to="/about">About</Link>
+          {isAuthenticated() ? (
+            <>
+              <Link to="/test">Share Files</Link>
+              <Link to="/files">Files</Link>          
+            </>
+          ) : (
+            <>
+            
+            </>
+          )}
+        </div>
+      </div>
+
+
+      <div className="nav-actions">
+        {isAuthenticated() ? (
+          <>
+            <Link to="/profile">Profile</Link>
+            <Link to="/home" onClick={async (e) => {
+              e.preventDefault();
+              if (await logout()) {
+                navigate("/home");
+              }
+            }}>Logout</Link>
+          </>
+        ) : (
+          <>
+            <Link to="/login">Sign in</Link>
+            <Link to="/register">
+              <button className='b1'>
+                Get Started
+              </button>
+            </Link>
+          </>
+        )}
+      </div>
+    </nav>
+  )
 }
 
 //Home Page
