@@ -228,7 +228,7 @@ const ShareModal: React.FC<ShareModalProps> = ({ open, onClose, file }) => {
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
       <Box display="flex" alignItems="center" justifyContent="center" p={2}>
-        <DialogTitle sx={{ padding: 0, textAlign: "center" }}>📁 File Sharing</DialogTitle>
+        <DialogTitle sx={{ padding: 0, textAlign: "center" }}>Sharing File{file?.name && `: ${file.name}`}</DialogTitle>
         <IconButton sx={{ marginLeft: "auto" }} onClick={onClose}>
           <CloseIcon />
         </IconButton>
@@ -261,9 +261,9 @@ const ShareModal: React.FC<ShareModalProps> = ({ open, onClose, file }) => {
                 renderOption={(props, option) => {
                   const { key, ...optionProps } = props;
                   return (
-                    <Collapse in>
+                    <Collapse in
+                      key={key}>
                       <Box
-                        key={key}
                         component="li"
                         sx={{ '& > img': { mr: 2, flexShrink: 0 } }}
                         {...optionProps}>
@@ -305,9 +305,9 @@ const ShareModal: React.FC<ShareModalProps> = ({ open, onClose, file }) => {
                 <Box mt={1} sx={{ width: "100%" }}>
                   <Stack spacing={2} sx={{ width: "100%", maxHeight: 200, overflow: "auto" }}>
                     {Object.keys(fields.users).length ? (
-                      Object.entries(fields.users).map(([_, user]) => (
+                      Object.entries(fields.users).map(([index, user]) => (
                         <>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexGrow: 1, minWidth: 0 }}>
+                          <Box key={index} sx={{ display: 'flex', alignItems: 'center', gap: 2, flexGrow: 1, minWidth: 0 }}>
                             <Avatar
                               src={user.avatarExtension ? `${BASE_URL}/api/avatars/${user.id}.${user.avatarExtension}` : DefaultProfile}
                               alt={user.username || "Unknown User"}
