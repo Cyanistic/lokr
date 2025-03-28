@@ -99,7 +99,9 @@ function Home() {
           of the screen and pressing the upload button.
         </b>
       </div>
-      <Upload />
+      <div className='upload-box'>
+        <Upload />
+      </div>
     </div>
   );
 }

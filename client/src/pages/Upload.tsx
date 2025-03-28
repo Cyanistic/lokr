@@ -1,12 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import { Button, useTheme } from '@mui/material';
-import { Fab, Tooltip } from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
 import { API } from '../utils';
 import { FileMetadata } from '../types';
 import { UploadResponse } from '../myApi';
 import { encryptAESKeyWithParentKey, encryptText, generateKeyAndNonce } from '../cryptoFunctions';
 import { useErrorToast } from '../components/ErrorToastProvider';
+import React, { useState, useEffect, useRef } from 'react';
+//import {Button, useTheme} from '@mui/material';
+//import { Fab, Tooltip } from '@mui/material';
+//import AddIcon from '@mui/icons-material/Add';
+import { useDropzone } from "react-dropzone";
+import './Upload.css'
 
 interface Props {
   parentId?: string | null;
@@ -26,6 +28,7 @@ export default function Upload({ parentId, parentKey, onUpload }: Props) {
   const [uploadStatus, setUploadStatus] = useState<string>('');
   const [userPublicKey, setUserPublicKey] = useState<CryptoKey | null>(null);
   const { showError } = useErrorToast();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
 
   // Function to fetch the user's profile (including the public key) from the server
@@ -90,13 +93,12 @@ export default function Upload({ parentId, parentKey, onUpload }: Props) {
     return new Blob([encryptedArray])
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const uploadedFiles = e.target.files; //? e.target.files[0] : null;
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    //const uploadedFiles = e.target.files; //? e.target.files[0] : null;
+    const uploadedFiles = event.target.files ? Array.from(event.target.files) : [];
     if (uploadedFiles && uploadedFiles.length > 0) {
 
-      //const isDirectory = uploadedFile.webkitRelativePath ? true : false;
-
-      setFile(Array.from(uploadedFiles));
+      setFile((prevFiles) => [...prevFiles, ...uploadedFiles]/*Array.from(uploadedFiles)*/);
 
       const metadata: FileMetadata[] = Array.from(uploadedFiles).map(uploadedFile => {
         // Check if the file is part of a directory (directories usually have the 'webkitRelativePath' attribute)
@@ -107,14 +109,10 @@ export default function Upload({ parentId, parentKey, onUpload }: Props) {
         };
       });
 
-      // Access basic metadata
-      //const fileName = uploadedFile.name;
-
       // Store the metadata in state
       setFileMeta(
-        //name: fileName,
-        //isDirectory: isDirectory,
-        metadata
+        (prevMeta) => [...prevMeta, ...metadata]
+        //metadata
       );
     }
   };
@@ -216,20 +214,66 @@ export default function Upload({ parentId, parentKey, onUpload }: Props) {
     }
   };
 
-  const handleFABClick = async () => {
+  /*const handleFABClick = async () => {
     const fileInput = document.getElementById('file-input');
     if (fileInput) {
       fileInput.click();
     } else {
       console.warn('File input element not found');
     }
-  }
+  }*/
 
-  const theme = useTheme();
+  //const theme = useTheme();
+
+  const { getRootProps, getInputProps } = useDropzone({
+
+    onDrop: (acceptedFiles) => {
+      setFile((prevFiles) => [...prevFiles, ...acceptedFiles]);
+      const metadata: FileMetadata[] = acceptedFiles.map((file) => ({
+        name: file.name,
+        isDirectory: Boolean(file.webkitRelativePath),
+      }));
+      setFileMeta((prevMeta) => [...prevMeta, ...metadata]);
+    },
+  });
 
 
   return (
-    <div className="uploadMain" style={{ minWidth: "100px" }}>
+      <div className="file-upload-container">
+        <div {...getRootProps()} className="dropzone">
+          <input {...getInputProps()} className="hidden" style={{display: "none"}}/>
+          <p>Drag & Drop Files</p>
+        </div>
+        <input
+          type="file"
+          multiple
+          ref={fileInputRef}
+          className="hidden"
+          style={{display: "none"}}
+          onChange={handleFileChange}
+        />
+        {files.length > 0 && (
+          <div className="file-list">
+            <ul>
+              {fileMeta.map((meta, index) => (
+                <li key={index}>
+                  {meta.name} {meta.isDirectory ? "(Directory)" : "(File)"}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <div className="button-container">
+          <button className="browse-button" onClick={() => fileInputRef.current?.click()}>
+            Browse Files
+          </button>
+          {files.length > 0 && (
+            <button onClick={handleSubmit} className="upload-button">
+              Upload Files
+            </button>
+          )}
+        </div>
+      {/*
       <div className="uploadFile">
         <div>
           <input type="file" id='file-input' style={{ display: 'none' }} onChange={handleFileChange} multiple />
@@ -246,14 +290,15 @@ export default function Upload({ parentId, parentKey, onUpload }: Props) {
               </ul>
             </div>
           )}
-          {/*<button onClick={handleSubmit}>Upload</button>*/}
-          <Button variant="contained" onClick={handleSubmit} sx={{
-            backgroundColor: theme.palette.mode === 'dark' ? '#2f27ce' : '#3a31d8',
-            color: theme.palette.mode === 'dark' ? '#050316' : '#eae9fc'
-          }}
-          >Upload</Button>
+          {/*<button onClick={handleSubmit}>Upload</button>}
+          <Button variant="contained" onClick={handleSubmit} style={
+            {
+              backgroundColor: theme.palette.mode === 'dark' ? '#2f27ce': '#3a31d8', 
+              color: theme.palette.mode === 'dark' ? '#050316' : '#eae9fc' 
+            }
+          }>Upload</Button>
 
-          {/* Tooltip for FAB */}
+          {/* Tooltip for FAB }
           <Tooltip title="Upload File" aria-label="upload">
             <Fab
               color="primary"
@@ -265,11 +310,12 @@ export default function Upload({ parentId, parentKey, onUpload }: Props) {
             </Fab>
           </Tooltip>
 
-          {/* Display the upload status */}
-          {uploadStatus && <p>{uploadStatus}</p>}
+          {/* Display the upload status }
         </div>
       </div>
-    </div >
+      */}
+      {uploadStatus && <p>{uploadStatus}</p>}
+    </div>
   );
 
 }

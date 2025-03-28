@@ -90,6 +90,11 @@
   color: black !important;
 }
 
+.upload-box{
+  display: flex;
+  justify-content: center;
+}
+
 /*CSS for Modal that displays QR code on Profile page*/
 .modal {
   position: fixed;
