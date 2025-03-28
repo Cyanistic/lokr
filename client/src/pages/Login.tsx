@@ -5,6 +5,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { LoginUser, PublicUser } from "../types";
 import { deriveKeyFromPassword, hashPassword, unwrapPrivateKey } from "../cryptoFunctions";
 import { API } from "../utils";
+import { useErrorToast } from "../components/ErrorToastProvider";
 
 async function getPasswordSalt(username: string): Promise<string | null> {
   const response = await API.api.searchUsers(username, { limit: 1, offset: 0 });
@@ -29,7 +30,9 @@ const Login: React.FC = () => {
   const [totpCode, setTotpCode] = useState(""); // Optional for 2FA users
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [searchParams,] = useSearchParams();
+  const [showTotp, setShowTotp] = useState<boolean>(false);
   const navigate = useNavigate();
+  const { showError } = useErrorToast();
 
   // Handle login submission
   const handleLogin = async (e: React.FormEvent) => {
@@ -72,6 +75,12 @@ const Login: React.FC = () => {
       if (loginResponse.status === 401) {
         console.log("Invalid username or password.");
         setErrorMessage("Invalid username or password.");
+        return;
+      }
+
+      if (loginResponse.status === 307) {
+        setShowTotp(true);
+        showError("TOTP is required. Please enter your totp code");
         return;
       }
 
@@ -132,7 +141,7 @@ const Login: React.FC = () => {
         <br />
 
         {/* Show TOTP field only if needed */}
-        {errorMessage?.includes("TOTP") && (
+        {showTotp && (
           <input
             type="text"
             placeholder="TOTP Code"
