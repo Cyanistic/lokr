@@ -1,21 +1,20 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import Upload from "./Upload";
 import {
-  FaFolder,
-  FaClock,
-  FaUsers,
-  FaTh,
-  FaList,
-  FaFileAlt,
-  FaFileImage,
-  FaFilePdf,
-  FaFileWord,
-  FaFileExcel,
-  FaFilePowerpoint,
-  FaFileArchive,
-  FaFileCode,
-  FaPlus,
-} from "react-icons/fa";
+  Folder as FolderIcon,
+  ViewModule as ViewModuleIcon,
+  ViewList as ViewListIcon,
+  Description as DescriptionIcon,
+  Image as ImageIcon,
+  PictureAsPdf as PictureAsPdfIcon,
+  InsertDriveFile as InsertDriveFileIcon,
+  TableChart as TableChartIcon,
+  Slideshow as SlideshowIcon,
+  Archive as ArchiveIcon,
+  Code as CodeIcon,
+  MusicNote as MusicNoteIcon,
+  Movie as MovieIcon,
+} from "@mui/icons-material";
 import { API } from "../utils";
 import localforage from "localforage";
 import {
@@ -36,7 +35,11 @@ import FileSearch from "../components/FileSearch";
 import JSZip from "jszip";
 import { useThrottledCallback } from "use-debounce";
 import FileList from "../components/FileList";
-import { PublicUser } from "../myApi";
+import { PublicUser, SessionUser } from "../myApi";
+import { FileSidebar } from "../components/FileSidebar";
+import { Box, IconButton, Typography } from "@mui/material";
+import { useWindowSize } from "../components/hooks/useWindowSize";
+import { GridMenuIcon } from "@mui/x-data-grid";
 
 /** Convert base64 to ArrayBuffer */
 function base64ToArrayBuffer(base64: string): ArrayBuffer {
@@ -52,27 +55,38 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
 /** Return an icon based on file extension. */
 export function getFileIcon(mimeType: string | undefined) {
   const icons: Record<string, JSX.Element> = {
-    "text/plain": <FaFileAlt />,
-    "image/png": <FaFileImage style={{ color: "#D41632" }} />,
-    "image/jpeg": <FaFileImage style={{ color: "#D41632" }} />,
-    "application/pdf": <FaFilePdf style={{ color: "#D41632" }} />,
-    "application/msword": <FaFileWord style={{ color: "blue" }} />,
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": <FaFileWord />,
-    "application/vnd.ms-excel": <FaFileExcel style={{ color: "green" }} />,
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": <FaFileExcel style={{ color: "green" }} />,
-    "application/vnd.ms-powerpoint": <FaFilePowerpoint style={{ color: "orange" }} />,
-    "application/vnd.openxmlformats-officedocument.presentationml.presentation": <FaFilePowerpoint style={{ color: "orange" }} />,
-    "application/zip": <FaFileArchive />,
-    "application/x-rar-compressed": <FaFileArchive />,
-    "text/html": <FaFileCode style={{ color: "red" }} />,
-    "text/css": <FaFileCode style={{ color: "blue" }} />,
-    "application/javascript": <FaFileCode style={{ color: "yellow" }} />,
-    "application/typescript": <FaFileCode style={{ color: "blue" }} />,
+    "text/plain": <DescriptionIcon />,
+    "image/png": <ImageIcon style={{ color: "#D41632" }} />,
+    "image/jpeg": <ImageIcon style={{ color: "#D41632" }} />,
+    "application/pdf": <PictureAsPdfIcon style={{ color: "#D41632" }} />,
+    "application/msword": <InsertDriveFileIcon style={{ color: "blue" }} />,
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": <InsertDriveFileIcon />,
+    "application/vnd.ms-excel": <TableChartIcon style={{ color: "green" }} />,
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": <TableChartIcon style={{ color: "green" }} />,
+    "application/vnd.ms-powerpoint": <SlideshowIcon style={{ color: "orange" }} />,
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation": <SlideshowIcon style={{ color: "orange" }} />,
+    "application/zip": <ArchiveIcon />,
+    "application/x-rar-compressed": <ArchiveIcon />,
+    "text/html": <CodeIcon style={{ color: "red" }} />,
+    "text/css": <CodeIcon style={{ color: "blue" }} />,
+    "application/javascript": <CodeIcon style={{ color: "yellow" }} />,
+    "application/typescript": <CodeIcon style={{ color: "blue" }} />,
+    "audio/mpeg": <MusicNoteIcon style={{ color: "#FF4081" }} />,
+    "audio/wav": <MusicNoteIcon style={{ color: "#FF4081" }} />,
+    "video/mp4": <MovieIcon style={{ color: "#3F51B5" }} />,
+    "video/x-msvideo": <MovieIcon style={{ color: "#3F51B5" }} />,
+    "application/json": <CodeIcon style={{ color: "#4CAF50" }} />,
+    "application/xml": <CodeIcon style={{ color: "#4CAF50" }} />,
+    "application/vnd.oasis.opendocument.text": <InsertDriveFileIcon style={{ color: "#FF5722" }} />,
+    "application/vnd.oasis.opendocument.spreadsheet": <TableChartIcon style={{ color: "#FF5722" }} />,
+    "application/vnd.oasis.opendocument.presentation": <SlideshowIcon style={{ color: "#FF5722" }} />,
+    "application/x-7z-compressed": <ArchiveIcon style={{ color: "#795548" }} />,
+    "application/x-tar": <ArchiveIcon style={{ color: "#795548" }} />,
   };
   if (mimeType) {
-    return icons[mimeType ?? "text/plain"] || <FaFileAlt />;
+    return icons[mimeType ?? "text/plain"] || <DescriptionIcon />;
   } else {
-    return <FaFolder style={{ cursor: "pointer", color: "blue" }} />
+    return <FolderIcon style={{ cursor: "pointer", color: "blue" }} />
   }
 }
 
@@ -94,7 +108,7 @@ const FileGridItem = ({
     <h3>
       {file.isDirectory ? (
         <span onClick={() => onOpenFolder(file)} style={{ cursor: "pointer", color: "blue" }}>
-          <FaFolder /> {file.name}
+          <FolderIcon /> {file.name}
         </span>
       ) : (
         <>
@@ -116,6 +130,7 @@ export default function FileExplorer() {
   const [sortBy, setSortBy] = useState<"name" | "createdAt" | "modifiedAt">("name");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [params, setParams] = useSearchParams();
+  const [currentUser, setCurrentUser] = useState<SessionUser>();
   const preferredView = useRef<"list" | "grid">("list");
   const parentId = params.get("parentId");
   const view = params.get("view") || preferredView.current;
@@ -131,6 +146,11 @@ export default function FileExplorer() {
   // The user's decrypted private key and public key
   const [privateKey, setPrivateKey] = useState<CryptoKey | null>(null);
   const [userPublicKey, setUserPublicKey] = useState<CryptoKey | null>(null);
+
+  const [collapsed, setCollapsed] = useState<boolean>(false);
+  // Get window size for responsive design
+  const { width } = useWindowSize()
+  const isMobile = width < 768
 
 
   // Whenever currentDir or privateKey changes, fetch the files
@@ -160,9 +180,6 @@ export default function FileExplorer() {
   }, [files, parentId, loading]);
 
   const [dirStack, setDirStack] = useState<FileMetadata[]>([]);
-
-  // Tracks whether the dropdown is open
-  const [isNewMenuOpen, setIsNewMenuOpen] = useState(false);
 
   // Tracks if there is an active download
   const [downloadTarget, setDownloadTarget] = useState<FileMetadata | null>(null);
@@ -281,6 +298,7 @@ export default function FileExplorer() {
         return;
       }
       const data = resp.data;
+      setCurrentUser(data);
       const { publicKey, encryptedPrivateKey, iv, salt, gridView, id, email, username } = data;
       preferredView.current = gridView ? "grid" : "list";
 
@@ -470,7 +488,9 @@ export default function FileExplorer() {
       });
     }
   };
-  const handleGoBack = () => {
+
+  // @ts-ignore
+  function handleGoBack() {
     const stack = [...dirStack];
     // Remove the last item from the stack
     stack.pop();
@@ -484,7 +504,7 @@ export default function FileExplorer() {
       }
       return params;
     });
-  };
+  }
 
   /** Move a file to a new parent. */
   const handleMove = async (file: FileMetadata) => {
@@ -534,13 +554,11 @@ export default function FileExplorer() {
   };
 
   /** Create a new folder by encrypting the name with the public key. */
-  const handleCreateFolder = async () => {
+  const handleCreateFolder = async (folderName: string) => {
     if (!userPublicKey) {
       showError("User public key not loaded");
       return;
     }
-    const folderName = prompt("Enter new folder name:");
-    if (!folderName) return;
     try {
       const [aesKey, nonce] = await generateKeyAndNonce();
       let parentKey: CryptoKey;
@@ -581,122 +599,100 @@ export default function FileExplorer() {
     }
   };
 
-  /** Handle "Upload File" option from the dropdown as a placeholder. */
-  function handleNewUploadFile() {
-    showError("File upload logic goes here.");
-    setIsNewMenuOpen(false);
-  }
-
   return (
-    <div style={styles.container}>
-      <aside style={styles.sidebar}>
-        <h2>My Drive</h2>
-        <div style={{ position: "relative" }}>
-          <ul style={styles.navList}>
-            <li
-              style={styles.newNavItem}
-              onClick={() => setIsNewMenuOpen((prev) => !prev)}
-            >
-              <FaPlus style={{ fontSize: "1.2rem" }} />
-              New
-            </li>
-            {isNewMenuOpen && (
-              <div style={styles.newMenu}>
-                <div style={styles.newMenuItem} onClick={handleNewUploadFile}>
-                  Upload File
-                </div>
-                <div
-                  style={styles.newMenuItem}
-                  onClick={() => {
-                    handleCreateFolder();
-                    setIsNewMenuOpen(false);
-                  }}
-                >
-                  Create Folder
-                </div>
-              </div>
-            )}
-            <li
-              style={styles.navItem}
-              onClick={() => {
-                setParams((params) => {
-                  params.delete("parentId");
-                  return params
-                });
-                setDirStack([]);
-              }}
-            >
-              <FaFolder /> My Files
-            </li>
-            <li style={styles.navItem}>
-              <FaUsers /> Shared with me
-            </li>
-            <li style={styles.navItem}>
-              <FaClock /> Recent
-            </li>
-            {dirStack.length > 0 && (
-              <li style={styles.navItem} onClick={handleGoBack}>
-                ← Back
-              </li>
-            )}
-          </ul>
-        </div>
-      </aside>
-      <main style={styles.mainContent}>
-        <header style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <h1 style={styles.title}>Files</h1>
-          <div style={styles.controls}>
-            <Upload
-              parentId={parentId}
-              parentKey={parentId ? files[parentId]?.key : null}
-              onUpload={async (file) => {
-                file.uploaderId = await localforage.getItem("userId") || "";
-                file.ownerId = files[parentId ?? ""]?.ownerId || file.uploaderId;
-                const tempFiles = { ...files };
-                tempFiles[file.id] = file;
-                if (file.parentId) {
-                  tempFiles[file.parentId].children?.push(file.id);
-                } else {
-                  setRoot(new Set([...root, file.id]))
-                }
-                setFiles(tempFiles)
-              }}
-            />
-            <FileSearch
-              loading={loading}
-              files={files}
-              onOpen={throttledFetchFiles}
-              onFileSelected={file => {
-                if (file.isDirectory) {
-                  setParams(params => {
-                    params.set("parentId", file.id);
-                    return params;
-                  })
-                } else {
-                  // TODO: Handle showing file previews here
-                }
-              }}
-              onNavigateToPath={path => {
+    <Box
+      sx={{
+        height: "100%",
+        bgcolor: "background.default",
+      }}
+    >
+      <FileSidebar
+        collapsed={collapsed}
+        setCollapsed={setCollapsed}
+        user={currentUser}
+        onCreateFolder={handleCreateFolder} />
+      <Box
+        sx={{
+          ml: {
+            xs: 0,
+            sm: collapsed ? "70px" : "250px",
+          },
+          transition: "margin-left 0.3s ease",
+          p: { xs: 2, md: 3 },
+        }}
+      >
+        <Box sx={{ mb: 3 }}>
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              mb: 2,
+            }}
+          >
+            <Box sx={{ display: "flex", alignItems: "center" }}>
+              {isMobile && (
+                <IconButton sx={{ mr: 1 }} onClick={() => setCollapsed(!collapsed)}>
+                  <GridMenuIcon style={{ height: 20, width: 20 }} />
+                </IconButton>
+              )}
+              <Typography variant="h5" sx={{ fontWeight: "bold" }}>
+                My Files
+              </Typography>
+            </Box>
+          </Box>
+        </Box>
+        <div style={styles.controls}>
+          <Upload
+            parentId={parentId}
+            parentKey={parentId ? files[parentId]?.key : null}
+            onUpload={async (file) => {
+              file.uploaderId = await localforage.getItem("userId") || "";
+              file.ownerId = files[parentId ?? ""]?.ownerId || file.uploaderId;
+              const tempFiles = { ...files };
+              tempFiles[file.id] = file;
+              if (file.parentId) {
+                tempFiles[file.parentId].children?.push(file.id);
+              } else {
+                setRoot(new Set([...root, file.id]))
+              }
+              setFiles(tempFiles)
+            }}
+          />
+          <FileSearch
+            loading={loading}
+            files={files}
+            onOpen={throttledFetchFiles}
+            onFileSelected={file => {
+              if (file.isDirectory) {
                 setParams(params => {
-                  if (path) {
-                    params.set("parentId", path);
-                  } else {
-                    params.delete("parentId");
-                  }
-                  return params
+                  params.set("parentId", file.id);
+                  return params;
                 })
-              }} />
-            <button
-              onClick={() => setParams(params => {
-                params.set("view", view === "list" ? "grid" : "list");
-                return params;
-              })}
-              style={styles.toggleButton}
-            >
-              {view === "list" ? <FaTh /> : <FaList />} Toggle View
-            </button>
-          </div>
-        </header>
+              } else {
+                // TODO: Handle showing file previews here
+              }
+            }}
+            onNavigateToPath={path => {
+              setParams(params => {
+                if (path) {
+                  params.set("parentId", path);
+                } else {
+                  params.delete("parentId");
+                }
+                return params
+              })
+            }} />
+          <button
+            onClick={() => setParams(params => {
+              params.set("view", view === "list" ? "grid" : "list");
+              return params;
+            })}
+            style={styles.toggleButton}
+          >
+            {view === "list" ? <ViewModuleIcon /> : <ViewListIcon />} Toggle View
+          </button>
+        </div>
         {view === "list" ? (
           <FileList
             onRowDoubleClick={(fileId) => {
@@ -725,8 +721,8 @@ export default function FileExplorer() {
           </>
         )
         }
-      </main >
-    </div >
+      </Box>
+    </Box >
   );
 }
 
