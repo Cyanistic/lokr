@@ -19,19 +19,19 @@
   --- ( ) Previews enlarged upon double clicking
   -- ( ) File moving
   -- ( ) File copying
-  -- ( ) File deletion
+  -- (x) File deletion
   -- (x) File searching
-  -- ( ) Prompts when creating a new folder
-  -- ( ) Displaying file owner or uploader name and avatar if files are shared
+  -- (x) Prompts when creating a new folder
+  -- (x) Displaying file owner or uploader name and avatar if files are shared
   -- (x) Directory-aware file uploads
   --- (x) Encrypt uploaded files with the encryption key of parent directory
   - ( ) File sharing
   -- ( ) Revoking shared permissions
-  -- ( ) Managing permissions and updating with drop-down menu
+  -- (x) Managing permissions and updating with drop-down menu
   -- ( ) Viewing all users that have access to a file (only if you own the file)
   -- ( ) Share Links
   --- ( ) Viewing all active links for a file and when they expire
-  --- ( ) Link creation
+  --- (-) Link creation
   --- ( ) Uploading and viewing through links
   --- ( ) Upload progress indicators
   --- ( ) Password prompts for protected links
