@@ -5,6 +5,7 @@ import Login from './pages/Login'
 import Upload from './pages/Upload'
 import TestPage from "./pages/TestPage"
 import TestPreviewPage from "./pages/TestPreviewPage";
+import NotFound from './pages/404Page.tsx'
 import { isAuthenticated, logout } from "./utils.ts";
 import { ProtectedRoute } from "./utils/ProtectedRoute.tsx";
 import React from "react";
@@ -35,6 +36,7 @@ function App() {
           <Route path="/about" element={<About />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="*" element={<NotFound />} />
           <Route element={<ProtectedRoute />}>
             <Route path="/profile" element={<Profile />} />
             <Route path="/files" element={<FileExplorer key={"files"} type={"files"} />} />

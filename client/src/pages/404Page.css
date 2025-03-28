@@ -1,0 +1,28 @@
+.not-found-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    text-align: center;
+}
+  
+.error-code {
+    font-size: 6rem;
+    font-weight: bold;
+    margin-bottom: 10px;
+}
+  
+.error-message {
+    font-size: 1.5rem;
+}
+  
+.home-button {
+    margin-top: 20px;
+    padding: 12px 24px;
+    font-size: 1rem;
+    border: none;
+    border-radius: 5px;
+    text-decoration: none;
+    transition: 0.3s ease-in-out;
+}
