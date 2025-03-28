@@ -30,10 +30,11 @@ interface FileListProps {
   files: FileMetadata[],
   users: Record<string, PublicUser>,
   loading?: boolean
-  onRowDoubleClick: (fileId: string) => void;
+  onRowClick: (fileId: string) => void;
+  onAction: (action: string, fileId: string) => Promise<void>;
 }
 
-export default function FileList({ files, users, loading, onRowDoubleClick: onRowClick }: FileListProps) {
+export default function FileList({ files, users, loading, onRowClick, onAction }: FileListProps) {
   const [sortModel, setSortModel] = useState<GridSortModel>([
     {
       field: "name",
@@ -215,8 +216,7 @@ export default function FileList({ files, users, loading, onRowDoubleClick: onRo
         if (!params.row) return null
         return <FileContextMenu
           fileId={params.row.id as string}
-          // TODO: Handle actions on the action button
-          onAction={() => { }}
+          onAction={onAction}
         />
       },
     },

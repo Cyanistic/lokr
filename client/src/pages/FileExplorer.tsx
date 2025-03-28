@@ -40,6 +40,8 @@ import { FileSidebar } from "../components/FileSidebar";
 import { Box, IconButton, Typography } from "@mui/material";
 import { useWindowSize } from "../components/hooks/useWindowSize";
 import { GridMenuIcon } from "@mui/x-data-grid";
+import ShareModal from "../components/ShareModal";
+import FileInfoModal from "../components/FileInfoModal";
 
 /** Convert base64 to ArrayBuffer */
 function base64ToArrayBuffer(base64: string): ArrayBuffer {
@@ -152,6 +154,9 @@ export default function FileExplorer() {
   const { width } = useWindowSize()
   const isMobile = width < 768
 
+  const [shareOpen, setShareOpen] = useState<boolean>(false);
+  const [infoOpen, setInfoOpen] = useState<boolean>(false);
+  const selectedFile = useRef<FileMetadata>();
 
   // Whenever currentDir or privateKey changes, fetch the files
   useEffect(() => {
@@ -506,6 +511,31 @@ export default function FileExplorer() {
     });
   }
 
+  async function handleFileAction(action: string, fileId: string) {
+    selectedFile.current = files[fileId];
+    if (!selectedFile.current) {
+      showError("Unexpected error encountered. File not found...", fileId);
+      return;
+    }
+    switch (action) {
+      case "delete":
+        await handleDelete(selectedFile.current);
+        break;
+      case "info":
+        setInfoOpen(true);
+        break;
+      case "rename":
+        break;
+      case "share":
+        setShareOpen(true);
+        break;
+      case "move":
+        break;
+      default:
+        showError(`Unsupported case encountered in handleAction! ${action}`)
+    }
+  }
+
   /** Move a file to a new parent. */
   const handleMove = async (file: FileMetadata) => {
     const destination = prompt("Enter destination folder id:");
@@ -600,129 +630,146 @@ export default function FileExplorer() {
   };
 
   return (
-    <Box
-      sx={{
-        height: "100%",
-        bgcolor: "background.default",
-      }}
-    >
-      <FileSidebar
-        collapsed={collapsed}
-        setCollapsed={setCollapsed}
-        user={currentUser}
-        onCreateFolder={handleCreateFolder} />
+    <>
       <Box
         sx={{
-          ml: {
-            xs: 0,
-            sm: collapsed ? "70px" : "250px",
-          },
-          transition: "margin-left 0.3s ease",
-          p: { xs: 2, md: 3 },
+          height: "100%",
+          bgcolor: "background.default",
         }}
       >
-        <Box sx={{ mb: 3 }}>
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              mb: 2,
-            }}
-          >
-            <Box sx={{ display: "flex", alignItems: "center" }}>
-              {isMobile && (
-                <IconButton sx={{ mr: 1 }} onClick={() => setCollapsed(!collapsed)}>
-                  <GridMenuIcon style={{ height: 20, width: 20 }} />
-                </IconButton>
-              )}
-              <Typography variant="h5" sx={{ fontWeight: "bold" }}>
-                My Files
-              </Typography>
+        <FileSidebar
+          collapsed={collapsed}
+          setCollapsed={setCollapsed}
+          user={currentUser}
+          onCreateFolder={handleCreateFolder} />
+        <Box
+          sx={{
+            ml: {
+              xs: 0,
+              sm: collapsed ? "70px" : "250px",
+            },
+            transition: "margin-left 0.3s ease",
+            p: { xs: 2, md: 3 },
+          }}
+        >
+          <Box sx={{ mb: 3 }}>
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                mb: 2,
+              }}
+            >
+              <Box sx={{ display: "flex", alignItems: "center" }}>
+                {isMobile && (
+                  <IconButton sx={{ mr: 1 }} onClick={() => setCollapsed(!collapsed)}>
+                    <GridMenuIcon style={{ height: 20, width: 20 }} />
+                  </IconButton>
+                )}
+                <Typography variant="h5" sx={{ fontWeight: "bold" }}>
+                  My Files
+                </Typography>
+              </Box>
             </Box>
           </Box>
-        </Box>
-        <div style={styles.controls}>
-          <Upload
-            parentId={parentId}
-            parentKey={parentId ? files[parentId]?.key : null}
-            onUpload={async (file) => {
-              file.uploaderId = await localforage.getItem("userId") || "";
-              file.ownerId = files[parentId ?? ""]?.ownerId || file.uploaderId;
-              const tempFiles = { ...files };
-              tempFiles[file.id] = file;
-              if (file.parentId) {
-                tempFiles[file.parentId].children?.push(file.id);
-              } else {
-                setRoot(new Set([...root, file.id]))
-              }
-              setFiles(tempFiles)
-            }}
-          />
-          <FileSearch
-            loading={loading}
-            files={files}
-            onOpen={throttledFetchFiles}
-            onFileSelected={file => {
-              if (file.isDirectory) {
-                setParams(params => {
-                  params.set("parentId", file.id);
-                  return params;
-                })
-              } else {
-                // TODO: Handle showing file previews here
-              }
-            }}
-            onNavigateToPath={path => {
-              setParams(params => {
-                if (path) {
-                  params.set("parentId", path);
+          <div style={styles.controls}>
+            <Upload
+              parentId={parentId}
+              parentKey={parentId ? files[parentId]?.key : null}
+              onUpload={async (file) => {
+                file.uploaderId = await localforage.getItem("userId") || "";
+                file.ownerId = files[parentId ?? ""]?.ownerId || file.uploaderId;
+                const tempFiles = { ...files };
+                tempFiles[file.id] = file;
+                if (file.parentId) {
+                  tempFiles[file.parentId].children?.push(file.id);
                 } else {
-                  params.delete("parentId");
+                  setRoot(new Set([...root, file.id]))
                 }
-                return params
-              })
-            }} />
-          <button
-            onClick={() => setParams(params => {
-              params.set("view", view === "list" ? "grid" : "list");
-              return params;
-            })}
-            style={styles.toggleButton}
-          >
-            {view === "list" ? <ViewModuleIcon /> : <ViewListIcon />} Toggle View
-          </button>
-        </div>
-        {view === "list" ? (
-          <FileList
-            onRowDoubleClick={(fileId) => {
-              const file = files[fileId]!;
-              handleOpenFolder(file);
-            }}
-            files={currentDir ?? []}
-            loading={loading}
-            users={users} />
-        ) : (
-          <>
-            {loading ? (<p>Loading files</p>) :
-              (<div style={styles.gridContainer}>
-                {sortedFiles?.map((file) => (
-                  <FileGridItem
-                    key={file.id}
-                    file={file}
-                    onOpenFolder={handleOpenFolder}
-                    onMove={handleMove}
-                    onDelete={handleDelete}
-                    onDownload={handleDownload}
-                  />)
-                )
+                setFiles(tempFiles)
+              }}
+            />
+            <FileSearch
+              loading={loading}
+              files={files}
+              onOpen={throttledFetchFiles}
+              onFileSelected={file => {
+                if (file.isDirectory) {
+                  setParams(params => {
+                    params.set("parentId", file.id);
+                    return params;
+                  })
+                } else {
+                  // TODO: Handle showing file previews here
                 }
-              </div>)}
-          </>
-        )
-        }
-      </Box>
-    </Box >
+              }}
+              onNavigateToPath={path => {
+                setParams(params => {
+                  if (path) {
+                    params.set("parentId", path);
+                  } else {
+                    params.delete("parentId");
+                  }
+                  return params
+                })
+              }} />
+            <button
+              onClick={() => setParams(params => {
+                params.set("view", view === "list" ? "grid" : "list");
+                return params;
+              })}
+              style={styles.toggleButton}
+            >
+              {view === "list" ? <ViewModuleIcon /> : <ViewListIcon />} Toggle View
+            </button>
+          </div>
+          {view === "list" ? (
+            <FileList
+              onRowClick={(fileId) => {
+                const file = files[fileId]!;
+                handleOpenFolder(file);
+              }}
+              onAction={handleFileAction}
+              files={currentDir ?? []}
+              loading={loading}
+              users={users} />
+          ) : (
+            <>
+              {loading ? (<p>Loading files</p>) :
+                (<div style={styles.gridContainer}>
+                  {sortedFiles?.map((file) => (
+                    <FileGridItem
+                      key={file.id}
+                      file={file}
+                      onOpenFolder={handleOpenFolder}
+                      onMove={handleMove}
+                      onDelete={handleDelete}
+                      onDownload={handleDownload}
+                    />)
+                  )
+                  }
+                </div>)}
+            </>
+          )
+          }
+        </Box>
+      </Box >
+      {/* File sharing dialog holder */}
+      <ShareModal
+        open={shareOpen}
+        file={selectedFile.current}
+        onClose={() => setShareOpen(false)} />
+
+      {/* File info dialog holder */}
+      <FileInfoModal
+        open={infoOpen}
+        onClose={() => setInfoOpen(false)}
+        file={selectedFile.current}
+        users={users}
+        path={dirStack}
+      />
+    </>
   );
 }
 
