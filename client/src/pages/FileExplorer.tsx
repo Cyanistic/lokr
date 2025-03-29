@@ -189,6 +189,8 @@ export default function FileExplorer(
   // ***** New State for Move Functionality *****
   const [moveOpen, setMoveOpen] = useState(false);
 
+  const [showUpload, setShowUpload] = useState(false);
+
   // Whenever currentDir or privateKey changes, fetch the files
   useEffect(() => {
     if (!privateKey) {
@@ -771,23 +773,27 @@ export default function FileExplorer(
             </Box>
           </Box>
           <div style={styles.controls}>
-            <Upload
-              parentId={parentId}
-              parentKey={parentId ? files[parentId]?.key : null}
-              onUpload={async (file) => {
-                file.uploaderId = (await localforage.getItem("userId")) || "";
-                file.ownerId =
-                  files[parentId ?? ""]?.ownerId || file.uploaderId;
-                const tempFiles = { ...files };
-                tempFiles[file.id] = file;
-                if (file.parentId) {
-                  tempFiles[file.parentId].children?.push(file.id);
-                } else {
-                  setRoot(new Set([...root, file.id]));
-                }
-                setFiles(tempFiles);
-              }}
-            />
+            <button className="b1" onClick={() => setShowUpload(true)}>Upload File</button>
+            {showUpload && 
+              <Upload
+                isOverlay={true}
+                parentId={parentId}
+                parentKey={parentId ? files[parentId]?.key : null}
+                onUpload={async (file) => {
+                  file.uploaderId = await localforage.getItem("userId") || "";
+                  file.ownerId = files[parentId ?? ""]?.ownerId || file.uploaderId;
+                  const tempFiles = { ...files };
+                  tempFiles[file.id] = file;
+                  if (file.parentId) {
+                    tempFiles[file.parentId].children?.push(file.id);
+                  } else {
+                    setRoot(new Set([...root, file.id]))
+                  }
+                  setFiles(tempFiles)
+                }}
+                onClose={() => setShowUpload(false)}
+              />
+            }
             <FileSearch
               loading={loading}
               files={files}
