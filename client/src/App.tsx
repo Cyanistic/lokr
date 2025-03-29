@@ -4,6 +4,7 @@ import Register from './pages/Register'
 import Login from './pages/Login'
 import Upload from './pages/Upload'
 import TestPage from "./pages/TestPage"
+import TestPreviewPage from "./pages/TestPreviewPage";
 import { isAuthenticated, logout } from "./utils.ts";
 import { ProtectedRoute } from './utils/ProtectedRoute.tsx'
 import React from 'react';
@@ -31,6 +32,7 @@ function App() {
             <Route path="/profile" element={<Profile />} />
             <Route path="/files" element={<FileExplorer />} />
             <Route path="/test" element={<TestPage />} />
+            <Route path="/preview" element={<TestPreviewPage />} />
           </Route>
         </Routes>
 
