@@ -37,11 +37,26 @@ import { useThrottledCallback } from "use-debounce";
 import FileList from "../components/FileList";
 import { PublicUser, SessionUser } from "../myApi";
 import { FileSidebar } from "../components/FileSidebar";
-import { Box, IconButton, Typography } from "@mui/material";
+import {
+  Box,
+  IconButton,
+  Typography,
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
+  ListItemButton,
+} from "@mui/material";
 import { useWindowSize } from "../components/hooks/useWindowSize";
 import { GridMenuIcon } from "@mui/x-data-grid";
 import ShareModal from "../components/ShareModal";
 import FileInfoModal from "../components/FileInfoModal";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 
 /** Convert base64 to ArrayBuffer */
 function base64ToArrayBuffer(base64: string): ArrayBuffer {
@@ -88,7 +103,7 @@ export function getFileIcon(mimeType: string | undefined) {
   if (mimeType) {
     return icons[mimeType ?? "text/plain"] || <DescriptionIcon />;
   } else {
-    return <FolderIcon style={{ cursor: "pointer", color: "blue" }} />
+    return <FolderIcon style={{ cursor: "pointer", color: "blue" }} />;
   }
 }
 
@@ -98,7 +113,7 @@ const FileGridItem = ({
   onOpenFolder,
   onMove,
   onDelete,
-  onDownload
+  onDownload,
 }: {
   file: FileMetadata;
   onOpenFolder: (file: FileMetadata) => void;
@@ -109,7 +124,10 @@ const FileGridItem = ({
   <div style={{ ...styles.gridItem, color: "black" }}>
     <h3>
       {file.isDirectory ? (
-        <span onClick={() => onOpenFolder(file)} style={{ cursor: "pointer", color: "blue" }}>
+        <span
+          onClick={() => onOpenFolder(file)}
+          style={{ cursor: "pointer", color: "blue" }}
+        >
           <FolderIcon /> {file.name}
         </span>
       ) : (
@@ -141,7 +159,7 @@ export default function FileExplorer() {
   // The list of items in the current directory
   const [files, setFiles] = useState<Record<string, FileMetadata>>({});
   const [users, setUsers] = useState<Record<string, PublicUser>>({});
-  const [root, setRoot] = useState<Set<string>>(new Set())
+  const [root, setRoot] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const { showError } = useErrorToast();
 
@@ -151,12 +169,19 @@ export default function FileExplorer() {
 
   const [collapsed, setCollapsed] = useState<boolean>(false);
   // Get window size for responsive design
-  const { width } = useWindowSize()
-  const isMobile = width < 768
+  const { width } = useWindowSize();
+  const isMobile = width < 768;
 
   const [shareOpen, setShareOpen] = useState<boolean>(false);
   const [infoOpen, setInfoOpen] = useState<boolean>(false);
   const selectedFile = useRef<FileMetadata>();
+
+  // ***** New State for Move Functionality *****
+  const [moveModalOpen, setMoveModalOpen] = useState(false);
+  const [moveFile, setMoveFile] = useState<FileMetadata | null>(null);
+  // currentMoveFolder tracks the current destination folder (null means root)
+  const [currentMoveFolder, setCurrentMoveFolder] = useState<string | null>(null);
+  // **********************************************
 
   // Whenever currentDir or privateKey changes, fetch the files
   useEffect(() => {
@@ -172,15 +197,15 @@ export default function FileExplorer() {
     }
     if (parentId) {
       if (files[parentId]) {
-        return files[parentId].children?.map(f => files[f]);
+        return files[parentId].children?.map((f) => files[f]);
       } else {
-        setParams(params => {
+        setParams((params) => {
           params.delete("parentId");
           return params;
         });
       }
     } else {
-      return [...root].map(f => files[f]);
+      return [...root].map((f) => files[f]);
     }
   }, [files, parentId, loading]);
 
@@ -193,7 +218,12 @@ export default function FileExplorer() {
   const handleDownload = async (file: FileMetadata) => {
     try {
       if (file.isDirectory) {
-        await fetchFiles({ depth: 20, limit: 1000, includeAncestors: false, fileId: file.id });
+        await fetchFiles({
+          depth: 20,
+          limit: 1000,
+          includeAncestors: false,
+          fileId: file.id,
+        });
         setDownloadTarget(file);
       } else {
         await downloadFile(file);
@@ -206,7 +236,7 @@ export default function FileExplorer() {
   // Use a callback to throttle the fetchFiles function to avoid excessive API calls
   // since this is an expensive operation
   const throttledFetchFiles = useThrottledCallback(() => {
-    fetchFiles({ depth: 20, limit: 1000, includeAncestors: false, updateLoading: false })
+    fetchFiles({ depth: 20, limit: 1000, includeAncestors: false, updateLoading: false });
   }, 5000);
 
   /** Download a single file. */
@@ -256,7 +286,9 @@ export default function FileExplorer() {
           if (!f) return;
 
           if (f.isDirectory) {
-            nextFolders[f.id] = folderQueue[f.parentId!].folder(f.name ?? "folder")!;
+            nextFolders[f.id] = folderQueue[f.parentId!].folder(
+              f.name ?? "folder"
+            )!;
             if (f.children) {
               nextFiles.push(...f.children);
             }
@@ -294,7 +326,6 @@ export default function FileExplorer() {
     window.URL.revokeObjectURL(url);
   }
 
-
   async function fetchUserProfileAndDecryptKey() {
     try {
       const resp = await API.api.getLoggedInUser();
@@ -315,7 +346,7 @@ export default function FileExplorer() {
       }
       const pubKey = await importPublicKey(publicKey);
       setUserPublicKey(pubKey);
-      setUsers({ ...users, [id]: { publicKey, email, id, username } })
+      setUsers({ ...users, [id]: { publicKey, email, id, username } });
 
       // 2) If we have an encrypted private key, prompt for password
       const storedPrivateKey: CryptoKey | null = await localforage.getItem("privateKey");
@@ -356,10 +387,22 @@ export default function FileExplorer() {
     offset,
     includeAncestors,
     fileId,
-    updateLoading
+    updateLoading,
   }: {
-    depth?: number, limit?: number, offset?: number, includeAncestors?: boolean, fileId?: string, updateLoading?: boolean
-  } = { depth: 1, limit: 100, offset: 0, includeAncestors: true, fileId: parentId ?? undefined, updateLoading: true }) {
+    depth?: number;
+    limit?: number;
+    offset?: number;
+    includeAncestors?: boolean;
+    fileId?: string;
+    updateLoading?: boolean;
+  } = {
+    depth: 1,
+    limit: 100,
+    offset: 0,
+    includeAncestors: true,
+    fileId: parentId ?? undefined,
+    updateLoading: true,
+  }) {
     if (updateLoading) {
       setLoading(true);
     }
@@ -369,7 +412,7 @@ export default function FileExplorer() {
         depth: depth ?? 1,
         limit: limit ?? 100,
         offset: offset ?? 0,
-        includeAncestors: includeAncestors ?? true
+        includeAncestors: includeAncestors ?? true,
       });
       if (!resp.ok) {
         console.error("Error fetching file metadata:", resp.statusText);
@@ -398,34 +441,43 @@ export default function FileExplorer() {
       let found = false;
       while (queue.length > 0) {
         let next: string[] = [];
-        await Promise.allSettled(queue.map(async (fileId) => {
-          found ||= fileId === parentId;
-          const f = tempFiles[fileId];
-          let unwrapKey: CryptoKey | undefined | null;
-          let unwrapAlgorithm;
-          let mimeType;
-          const nonce = base64ToArrayBuffer(f.nonce);
-          if (f.parentId) {
-            unwrapAlgorithm = { name: "AES-GCM", iv: nonce } as AesGcmParams;
-            unwrapKey = tempFiles[f.parentId].key;
-          } else {
-            unwrapAlgorithm = { name: "RSA-OAEP" } as RsaOaepParams;
-            unwrapKey = privateKey;
-          }
-          if (!unwrapKey) {
-            console.error("Could not get parent key");
-            return;
-          }
-          const key = await unwrapAESKey(f.encryptedKey, unwrapKey, unwrapAlgorithm);
-          const name = await decryptText(f.encryptedFileName, key, nonce);
-          if (f.encryptedMimeType) {
-            mimeType = await decryptText(f.encryptedMimeType, key, nonce);
-          }
-          if (f.children) {
-            next.push(...f.children);
-          }
-          tempFiles[fileId] = { ...f, name, key, mimeType, createdAtDate: new Date(f.createdAt), modifiedAtDate: new Date(f.modifiedAt) };
-        }))
+        await Promise.allSettled(
+          queue.map(async (fileId) => {
+            found ||= fileId === parentId;
+            const f = tempFiles[fileId];
+            let unwrapKey: CryptoKey | undefined | null;
+            let unwrapAlgorithm;
+            let mimeType;
+            const nonce = base64ToArrayBuffer(f.nonce);
+            if (f.parentId) {
+              unwrapAlgorithm = { name: "AES-GCM", iv: nonce } as AesGcmParams;
+              unwrapKey = tempFiles[f.parentId].key;
+            } else {
+              unwrapAlgorithm = { name: "RSA-OAEP" } as RsaOaepParams;
+              unwrapKey = privateKey;
+            }
+            if (!unwrapKey) {
+              console.error("Could not get parent key");
+              return;
+            }
+            const key = await unwrapAESKey(f.encryptedKey, unwrapKey, unwrapAlgorithm);
+            const name = await decryptText(f.encryptedFileName, key, nonce);
+            if (f.encryptedMimeType) {
+              mimeType = await decryptText(f.encryptedMimeType, key, nonce);
+            }
+            if (f.children) {
+              next.push(...f.children);
+            }
+            tempFiles[fileId] = {
+              ...f,
+              name,
+              key,
+              mimeType,
+              createdAtDate: new Date(f.createdAt),
+              modifiedAtDate: new Date(f.modifiedAt),
+            };
+          })
+        );
         if (!found && parentId) {
           stack.push(tempFiles[queue[0]]);
         }
@@ -439,15 +491,15 @@ export default function FileExplorer() {
       setFiles(tempFiles);
     } catch (err) {
       console.error("Error fetching files:", err);
-      setParams(params => {
+      setParams((params) => {
         params.delete("parentId");
-        return params
+        return params;
       });
     }
     if (updateLoading) {
       setLoading(false);
     }
-  };
+  }
 
   // Whenever the files change, check if we need to download a folder
   useEffect(() => {
@@ -530,32 +582,18 @@ export default function FileExplorer() {
         setShareOpen(true);
         break;
       case "move":
+        handleMove(selectedFile.current);
         break;
       default:
-        showError(`Unsupported case encountered in handleAction! ${action}`)
+        showError(`Unsupported case encountered in handleAction! ${action}`);
     }
   }
 
-  /** Move a file to a new parent. */
+  /** Move a file to a new parent using the modal interface. */
   const handleMove = async (file: FileMetadata) => {
-    const destination = prompt("Enter destination folder id:");
-    if (!destination) return;
-    try {
-      const resp = await API.api.updateFile(file.id, {
-        type: "move",
-        parentId: destination,
-        encryptedKey: file.encryptedKey || "",
-      });
-      if (resp.ok) {
-        showError("File moved successfully");
-        fetchFiles();
-      } else {
-        showError("Error moving file");
-      }
-    } catch (err) {
-      console.error("Error moving file:", err);
-      showError("Error moving file");
-    }
+    setMoveModalOpen(true);
+    setMoveFile(file);
+    setCurrentMoveFolder(file.parentId ?? null);
   };
 
   /** Delete a file/folder. */
@@ -567,7 +605,9 @@ export default function FileExplorer() {
           const newFiles = { ...files };
           delete newFiles[file.id];
           if (file.parentId) {
-            newFiles[file.parentId].children = newFiles[file.parentId].children?.filter((id) => id != file.id);
+            newFiles[file.parentId].children = newFiles[file.parentId].children?.filter(
+              (id) => id != file.id
+            );
           } else {
             root.delete(file.id);
             setRoot(root);
@@ -600,21 +640,23 @@ export default function FileExplorer() {
           console.error("Could not find folder parent key");
           return;
         }
-        algorithm = { name: "AES-GCM", iv: nonce }
+        algorithm = { name: "AES-GCM", iv: nonce };
       } else {
         parentKey = userPublicKey;
-        algorithm = { name: "RSA-OAEP" }
+        algorithm = { name: "RSA-OAEP" };
       }
       const encryptedName = await encryptText(aesKey, folderName, nonce);
       const encryptedNameB64 = btoa(String.fromCharCode(...encryptedName));
-      const encryptedKey = bufferToBase64(await encryptAESKeyWithParentKey(parentKey, aesKey, algorithm));
+      const encryptedKey = bufferToBase64(
+        await encryptAESKeyWithParentKey(parentKey, aesKey, algorithm)
+      );
       const metadata = {
         name: folderName,
         encryptedFileName: encryptedNameB64,
         encryptedKey: encryptedKey,
         isDirectory: true,
         nonce: bufferToBase64(nonce.buffer),
-        uploaderId: await localforage.getItem("userId") || undefined,
+        uploaderId: (await localforage.getItem("userId")) || undefined,
         parentId,
       };
 
@@ -629,6 +671,119 @@ export default function FileExplorer() {
     }
   };
 
+  const MoveModal = () => {
+    // Filter subfolders at the current navigation level, excluding the folder being moved.
+    const subFolders = Object.values(files).filter(
+      (f) =>
+        f.isDirectory &&
+        (f.parentId ?? null) === currentMoveFolder &&
+        f.id !== moveFile?.id
+    );
+
+    const getParentFolder = (): string | null => {
+      if (!currentMoveFolder) return null;
+      const currentFolder = files[currentMoveFolder];
+      return currentFolder ? currentFolder.parentId ?? null : null;
+    };
+
+    const handleSelectDestination = async () => {
+      if (!moveFile) return;
+      try {
+        const resp = await API.api.updateFile(moveFile.id, {
+          type: "move",
+          parentId: currentMoveFolder,
+          encryptedKey: moveFile.encryptedKey || "",
+        });
+        if (resp.ok) {
+          showError("File moved successfully");
+          await fetchFiles();
+        } else {
+          showError("Error moving file");
+        }
+      } catch (err) {
+        console.error("Error moving file:", err);
+        showError("Error moving file");
+      }
+      setMoveModalOpen(false);
+      setMoveFile(null);
+    };
+
+    return (
+      <Dialog
+        open={moveModalOpen}
+        onClose={() => {
+          setMoveModalOpen(false);
+          setMoveFile(null);
+        }}
+        keepMounted
+        transitionDuration={0}
+        PaperProps={{
+          sx: {
+            borderRadius: 2,
+            width: 450,
+            maxWidth: "90%",
+          },
+        }}
+      >
+        <DialogTitle>Move "{moveFile?.name}"</DialogTitle>
+
+        <DialogContent dividers>
+          <Typography variant="body2" sx={{ mb: 2 }}>
+            Current Destination:{" "}
+            {currentMoveFolder
+              ? files[currentMoveFolder]?.name || "Unknown"
+              : "Root"}
+          </Typography>
+
+          {/* The arrow is now placed UNDER the current destination text */}
+          {currentMoveFolder && (
+            <IconButton
+              size="small"
+              onClick={() => setCurrentMoveFolder(getParentFolder())}
+              sx={{ mb: 2 }}
+            >
+              <ArrowBackIcon />
+            </IconButton>
+          )}
+
+          {subFolders.length === 0 ? (
+            <Typography variant="body2">
+              No folders found in this directory.
+            </Typography>
+          ) : (
+            <List>
+              {subFolders.map((folder) => (
+                <ListItem key={folder.id} disablePadding>
+                  <ListItemButton onClick={() => setCurrentMoveFolder(folder.id)}>
+                    <ListItemIcon>
+                      <FolderIcon />
+                    </ListItemIcon>
+                    <ListItemText primary={folder.name || "Untitled Folder"} />
+                  </ListItemButton>
+                </ListItem>
+              ))}
+            </List>
+          )}
+        </DialogContent>
+
+        <DialogActions>
+          <Button
+            onClick={() => {
+              setMoveModalOpen(false);
+              setMoveFile(null);
+            }}
+          >
+            Cancel
+          </Button>
+          <Button variant="contained" onClick={handleSelectDestination}>
+            Move Here
+          </Button>
+        </DialogActions>
+      </Dialog>
+    );
+  };
+  // ******************************************
+
   return (
     <>
       <Box
@@ -641,7 +796,8 @@ export default function FileExplorer() {
           collapsed={collapsed}
           setCollapsed={setCollapsed}
           user={currentUser}
-          onCreateFolder={handleCreateFolder} />
+          onCreateFolder={handleCreateFolder}
+        />
         <Box
           sx={{
             ml: {
@@ -678,47 +834,50 @@ export default function FileExplorer() {
               parentId={parentId}
               parentKey={parentId ? files[parentId]?.key : null}
               onUpload={async (file) => {
-                file.uploaderId = await localforage.getItem("userId") || "";
+                file.uploaderId = (await localforage.getItem("userId")) || "";
                 file.ownerId = files[parentId ?? ""]?.ownerId || file.uploaderId;
                 const tempFiles = { ...files };
                 tempFiles[file.id] = file;
                 if (file.parentId) {
                   tempFiles[file.parentId].children?.push(file.id);
                 } else {
-                  setRoot(new Set([...root, file.id]))
+                  setRoot(new Set([...root, file.id]));
                 }
-                setFiles(tempFiles)
+                setFiles(tempFiles);
               }}
             />
             <FileSearch
               loading={loading}
               files={files}
               onOpen={throttledFetchFiles}
-              onFileSelected={file => {
+              onFileSelected={(file) => {
                 if (file.isDirectory) {
-                  setParams(params => {
+                  setParams((params) => {
                     params.set("parentId", file.id);
                     return params;
-                  })
+                  });
                 } else {
                   // TODO: Handle showing file previews here
                 }
               }}
-              onNavigateToPath={path => {
-                setParams(params => {
+              onNavigateToPath={(path) => {
+                setParams((params) => {
                   if (path) {
                     params.set("parentId", path);
                   } else {
                     params.delete("parentId");
                   }
-                  return params
-                })
-              }} />
+                  return params;
+                });
+              }}
+            />
             <button
-              onClick={() => setParams(params => {
-                params.set("view", view === "list" ? "grid" : "list");
-                return params;
-              })}
+              onClick={() =>
+                setParams((params) => {
+                  params.set("view", view === "list" ? "grid" : "list");
+                  return params;
+                })
+              }
               style={styles.toggleButton}
             >
               {view === "list" ? <ViewModuleIcon /> : <ViewListIcon />} Toggle View
@@ -733,11 +892,14 @@ export default function FileExplorer() {
               onAction={handleFileAction}
               files={currentDir ?? []}
               loading={loading}
-              users={users} />
+              users={users}
+            />
           ) : (
             <>
-              {loading ? (<p>Loading files</p>) :
-                (<div style={styles.gridContainer}>
+              {loading ? (
+                <p>Loading files</p>
+              ) : (
+                <div style={styles.gridContainer}>
                   {sortedFiles?.map((file) => (
                     <FileGridItem
                       key={file.id}
@@ -746,20 +908,20 @@ export default function FileExplorer() {
                       onMove={handleMove}
                       onDelete={handleDelete}
                       onDownload={handleDownload}
-                    />)
-                  )
-                  }
-                </div>)}
+                    />
+                  ))}
+                </div>
+              )}
             </>
-          )
-          }
+          )}
         </Box>
-      </Box >
+      </Box>
       {/* File sharing dialog holder */}
       <ShareModal
         open={shareOpen}
         file={selectedFile.current}
-        onClose={() => setShareOpen(false)} />
+        onClose={() => setShareOpen(false)}
+      />
 
       {/* File info dialog holder */}
       <FileInfoModal
@@ -769,6 +931,8 @@ export default function FileExplorer() {
         users={users}
         path={dirStack}
       />
+      {/* ***** Render the Move Modal when open ***** */}
+      {moveModalOpen && <MoveModal />}
     </>
   );
 }
