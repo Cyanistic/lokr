@@ -17,7 +17,7 @@
   -- ( ) File previews (for supported file types)
   --- ( ) Previews should be shown with a small thumbnail in grid view
   --- ( ) Previews enlarged upon double clicking
-  -- ( ) File moving
+  -- (x) File moving
   -- ( ) File copying
   -- (x) File deletion
   -- (x) File searching

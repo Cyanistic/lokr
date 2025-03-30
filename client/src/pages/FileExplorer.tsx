@@ -27,6 +27,7 @@ import {
   encryptAESKeyWithParentKey,
   generateKeyAndNonce,
   bufferToBase64,
+  base64ToArrayBuffer,
 } from "../cryptoFunctions";
 import { useSearchParams } from "react-router-dom";
 import { FileMetadata, FileResponse } from "../types";
@@ -41,33 +42,13 @@ import {
   Box,
   IconButton,
   Typography,
-  Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  List,
-  ListItem,
-  ListItemIcon,
-  ListItemText,
-  ListItemButton,
 } from "@mui/material";
 import { useWindowSize } from "../components/hooks/useWindowSize";
 import { GridMenuIcon } from "@mui/x-data-grid";
 import ShareModal from "../components/ShareModal";
 import FileInfoModal from "../components/FileInfoModal";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-
-/** Convert base64 to ArrayBuffer */
-function base64ToArrayBuffer(base64: string): ArrayBuffer {
-  const binaryString = atob(base64);
-  const len = binaryString.length;
-  const bytes = new Uint8Array(len);
-  for (let i = 0; i < len; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-  return bytes.buffer;
-}
+import FileMoveModal from "../components/FileMoveModal";
+import { BreadcrumbsNavigation } from "../components/BreadcrumbsNavigation";
 
 /** Return an icon based on file extension. */
 export function getFileIcon(mimeType: string | undefined) {
@@ -106,6 +87,15 @@ export function getFileIcon(mimeType: string | undefined) {
     return <FolderIcon style={{ cursor: "pointer", color: "blue" }} />;
   }
 }
+
+
+export function handleNavigate(index: number, stack: FileMetadata[]): [FileMetadata[], string] {
+  const tempStack = [...stack];
+  const newCurrentFolderId = tempStack[index - 1]?.id ?? null;
+  tempStack.splice(index);
+  return [tempStack, newCurrentFolderId];
+}
+
 
 /** Renders a file or folder item in grid view. */
 const FileGridItem = ({
@@ -177,11 +167,7 @@ export default function FileExplorer() {
   const selectedFile = useRef<FileMetadata>();
 
   // ***** New State for Move Functionality *****
-  const [moveModalOpen, setMoveModalOpen] = useState(false);
-  const [moveFile, setMoveFile] = useState<FileMetadata | null>(null);
-  // currentMoveFolder tracks the current destination folder (null means root)
-  const [currentMoveFolder, setCurrentMoveFolder] = useState<string | null>(null);
-  // **********************************************
+  const [moveOpen, setMoveOpen] = useState(false);
 
   // Whenever currentDir or privateKey changes, fetch the files
   useEffect(() => {
@@ -396,13 +382,13 @@ export default function FileExplorer() {
     fileId?: string;
     updateLoading?: boolean;
   } = {
-    depth: 1,
-    limit: 100,
-    offset: 0,
-    includeAncestors: true,
-    fileId: parentId ?? undefined,
-    updateLoading: true,
-  }) {
+      depth: 1,
+      limit: 100,
+      offset: 0,
+      includeAncestors: true,
+      fileId: parentId ?? undefined,
+      updateLoading: true,
+    }) {
     if (updateLoading) {
       setLoading(true);
     }
@@ -582,19 +568,12 @@ export default function FileExplorer() {
         setShareOpen(true);
         break;
       case "move":
-        handleMove(selectedFile.current);
+        setMoveOpen(true);
         break;
       default:
         showError(`Unsupported case encountered in handleAction! ${action}`);
     }
   }
-
-  /** Move a file to a new parent using the modal interface. */
-  const handleMove = async (file: FileMetadata) => {
-    setMoveModalOpen(true);
-    setMoveFile(file);
-    setCurrentMoveFolder(file.parentId ?? null);
-  };
 
   /** Delete a file/folder. */
   const handleDelete = async (file: FileMetadata) => {
@@ -670,119 +649,6 @@ export default function FileExplorer() {
       showError("Error creating folder");
     }
   };
-
-  const MoveModal = () => {
-    // Filter subfolders at the current navigation level, excluding the folder being moved.
-    const subFolders = Object.values(files).filter(
-      (f) =>
-        f.isDirectory &&
-        (f.parentId ?? null) === currentMoveFolder &&
-        f.id !== moveFile?.id
-    );
-
-    const getParentFolder = (): string | null => {
-      if (!currentMoveFolder) return null;
-      const currentFolder = files[currentMoveFolder];
-      return currentFolder ? currentFolder.parentId ?? null : null;
-    };
-
-    const handleSelectDestination = async () => {
-      if (!moveFile) return;
-      try {
-        const resp = await API.api.updateFile(moveFile.id, {
-          type: "move",
-          parentId: currentMoveFolder,
-          encryptedKey: moveFile.encryptedKey || "",
-        });
-        if (resp.ok) {
-          showError("File moved successfully");
-          await fetchFiles();
-        } else {
-          showError("Error moving file");
-        }
-      } catch (err) {
-        console.error("Error moving file:", err);
-        showError("Error moving file");
-      }
-      setMoveModalOpen(false);
-      setMoveFile(null);
-    };
-
-    return (
-      <Dialog
-        open={moveModalOpen}
-        onClose={() => {
-          setMoveModalOpen(false);
-          setMoveFile(null);
-        }}
-        keepMounted
-        transitionDuration={0}
-        PaperProps={{
-          sx: {
-            borderRadius: 2,
-            width: 450,
-            maxWidth: "90%",
-          },
-        }}
-      >
-        <DialogTitle>Move "{moveFile?.name}"</DialogTitle>
-
-        <DialogContent dividers>
-          <Typography variant="body2" sx={{ mb: 2 }}>
-            Current Destination:{" "}
-            {currentMoveFolder
-              ? files[currentMoveFolder]?.name || "Unknown"
-              : "Root"}
-          </Typography>
-
-          {/* The arrow is now placed UNDER the current destination text */}
-          {currentMoveFolder && (
-            <IconButton
-              size="small"
-              onClick={() => setCurrentMoveFolder(getParentFolder())}
-              sx={{ mb: 2 }}
-            >
-              <ArrowBackIcon />
-            </IconButton>
-          )}
-
-          {subFolders.length === 0 ? (
-            <Typography variant="body2">
-              No folders found in this directory.
-            </Typography>
-          ) : (
-            <List>
-              {subFolders.map((folder) => (
-                <ListItem key={folder.id} disablePadding>
-                  <ListItemButton onClick={() => setCurrentMoveFolder(folder.id)}>
-                    <ListItemIcon>
-                      <FolderIcon />
-                    </ListItemIcon>
-                    <ListItemText primary={folder.name || "Untitled Folder"} />
-                  </ListItemButton>
-                </ListItem>
-              ))}
-            </List>
-          )}
-        </DialogContent>
-
-        <DialogActions>
-          <Button
-            onClick={() => {
-              setMoveModalOpen(false);
-              setMoveFile(null);
-            }}
-          >
-            Cancel
-          </Button>
-          <Button variant="contained" onClick={handleSelectDestination}>
-            Move Here
-          </Button>
-        </DialogActions>
-      </Dialog>
-    );
-  };
-  // ******************************************
 
   return (
     <>
@@ -883,6 +749,26 @@ export default function FileExplorer() {
               {view === "list" ? <ViewModuleIcon /> : <ViewListIcon />} Toggle View
             </button>
           </div>
+
+          <BreadcrumbsNavigation
+            loading={loading}
+            path={dirStack.map(f => f.name ?? "Encrypted directory")}
+            onNavigate={(index) => {
+              const [tempStack, newParentId] = handleNavigate(index, dirStack);
+              setDirStack(tempStack);
+              if (newParentId) {
+                setParams((params) => {
+                  params.set("parentId", newParentId);
+                  return params;
+                })
+              } else {
+                setParams((params) => {
+                  params.delete("parentId");
+                  return params;
+                });
+              }
+            }} />
+
           {view === "list" ? (
             <FileList
               onRowClick={(fileId) => {
@@ -905,7 +791,7 @@ export default function FileExplorer() {
                       key={file.id}
                       file={file}
                       onOpenFolder={handleOpenFolder}
-                      onMove={handleMove}
+                      onMove={(file) => handleFileAction("move", file.id)}
                       onDelete={handleDelete}
                       onDownload={handleDownload}
                     />
@@ -931,8 +817,22 @@ export default function FileExplorer() {
         users={users}
         path={dirStack}
       />
-      {/* ***** Render the Move Modal when open ***** */}
-      {moveModalOpen && <MoveModal />}
+      {/* File move dialog */}
+      {moveOpen &&
+        <FileMoveModal
+          onClose={() => setMoveOpen(false)}
+          file={selectedFile.current}
+          files={files}
+          root={[...root]}
+          dirStack={dirStack}
+          onChangeDirectory={async (folderId) => await fetchFiles({ fileId: folderId || undefined })}
+          userPublicKey={userPublicKey}
+          // Handle updating the file tree visually
+          onMove={async () => {
+            await fetchFiles();
+            setMoveOpen(false);
+          }}
+        />}
     </>
   );
 }

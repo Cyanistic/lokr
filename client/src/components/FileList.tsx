@@ -16,7 +16,7 @@ import FolderOffIcon from '@mui/icons-material/FolderOff';
 import { useWindowSize } from "./hooks/useWindowSize"
 import { FileContextMenu } from "./FileMenu"
 
-function CustomNoRowsOverlay() {
+export function NoFilesFound() {
   return (
     <Box sx={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center" }}>
       <FolderOffIcon sx={{ fontSize: 42 }} />
@@ -237,7 +237,7 @@ export default function FileList({ files, users, loading, onRowClick, onAction }
         onSortModelChange={setSortModel}
         disableRowSelectionOnClick
         slots={{
-          noRowsOverlay: CustomNoRowsOverlay
+          noRowsOverlay: NoFilesFound
         }}
         slotProps={{
           loadingOverlay: {

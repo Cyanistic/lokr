@@ -158,8 +158,6 @@ export default function Upload({ parentId, parentKey, onUpload }: Props) {
       const encryptedFileName = await encryptText(aesKey, file.name, nonce);
       const encryptedMimeType = await encryptText(aesKey, file.type, nonce);
 
-
-
       if (parentId) {
         algorithm = { name: "AES-GCM", iv: nonce };
       } else {

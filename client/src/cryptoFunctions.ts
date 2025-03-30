@@ -11,7 +11,7 @@ function fromBase64(base64: string): Uint8Array {
 }
 
 //  Convert Base64 to ArrayBuffer
-function base64ToArrayBuffer(base64: string): ArrayBuffer {
+export function base64ToArrayBuffer(base64: string): ArrayBuffer {
   return fromBase64(base64).buffer;
 }
 
