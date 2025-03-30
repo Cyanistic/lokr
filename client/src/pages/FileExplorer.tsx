@@ -89,11 +89,10 @@ export function getFileIcon(mimeType: string | undefined) {
 }
 
 
-export function handleNavigate(index: number, stack: FileMetadata[]): [FileMetadata[], string] {
+export function handleNavigate(index: number, stack: FileMetadata[]): FileMetadata[] {
   const tempStack = [...stack];
-  const newCurrentFolderId = tempStack[index - 1]?.id ?? null;
   tempStack.splice(index);
-  return [tempStack, newCurrentFolderId];
+  return tempStack;
 }
 
 
@@ -199,6 +198,26 @@ export default function FileExplorer() {
 
   // Tracks if there is an active download
   const [downloadTarget, setDownloadTarget] = useState<FileMetadata | null>(null);
+
+  // Automatically update the parent id if the directory stack changes so that we don't
+  // need to manually keep track of both at the same time and risk accidentally cause
+  // them to get out of sync.
+  useEffect(() => {
+    if (loading) return;
+    const newParentId = dirStack[dirStack.length - 1]?.id ?? null;
+    if (newParentId) {
+      setParams((params) => {
+        params.set("parentId", newParentId);
+        return params;
+      })
+    } else {
+      setParams((params) => {
+        params.delete("parentId");
+        return params;
+      });
+    }
+  }, [dirStack, loading]);
+
 
   /** Download raw data from the server (not decrypted). */
   const handleDownload = async (file: FileMetadata) => {
@@ -464,7 +483,7 @@ export default function FileExplorer() {
             };
           })
         );
-        if (!found && parentId) {
+        if (includeAncestors && !found && parentId) {
           stack.push(tempFiles[queue[0]]);
         }
         times += 1;
@@ -473,7 +492,9 @@ export default function FileExplorer() {
       if (parentId) {
         stack.push(tempFiles[parentId]);
       }
-      setDirStack(stack);
+      if (includeAncestors) {
+        setDirStack(stack);
+      }
       setFiles(tempFiles);
     } catch (err) {
       console.error("Error fetching files:", err);
@@ -531,23 +552,6 @@ export default function FileExplorer() {
       });
     }
   };
-
-  // @ts-ignore
-  function handleGoBack() {
-    const stack = [...dirStack];
-    // Remove the last item from the stack
-    stack.pop();
-    setDirStack(stack);
-    setParams((params) => {
-      const last = stack[stack.length - 1]?.id;
-      if (last !== undefined) {
-        params.set("parentId", last);
-      } else {
-        params.delete("parentId");
-      }
-      return params;
-    });
-  }
 
   async function handleFileAction(action: string, fileId: string) {
     selectedFile.current = files[fileId];
@@ -751,22 +755,10 @@ export default function FileExplorer() {
           </div>
 
           <BreadcrumbsNavigation
-            loading={loading}
             path={dirStack.map(f => f.name ?? "Encrypted directory")}
             onNavigate={(index) => {
-              const [tempStack, newParentId] = handleNavigate(index, dirStack);
+              const tempStack = handleNavigate(index, dirStack);
               setDirStack(tempStack);
-              if (newParentId) {
-                setParams((params) => {
-                  params.set("parentId", newParentId);
-                  return params;
-                })
-              } else {
-                setParams((params) => {
-                  params.delete("parentId");
-                  return params;
-                });
-              }
             }} />
 
           {view === "list" ? (
@@ -825,12 +817,12 @@ export default function FileExplorer() {
           files={files}
           root={[...root]}
           dirStack={dirStack}
-          onChangeDirectory={async (folderId) => await fetchFiles({ fileId: folderId || undefined })}
+          onChangeDirectory={async (folderId) => await fetchFiles({ fileId: folderId || undefined, updateLoading: false, includeAncestors: false, })}
           userPublicKey={userPublicKey}
           // Handle updating the file tree visually
           onMove={async () => {
-            await fetchFiles();
             setMoveOpen(false);
+            await fetchFiles();
           }}
         />}
     </>

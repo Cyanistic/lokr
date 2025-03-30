@@ -4,10 +4,10 @@ import { Breadcrumbs, Link, Typography, Box, useTheme, useMediaQuery, Skeleton, 
 interface BreadcrumbsNavigationProps {
   path: string[]
   onNavigate: (index: number) => void
-  isLoading?: boolean
+  loading?: boolean
 }
 
-export function BreadcrumbsNavigation({ path, onNavigate, isLoading = false }: BreadcrumbsNavigationProps) {
+export function BreadcrumbsNavigation({ path, onNavigate, loading = false }: BreadcrumbsNavigationProps) {
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"))
 
@@ -25,7 +25,7 @@ export function BreadcrumbsNavigation({ path, onNavigate, isLoading = false }: B
   const visiblePath = getVisiblePath()
 
   // Loading state breadcrumbs
-  if (isLoading) {
+  if (loading) {
     return (
       <Box
         sx={{
@@ -118,7 +118,7 @@ export function BreadcrumbsNavigation({ path, onNavigate, isLoading = false }: B
         flexWrap: "wrap",
       }}
     >
-      <Fade in={!isLoading} timeout={300}>
+      <Fade in={!loading} timeout={300}>
         <Breadcrumbs
           separator={
             <ChevronRight
