@@ -93,13 +93,13 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
 
   useEffect(() => {
     const loadWordDoc = async () => {
-      if (isOpen && file && (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || 
-          fileExtension === 'docx' || fileExtension === 'doc')) {
+      if (isOpen && file && (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+        fileExtension === 'docx' || fileExtension === 'doc')) {
         try {
           const res = await fetch(file.url);
           const blob = await res.blob();
           const arrayBuffer = await blob.arrayBuffer();
-          
+
           const result = await mammoth.convertToHtml({ arrayBuffer });
           setWordDocContent(result.value);
           setLoading(false);
@@ -298,7 +298,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
           <Typography variant="h6" align="center" sx={{ color: 'white' }}>
             {file!.name}
           </Typography>
-  
+
           <Box sx={{ display: 'flex', justifyContent: 'center', my: 2 }}>
             <Box
               sx={{
@@ -316,7 +316,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
               onClick={togglePlay}
             >
               <AudioIcon size={80} />
-  
+
               {/* Loading spinner */}
               {loading && (
                 <CircularProgress
@@ -327,7 +327,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
                   }}
                 />
               )}
-  
+
               {/* Play icon in center */}
               {!isPlaying && !loading && (
                 <Box
@@ -347,7 +347,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
               )}
             </Box>
           </Box>
-  
+
           <audio
             ref={audioRef}
             src={file!.url}
@@ -356,7 +356,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
             onEnded={() => setIsPlaying(false)}
             style={{ display: 'none' }}
           />
-  
+
           <Box sx={{ width: '100%', mb: 1 }}>
             <Slider
               value={currentTime}
@@ -374,7 +374,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
               </Typography>
             </Box>
           </Box>
-  
+
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <Box sx={{ display: 'flex', alignItems: 'center' }}>
               <IconButton onClick={toggleMute} sx={{ color: 'white' }}>
@@ -390,7 +390,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
                 sx={{ color: 'white', width: 100 }}
               />
             </Box>
-  
+
             <IconButton
               onClick={togglePlay}
               sx={{
@@ -406,7 +406,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
       </Box>
     );
   };
-  
+
 
   const renderVideo = () => {
     return (
@@ -428,14 +428,14 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
             onTimeUpdate={handleTimeUpdate}
             onLoadedMetadata={handleLoadedMetadata}
             onEnded={() => setIsPlaying(false)}
-            style={{ 
-              width: '100%', 
+            style={{
+              width: '100%',
               borderRadius: '8px',
               boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.2)'
             }}
             onClick={togglePlay}
           />
-          
+
           {/* Controls that appear on hover */}
           <Box
             sx={{
@@ -477,44 +477,44 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
                 }
               }}
             />
-            
+
             {/* Controls row */}
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               {/* Left side controls */}
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <IconButton 
-                  onClick={togglePlay} 
-                  sx={{ 
+                <IconButton
+                  onClick={togglePlay}
+                  sx={{
                     color: 'white',
                     padding: '4px'
                   }}
                 >
-                  {isPlaying ? 
-                    <PauseIcon sx={{ fontSize: '24px' }} /> : 
+                  {isPlaying ?
+                    <PauseIcon sx={{ fontSize: '24px' }} /> :
                     <PlayArrowIcon sx={{ fontSize: '24px' }} />
                   }
                 </IconButton>
-                
+
                 <Typography variant="caption" sx={{ color: 'white', ml: 1, fontSize: '12px' }}>
                   {formatTime(currentTime)} / {formatTime(duration)}
                 </Typography>
               </Box>
-              
+
               {/* Right side controls */}
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <IconButton 
-                  onClick={toggleMute} 
-                  sx={{ 
+                <IconButton
+                  onClick={toggleMute}
+                  sx={{
                     color: 'white',
-                    padding: '4px' 
+                    padding: '4px'
                   }}
                 >
-                  {isMuted ? 
-                    <VolumeOffIcon sx={{ fontSize: '20px' }} /> : 
+                  {isMuted ?
+                    <VolumeOffIcon sx={{ fontSize: '20px' }} /> :
                     <VolumeUpIcon sx={{ fontSize: '20px' }} />
                   }
                 </IconButton>
-                
+
                 <Slider
                   value={volume}
                   min={0}
@@ -541,7 +541,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
     );
   };
 
-  
+
   const renderImage = () => {
     return (
       <Box
@@ -554,28 +554,19 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
           backgroundColor: '#000',
         }}
       >
-        <Box
-          sx={{
-            position: 'relative',
-            overflow: 'auto',
-            maxHeight: '100%',
+        <img
+          src={file!.url}
+          alt={file!.name}
+          style={{
+            transformOrigin: 'center',
+            transform: `scale(${scale})`,
             maxWidth: '100%',
+            maxHeight: '100%',
+            display: 'block',
+            margin: '0 auto',
           }}
-        >
-          <img
-            src={file!.url}
-            alt={file!.name}
-            style={{
-              transformOrigin: 'center',
-              transform: `scale(${scale})`,
-              maxWidth: '100%',
-              maxHeight: '100%',
-              display: 'block',
-              margin: '0 auto',
-            }}
-            onLoad={() => setLoading(false)}
-          />
-        </Box>
+          onLoad={() => setLoading(false)}
+        />
       </Box>
     );
   };
@@ -604,7 +595,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
       </Box>
     );
   };
-  
+
 
   const renderContent = () => {
     if (!file) return null;
@@ -646,8 +637,8 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
       return renderImage();
     }
 
-    if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || 
-        fileExtension === 'doc' || fileExtension === 'docx') {
+    if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+      fileExtension === 'doc' || fileExtension === 'docx') {
       return renderWordDoc();
     }
 
@@ -656,10 +647,10 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
 
   if (!file) return null;
 
-  const showZoomControls = 
-    file.type === 'application/pdf' || 
-    fileExtension === 'pdf' || 
-    file.type.startsWith('image/') || 
+  const showZoomControls =
+    file.type === 'application/pdf' ||
+    fileExtension === 'pdf' ||
+    file.type.startsWith('image/') ||
     ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'].includes(fileExtension || '');
 
   return (
