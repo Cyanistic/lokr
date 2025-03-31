@@ -1068,7 +1068,7 @@ pub struct PublicUser {
     pub avatar_extension: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     /// The password salt used when registering
-    password_salt: Option<String>,
+    pub password_salt: Option<String>,
 }
 
 #[utoipa::path(

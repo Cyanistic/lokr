@@ -41,9 +41,10 @@ interface SidebarProps {
   collapsed: boolean;
   setCollapsed: (collapsed: boolean) => void;
   onCreateFolder: (name: string) => Promise<void>;
+  current: "files" | "shared" | "link";
 }
 
-export function FileSidebar({ user, collapsed, setCollapsed, onCreateFolder }: SidebarProps) {
+export function FileSidebar({ user, collapsed, setCollapsed, onCreateFolder, current }: SidebarProps) {
   const { width } = useWindowSize();
   const isMobile = width < 768;
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
@@ -79,7 +80,7 @@ export function FileSidebar({ user, collapsed, setCollapsed, onCreateFolder }: S
   };
 
   const navItems = [
-    { icon: FolderIcon, label: "My Files", active: true, link: "/files" },
+    { icon: FolderIcon, label: "My Files", link: "/files" },
     { icon: PeopleAltIcon, label: "Shared with me", link: "/shared" },
     { icon: DeleteIcon, label: "Trash", link: "/recent" },
   ];
@@ -217,7 +218,7 @@ export function FileSidebar({ user, collapsed, setCollapsed, onCreateFolder }: S
                   <ListItemButton
                     sx={{
                       borderRadius: 1,
-                      bgcolor: item.active ? "action.selected" : "transparent",
+                      bgcolor: item.link.endsWith(current) ? "action.selected" : "transparent",
                       justifyContent: collapsed ? "center" : "flex-start",
                       px: collapsed ? 1 : 2,
                       py: 1,
@@ -226,7 +227,7 @@ export function FileSidebar({ user, collapsed, setCollapsed, onCreateFolder }: S
                     <ListItemIcon
                       sx={{
                         minWidth: collapsed ? 0 : 36,
-                        color: item.active ? "primary.main" : "text.secondary",
+                        color: item.link.endsWith(current) ? "primary.main" : "text.secondary",
                         mr: collapsed ? 0 : 1,
                       }}
                     >
@@ -238,7 +239,7 @@ export function FileSidebar({ user, collapsed, setCollapsed, onCreateFolder }: S
                         sx={{
                           m: 0,
                           "& .MuiTypography-root": {
-                            fontWeight: item.active ? 500 : 400,
+                            fontWeight: item.link.endsWith(current) ? 500 : 400,
                           },
                         }}
                       />

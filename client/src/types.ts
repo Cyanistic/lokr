@@ -18,9 +18,9 @@ export interface PublicUser {
 export interface ShareLink {
     type: "link";
     id: string;
-    password?: string | null;
-    expires: number;
-    edit: boolean;
+    passwordProtected: boolean;
+    expiresAt?: Date | null;
+    editPermission: boolean;
     createdAt: Date;
     modifiedAt: Date;
 }

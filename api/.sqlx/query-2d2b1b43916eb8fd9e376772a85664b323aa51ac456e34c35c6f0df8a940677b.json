@@ -1,0 +1,68 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        SELECT su.user_id AS \"user_id: Uuid\", \n        edit_permission,\n        su.created_at AS \"su_created_at!\",\n        su.modified_at AS \"su_modified_at!\",\n        username, email, public_key,\n        NULL AS \"password_salt?: String\", \n        avatar AS \"avatar_extension\"\n        FROM share_user su\n        JOIN user u ON u.id = su.user_id\n        WHERE file_id = ?\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "user_id: Uuid",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "edit_permission",
+        "ordinal": 1,
+        "type_info": "Bool"
+      },
+      {
+        "name": "su_created_at!",
+        "ordinal": 2,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "su_modified_at!",
+        "ordinal": 3,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "username",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "email",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "public_key",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "password_salt?: String",
+        "ordinal": 7,
+        "type_info": "Null"
+      },
+      {
+        "name": "avatar_extension",
+        "ordinal": 8,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      false,
+      true,
+      false,
+      null,
+      true
+    ]
+  },
+  "hash": "2d2b1b43916eb8fd9e376772a85664b323aa51ac456e34c35c6f0df8a940677b"
+}

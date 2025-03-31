@@ -96,7 +96,7 @@ export type FileMetadata = UploadMetadata & {
 };
 
 export interface FileResponse {
-  /** @example {"123e4567-e89b-12d3-a456-426614174000":{"children":["21f981a7-d21f-4aa5-9f6b-09005235236a"],"createdAt":"2025-03-26T06:37:14.857275282Z","encryptedFileName":"encryptedFileName","encryptedKey":"encryptedKey","encryptedMimeType":"encryptedMimeType","id":"123e4567-e89b-12d3-a456-426614174000","isDirectory":true,"modifiedAt":"2025-03-26T06:37:14.857275282Z","nonce":"exampleNonce","ownerId":"dae2b0f0-d84b-42c8-aebd-58a71ee1fb86","size":0,"uploaderId":"dae2b0f0-d84b-42c8-aebd-58a71ee1fb86"},"21f981a7-d21f-4aa5-9f6b-09005235236a":{"createdAt":"2025-03-26T06:37:14.857275282Z","encryptedFileName":"encryptedFileName","encryptedKey":"encryptedKey","encryptedMimeType":"encryptedMimeType","id":"21f981a7-d21f-4aa5-9f6b-09005235236a","isDirectory":false,"modifiedAt":"2025-03-26T06:37:14.857275282Z","nonce":"exampleNonce","ownerId":"dae2b0f0-d84b-42c8-aebd-58a71ee1fb86","parentId":"123e4567-e89b-12d3-a456-426614174000","size":32,"uploaderId":"dae2b0f0-d84b-42c8-aebd-58a71ee1fb86"}} */
+  /** @example {"123e4567-e89b-12d3-a456-426614174000":{"children":["21f981a7-d21f-4aa5-9f6b-09005235236a"],"createdAt":"2025-03-31T18:26:27.249546272Z","encryptedFileName":"encryptedFileName","encryptedKey":"encryptedKey","encryptedMimeType":"encryptedMimeType","id":"123e4567-e89b-12d3-a456-426614174000","isDirectory":true,"modifiedAt":"2025-03-31T18:26:27.249546272Z","nonce":"exampleNonce","ownerId":"dae2b0f0-d84b-42c8-aebd-58a71ee1fb86","size":0,"uploaderId":"dae2b0f0-d84b-42c8-aebd-58a71ee1fb86"},"21f981a7-d21f-4aa5-9f6b-09005235236a":{"createdAt":"2025-03-31T18:26:27.249546272Z","encryptedFileName":"encryptedFileName","encryptedKey":"encryptedKey","encryptedMimeType":"encryptedMimeType","id":"21f981a7-d21f-4aa5-9f6b-09005235236a","isDirectory":false,"modifiedAt":"2025-03-31T18:26:27.249546272Z","nonce":"exampleNonce","ownerId":"dae2b0f0-d84b-42c8-aebd-58a71ee1fb86","parentId":"123e4567-e89b-12d3-a456-426614174000","size":32,"uploaderId":"dae2b0f0-d84b-42c8-aebd-58a71ee1fb86"}} */
   files: Record<string, FileMetadata>;
   /** @example "123e4567-e89b-12d3-a456-426614174000" */
   root: string[];
@@ -452,6 +452,11 @@ export interface UploadResponse {
   link?: null | ShareResponse;
   /** @format int64 */
   size: number;
+}
+
+export interface UserShareResponse {
+  access: ShareResponse[];
+  users: Record<string, PublicUser>;
 }
 
 /** Update the currently authenticated user's profile */
@@ -1138,7 +1143,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @secure
      */
     getSharedLinks: (fileId: string, params: RequestParams = {}) =>
-      this.request<ShareResponse, ErrorResponse>({
+      this.request<ShareResponse[], ErrorResponse>({
         path: `/api/shared/${fileId}/links`,
         method: "GET",
         secure: true,
@@ -1155,7 +1160,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @secure
      */
     getSharedUsers: (fileId: string, params: RequestParams = {}) =>
-      this.request<ShareResponse, ErrorResponse>({
+      this.request<UserShareResponse, ErrorResponse>({
         path: `/api/shared/${fileId}/users`,
         method: "GET",
         secure: true,

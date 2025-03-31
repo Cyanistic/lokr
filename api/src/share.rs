@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{collections::HashMap, time::Duration};
 
 use argon2::{
     password_hash::{rand_core::OsRng, PasswordHasher, SaltString},
@@ -24,6 +24,7 @@ use crate::{
     state::AppState,
     success,
     upload::{is_owner, FileMetadata, FileQuery, FileResponse, UploadMetadata},
+    users::PublicUser,
     utils::{get_file_users, Normalize},
     SuccessResponse,
 };
@@ -882,7 +883,7 @@ pub async fn get_link_shared_file(
     description = "Get active links for a file",
     params(("file_id" = Uuid, Path, description = "The id of the file")),
     responses(
-        (status = OK, description = "Links successfully retrieved", body = ShareResponse),
+        (status = OK, description = "Links successfully retrieved", body = [ShareResponse]),
         (status = BAD_REQUEST, description = "Invalid query params", body = ErrorResponse),
         (status = NOT_FOUND, description = "File not found", body = ErrorResponse),
     ),
@@ -933,13 +934,19 @@ pub async fn get_shared_links(
     Ok((StatusCode::OK, Json(query)).into_response())
 }
 
+#[derive(Serialize, ToSchema)]
+struct UserShareResponse {
+    access: Vec<ShareResponse>,
+    users: HashMap<Uuid, PublicUser>,
+}
+
 #[utoipa::path(
     get,
     path = "/api/shared/{file_id}/users",
     description = "Get a list of users that have permissions to a file",
     params(("file_id" = Uuid, Path, description = "The id of the file")),
     responses(
-        (status = OK, description = "Users successfully retrieved", body = ShareResponse),
+        (status = OK, description = "Users successfully retrieved", body = UserShareResponse),
         (status = BAD_REQUEST, description = "Invalid query params", body = ErrorResponse),
         (status = NOT_FOUND, description = "File not found", body = ErrorResponse),
     ),
@@ -958,13 +965,17 @@ pub async fn get_shared_users(
             "File not found".into(),
         )));
     }
-    let query: Vec<ShareResponse> = sqlx::query!(
+    let (access, users): (Vec<ShareResponse>, HashMap<Uuid, PublicUser>) = sqlx::query!(
         r#"
         SELECT su.user_id AS "user_id: Uuid", 
         edit_permission,
-        created_at AS "created_at!",
-        modified_at AS "modified_at!"
+        su.created_at AS "su_created_at!",
+        su.modified_at AS "su_modified_at!",
+        username, email, public_key,
+        NULL AS "password_salt?: String", 
+        avatar AS "avatar_extension"
         FROM share_user su
+        JOIN user u ON u.id = su.user_id
         WHERE file_id = ?
         "#,
         file_id
@@ -972,16 +983,32 @@ pub async fn get_shared_users(
     .fetch_all(&state.pool)
     .await?
     .into_iter()
-    .map(|row| ShareResponse {
-        type_: ShareResponseType::User {
-            user_id: row.user_id,
+    .fold(
+        (Vec::new(), HashMap::new()),
+        |(mut access, mut users), row| {
+            access.push(ShareResponse {
+                type_: ShareResponseType::User {
+                    user_id: row.user_id,
+                },
+                edit_permission: row.edit_permission,
+                created_at: row.su_created_at.and_utc(),
+                modified_at: row.su_modified_at.and_utc(),
+            });
+            users.insert(
+                row.user_id,
+                PublicUser {
+                    id: row.user_id,
+                    username: row.username,
+                    email: row.email,
+                    public_key: row.public_key,
+                    avatar_extension: row.avatar_extension,
+                    password_salt: row.password_salt,
+                },
+            );
+            (access, users)
         },
-        edit_permission: row.edit_permission,
-        created_at: row.created_at.and_utc(),
-        modified_at: row.modified_at.and_utc(),
-    })
-    .collect();
-    Ok((StatusCode::OK, Json(query)).into_response())
+    );
+    Ok((StatusCode::OK, Json(UserShareResponse { access, users })).into_response())
 }
 
 #[derive(Debug, Deserialize, ToSchema)]

@@ -1,6 +1,6 @@
 * List of frontend Todos
   - ( ) Make cohesive styling across application
-  -- ( ) Style home
+  -- (x) Style home
   -- ( ) Style register
   -- ( ) Style login
   -- ( ) Style profile
@@ -26,17 +26,17 @@
   -- (x) Directory-aware file uploads
   --- (x) Encrypt uploaded files with the encryption key of parent directory
   - ( ) File sharing
-  -- ( ) Revoking shared permissions
+  -- (x) Revoking shared permissions
   -- (x) Managing permissions and updating with drop-down menu
-  -- ( ) Viewing all users that have access to a file (only if you own the file)
+  -- (x) Viewing all users that have access to a file (only if you own the file)
   -- ( ) Share Links
   --- ( ) Viewing all active links for a file and when they expire
-  --- (-) Link creation
+  --- (x) Link creation
   --- ( ) Uploading and viewing through links
   --- ( ) Upload progress indicators
   --- ( ) Password prompts for protected links
-  -- ( ) Add support for direct user sharing
-  --- ( ) Viewing files shared directly
+  -- (x) Add support for direct user sharing
+  --- (x) Viewing files shared directly
   - ( ) Add proper login screen for totp verification
   - ( ) Support for persistent settings
   -- (x) Dark/Light theme customization

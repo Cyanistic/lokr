@@ -38,11 +38,7 @@ import { useThrottledCallback } from "use-debounce";
 import FileList from "../components/FileList";
 import { PublicUser, SessionUser } from "../myApi";
 import { FileSidebar } from "../components/FileSidebar";
-import {
-  Box,
-  IconButton,
-  Typography,
-} from "@mui/material";
+import { Box, IconButton, Typography } from "@mui/material";
 import { useWindowSize } from "../components/hooks/useWindowSize";
 import { GridMenuIcon } from "@mui/x-data-grid";
 import ShareModal from "../components/ShareModal";
@@ -58,11 +54,18 @@ export function getFileIcon(mimeType: string | undefined) {
     "image/jpeg": <ImageIcon style={{ color: "#D41632" }} />,
     "application/pdf": <PictureAsPdfIcon style={{ color: "#D41632" }} />,
     "application/msword": <InsertDriveFileIcon style={{ color: "blue" }} />,
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": <InsertDriveFileIcon />,
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": (
+      <InsertDriveFileIcon />
+    ),
     "application/vnd.ms-excel": <TableChartIcon style={{ color: "green" }} />,
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": <TableChartIcon style={{ color: "green" }} />,
-    "application/vnd.ms-powerpoint": <SlideshowIcon style={{ color: "orange" }} />,
-    "application/vnd.openxmlformats-officedocument.presentationml.presentation": <SlideshowIcon style={{ color: "orange" }} />,
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": (
+      <TableChartIcon style={{ color: "green" }} />
+    ),
+    "application/vnd.ms-powerpoint": (
+      <SlideshowIcon style={{ color: "orange" }} />
+    ),
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation":
+      <SlideshowIcon style={{ color: "orange" }} />,
     "application/zip": <ArchiveIcon />,
     "application/x-rar-compressed": <ArchiveIcon />,
     "text/html": <CodeIcon style={{ color: "red" }} />,
@@ -75,9 +78,15 @@ export function getFileIcon(mimeType: string | undefined) {
     "video/x-msvideo": <MovieIcon style={{ color: "#3F51B5" }} />,
     "application/json": <CodeIcon style={{ color: "#4CAF50" }} />,
     "application/xml": <CodeIcon style={{ color: "#4CAF50" }} />,
-    "application/vnd.oasis.opendocument.text": <InsertDriveFileIcon style={{ color: "#FF5722" }} />,
-    "application/vnd.oasis.opendocument.spreadsheet": <TableChartIcon style={{ color: "#FF5722" }} />,
-    "application/vnd.oasis.opendocument.presentation": <SlideshowIcon style={{ color: "#FF5722" }} />,
+    "application/vnd.oasis.opendocument.text": (
+      <InsertDriveFileIcon style={{ color: "#FF5722" }} />
+    ),
+    "application/vnd.oasis.opendocument.spreadsheet": (
+      <TableChartIcon style={{ color: "#FF5722" }} />
+    ),
+    "application/vnd.oasis.opendocument.presentation": (
+      <SlideshowIcon style={{ color: "#FF5722" }} />
+    ),
     "application/x-7z-compressed": <ArchiveIcon style={{ color: "#795548" }} />,
     "application/x-tar": <ArchiveIcon style={{ color: "#795548" }} />,
   };
@@ -88,13 +97,14 @@ export function getFileIcon(mimeType: string | undefined) {
   }
 }
 
-
-export function handleNavigate(index: number, stack: FileMetadata[]): FileMetadata[] {
+export function handleNavigate(
+  index: number,
+  stack: FileMetadata[],
+): FileMetadata[] {
   const tempStack = [...stack];
   tempStack.splice(index);
   return tempStack;
 }
-
 
 /** Renders a file or folder item in grid view. */
 const FileGridItem = ({
@@ -135,14 +145,23 @@ const FileGridItem = ({
 );
   
 /** Main FileExplorer Component. */
-export default function FileExplorer() {
-  const [sortBy, setSortBy] = useState<"name" | "createdAt" | "modifiedAt">("name");
+interface FileExplorerProps {
+  type: "files" | "shared" | "link";
+}
+
+export default function FileExplorer(
+  { type }: FileExplorerProps = { type: "files" },
+) {
+  const [sortBy, setSortBy] = useState<"name" | "createdAt" | "modifiedAt">(
+    "name",
+  );
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [params, setParams] = useSearchParams();
   const [currentUser, setCurrentUser] = useState<SessionUser>();
   const preferredView = useRef<"list" | "grid">("list");
   const parentId = params.get("parentId");
   const view = params.get("view") || preferredView.current;
+  const linkId = params.get("linkId");
   // const fileId = params.get("fileId");
 
   // The list of items in the current directory
@@ -164,6 +183,7 @@ export default function FileExplorer() {
   const [shareOpen, setShareOpen] = useState<boolean>(false);
   const [infoOpen, setInfoOpen] = useState<boolean>(false);
   const selectedFile = useRef<FileMetadata>();
+  const [linkPassword, _setLinkPasword] = useState<string | null>(null);
 
   // ***** New State for Move Functionality *****
   const [moveOpen, setMoveOpen] = useState(false);
@@ -197,7 +217,9 @@ export default function FileExplorer() {
   const [dirStack, setDirStack] = useState<FileMetadata[]>([]);
 
   // Tracks if there is an active download
-  const [downloadTarget, setDownloadTarget] = useState<FileMetadata | null>(null);
+  const [downloadTarget, setDownloadTarget] = useState<FileMetadata | null>(
+    null,
+  );
 
   // Automatically update the parent id if the directory stack changes so that we don't
   // need to manually keep track of both at the same time and risk accidentally cause
@@ -209,7 +231,7 @@ export default function FileExplorer() {
       setParams((params) => {
         params.set("parentId", newParentId);
         return params;
-      })
+      });
     } else {
       setParams((params) => {
         params.delete("parentId");
@@ -217,7 +239,6 @@ export default function FileExplorer() {
       });
     }
   }, [dirStack, loading]);
-
 
   /** Download raw data from the server (not decrypted). */
   const handleDownload = async (file: FileMetadata) => {
@@ -241,7 +262,12 @@ export default function FileExplorer() {
   // Use a callback to throttle the fetchFiles function to avoid excessive API calls
   // since this is an expensive operation
   const throttledFetchFiles = useThrottledCallback(() => {
-    fetchFiles({ depth: 20, limit: 1000, includeAncestors: false, updateLoading: false });
+    fetchFiles({
+      depth: 20,
+      limit: 1000,
+      includeAncestors: false,
+      updateLoading: false,
+    });
   }, 5000);
 
   /** Download a single file. */
@@ -257,7 +283,7 @@ export default function FileExplorer() {
     const fileData = await crypto.subtle.decrypt(
       { name: "AES-GCM", iv: base64ToArrayBuffer(file.nonce) },
       file.key,
-      dataBuffer
+      dataBuffer,
     );
     const url = window.URL.createObjectURL(new Blob([fileData]));
 
@@ -292,7 +318,7 @@ export default function FileExplorer() {
 
           if (f.isDirectory) {
             nextFolders[f.id] = folderQueue[f.parentId!].folder(
-              f.name ?? "folder"
+              f.name ?? "folder",
             )!;
             if (f.children) {
               nextFiles.push(...f.children);
@@ -308,11 +334,11 @@ export default function FileExplorer() {
             const fileData = await crypto.subtle.decrypt(
               { name: "AES-GCM", iv: base64ToArrayBuffer(f.nonce) },
               f.key,
-              dataBuffer
+              dataBuffer,
             );
             folderQueue[f.parentId!].file(f.name || "file", fileData);
           }
-        })
+        }),
       );
       fileQueue = nextFiles;
       folderQueue = nextFolders;
@@ -340,7 +366,16 @@ export default function FileExplorer() {
       }
       const data = resp.data;
       setCurrentUser(data);
-      const { publicKey, encryptedPrivateKey, iv, salt, gridView, id, email, username } = data;
+      const {
+        publicKey,
+        encryptedPrivateKey,
+        iv,
+        salt,
+        gridView,
+        id,
+        email,
+        username,
+      } = data;
       preferredView.current = gridView ? "grid" : "list";
 
       await localforage.setItem("userId", id);
@@ -354,12 +389,15 @@ export default function FileExplorer() {
       setUsers({ ...users, [id]: { publicKey, email, id, username } });
 
       // 2) If we have an encrypted private key, prompt for password
-      const storedPrivateKey: CryptoKey | null = await localforage.getItem("privateKey");
+      const storedPrivateKey: CryptoKey | null =
+        await localforage.getItem("privateKey");
       if (storedPrivateKey != null) {
         setPrivateKey(storedPrivateKey);
       } else {
         if (encryptedPrivateKey && iv && salt) {
-          const pwd = prompt("Enter your password to decrypt your private key:");
+          const pwd = prompt(
+            "Enter your password to decrypt your private key:",
+          );
           if (!pwd) {
             console.error("No password provided; cannot decrypt private key");
             return;
@@ -367,14 +405,20 @@ export default function FileExplorer() {
           // 3) Derive an AES key from password + salt
           const aesKey = await deriveKeyFromPassword(pwd, salt);
           // 4) Unwrap the private key
-          const unwrapped = await unwrapPrivateKey(encryptedPrivateKey, aesKey, iv);
+          const unwrapped = await unwrapPrivateKey(
+            encryptedPrivateKey,
+            aesKey,
+            iv,
+          );
           if (!unwrapped) {
             console.error("Failed to unwrap private key");
             return;
           }
           setPrivateKey(unwrapped);
         } else {
-          console.error("Missing fields (encryptedPrivateKey, iv, salt) to decrypt private key");
+          console.error(
+            "Missing fields (encryptedPrivateKey, iv, salt) to decrypt private key",
+          );
         }
       }
     } catch (err) {
@@ -386,39 +430,53 @@ export default function FileExplorer() {
     fetchUserProfileAndDecryptKey();
   }, []);
 
-  async function fetchFiles({
-    depth,
-    limit,
-    offset,
-    includeAncestors,
-    fileId,
-    updateLoading,
-  }: {
-    depth?: number;
-    limit?: number;
-    offset?: number;
-    includeAncestors?: boolean;
-    fileId?: string;
-    updateLoading?: boolean;
-  } = {
+  async function fetchFiles(
+    {
+      depth,
+      limit,
+      offset,
+      includeAncestors,
+      fileId,
+      updateLoading,
+    }: {
+      depth?: number;
+      limit?: number;
+      offset?: number;
+      includeAncestors?: boolean;
+      fileId?: string;
+      updateLoading?: boolean;
+    } = {
       depth: 1,
       limit: 100,
       offset: 0,
       includeAncestors: true,
       fileId: parentId ?? undefined,
       updateLoading: true,
-    }) {
+    },
+  ) {
     if (updateLoading) {
       setLoading(true);
     }
     try {
-      const resp = await API.api.getFileMetadata({
+      let resp;
+      const body = {
         id: fileId,
         depth: depth ?? 1,
         limit: limit ?? 100,
         offset: offset ?? 0,
         includeAncestors: includeAncestors ?? true,
-      });
+      };
+      switch (type) {
+        case "files":
+          resp = await API.api.getFileMetadata(body);
+          break;
+        case "shared":
+          resp = await API.api.getUserSharedFile(body);
+          break;
+        case "link":
+          resp = await API.api.getLinkSharedFile(linkId!, body, linkPassword);
+          break;
+      }
       if (!resp.ok) {
         console.error("Error fetching file metadata:", resp.statusText);
         setLoading(false);
@@ -465,7 +523,11 @@ export default function FileExplorer() {
               console.error("Could not get parent key");
               return;
             }
-            const key = await unwrapAESKey(f.encryptedKey, unwrapKey, unwrapAlgorithm);
+            const key = await unwrapAESKey(
+              f.encryptedKey,
+              unwrapKey,
+              unwrapAlgorithm,
+            );
             const name = await decryptText(f.encryptedFileName, key, nonce);
             if (f.encryptedMimeType) {
               mimeType = await decryptText(f.encryptedMimeType, key, nonce);
@@ -481,7 +543,7 @@ export default function FileExplorer() {
               createdAtDate: new Date(f.createdAt),
               modifiedAtDate: new Date(f.modifiedAt),
             };
-          })
+          }),
         );
         if (includeAncestors && !found && parentId) {
           stack.push(tempFiles[queue[0]]);
@@ -524,11 +586,15 @@ export default function FileExplorer() {
   const sortedFiles = currentDir?.slice().sort((a, b) => {
     let comparison = 0;
     if (sortBy === "name") {
-      comparison = (a.name ?? "encryptedFile").localeCompare(b.name ?? "encryptedFile");
+      comparison = (a.name ?? "encryptedFile").localeCompare(
+        b.name ?? "encryptedFile",
+      );
     } else if (sortBy === "createdAt") {
-      comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      comparison =
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
     } else if (sortBy === "modifiedAt") {
-      comparison = new Date(a.modifiedAt).getTime() - new Date(b.modifiedAt).getTime();
+      comparison =
+        new Date(a.modifiedAt).getTime() - new Date(b.modifiedAt).getTime();
     }
     return sortOrder === "asc" ? comparison : -comparison;
   });
@@ -588,9 +654,9 @@ export default function FileExplorer() {
           const newFiles = { ...files };
           delete newFiles[file.id];
           if (file.parentId) {
-            newFiles[file.parentId].children = newFiles[file.parentId].children?.filter(
-              (id) => id != file.id
-            );
+            newFiles[file.parentId].children = newFiles[
+              file.parentId
+            ].children?.filter((id) => id != file.id);
           } else {
             root.delete(file.id);
             setRoot(root);
@@ -631,7 +697,7 @@ export default function FileExplorer() {
       const encryptedName = await encryptText(aesKey, folderName, nonce);
       const encryptedNameB64 = btoa(String.fromCharCode(...encryptedName));
       const encryptedKey = bufferToBase64(
-        await encryptAESKeyWithParentKey(parentKey, aesKey, algorithm)
+        await encryptAESKeyWithParentKey(parentKey, aesKey, algorithm),
       );
       const metadata = {
         name: folderName,
@@ -663,6 +729,7 @@ export default function FileExplorer() {
         }}
       >
         <FileSidebar
+          current={type}
           collapsed={collapsed}
           setCollapsed={setCollapsed}
           user={currentUser}
@@ -689,7 +756,10 @@ export default function FileExplorer() {
             >
               <Box sx={{ display: "flex", alignItems: "center" }}>
                 {isMobile && (
-                  <IconButton sx={{ mr: 1 }} onClick={() => setCollapsed(!collapsed)}>
+                  <IconButton
+                    sx={{ mr: 1 }}
+                    onClick={() => setCollapsed(!collapsed)}
+                  >
                     <GridMenuIcon style={{ height: 20, width: 20 }} />
                   </IconButton>
                 )}
@@ -705,7 +775,8 @@ export default function FileExplorer() {
               parentKey={parentId ? files[parentId]?.key : null}
               onUpload={async (file) => {
                 file.uploaderId = (await localforage.getItem("userId")) || "";
-                file.ownerId = files[parentId ?? ""]?.ownerId || file.uploaderId;
+                file.ownerId =
+                  files[parentId ?? ""]?.ownerId || file.uploaderId;
                 const tempFiles = { ...files };
                 tempFiles[file.id] = file;
                 if (file.parentId) {
@@ -750,16 +821,18 @@ export default function FileExplorer() {
               }
               style={styles.toggleButton}
             >
-              {view === "list" ? <ViewModuleIcon /> : <ViewListIcon />} Toggle View
+              {view === "list" ? <ViewModuleIcon /> : <ViewListIcon />} Toggle
+              View
             </button>
           </div>
 
           <BreadcrumbsNavigation
-            path={dirStack.map(f => f.name ?? "Encrypted directory")}
+            path={dirStack.map((f) => f.name ?? "Encrypted directory")}
             onNavigate={(index) => {
               const tempStack = handleNavigate(index, dirStack);
               setDirStack(tempStack);
-            }} />
+            }}
+          />
 
           {view === "list" ? (
             <FileList
@@ -796,6 +869,7 @@ export default function FileExplorer() {
       </Box>
       {/* File sharing dialog holder */}
       <ShareModal
+        currentUser={currentUser}
         open={shareOpen}
         file={selectedFile.current}
         onClose={() => setShareOpen(false)}
@@ -810,21 +884,28 @@ export default function FileExplorer() {
         path={dirStack}
       />
       {/* File move dialog */}
-      {moveOpen &&
+      {moveOpen && (
         <FileMoveModal
           onClose={() => setMoveOpen(false)}
           file={selectedFile.current}
           files={files}
           root={[...root]}
           dirStack={dirStack}
-          onChangeDirectory={async (folderId) => await fetchFiles({ fileId: folderId || undefined, updateLoading: false, includeAncestors: false, })}
+          onChangeDirectory={async (folderId) =>
+            await fetchFiles({
+              fileId: folderId || undefined,
+              updateLoading: false,
+              includeAncestors: false,
+            })
+          }
           userPublicKey={userPublicKey}
           // Handle updating the file tree visually
           onMove={async () => {
             setMoveOpen(false);
             await fetchFiles();
           }}
-        />}
+        />
+      )}
     </>
   );
 }
