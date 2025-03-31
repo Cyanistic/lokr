@@ -126,7 +126,7 @@ const FileGridItem = ({
     <button onClick={() => onDelete(file)}>Delete</button>
   </div>
 );
-
+  
 /** Main FileExplorer Component. */
 export default function FileExplorer() {
   const [sortBy, setSortBy] = useState<"name" | "createdAt" | "modifiedAt">("name");
