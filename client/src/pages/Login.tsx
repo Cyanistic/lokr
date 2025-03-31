@@ -70,6 +70,14 @@ const Login: React.FC = () => {
       console.log("Login Response Status:", loginResponse.status);
       const responseData = await loginResponse.json();
       console.log("Server Response:", responseData);
+      
+
+      if(loginResponse.status === 307){
+        console.log("TOTP required, showing TOTP input field.");
+        setErrorMessage("TOTP required.");
+        return;
+      }
+
 
       if (loginResponse.status === 401) {
         console.log("Invalid username or password.");

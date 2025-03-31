@@ -30,6 +30,10 @@ function Profile() {
   const { showError } = useErrorToast();
   const [sessions, setSessions] = useState<Session[]>([]);
 
+  const [showTOTPSetup, setShowTOTPSetup] = useState(false); // State to control TOTP setup
+  const [totpInputCode, setTOTPInputCode] = useState("");
+  const [totpVerified, setTOTPVerified] = useState(false);
+
   //Fetch User data
   useEffect(() => {
     const getData = async () => {
@@ -107,6 +111,9 @@ function Profile() {
         qrCode = `data:image/png;base64,${qrCode}`; // Manually add prefix
       }
       setQrCode(qrCode);
+      setShowTOTPSetup(true);
+      setTOTPVerified(false);
+      setTOTPInputCode("");
 
     } catch (err) {
       console.error("Error regenerating TOTP:", err);
@@ -114,9 +121,30 @@ function Profile() {
     }
   };
 
-
-
   //Verify TOTP
+  const handleVerifyInline = async () => {
+    try {
+      const responseBody: VerifyTOTPRequest = { type: "verify", code: totpInputCode };
+      const response = await API.api.updateTotp(responseBody);
+      if (!response.ok) { throw new Error(await response.text()) }
+
+      alert ("TOTP verified successfully! You can now enable TOTP.");
+      setTOTPVerified(true);
+
+      //Hides after verification
+      setShowTOTPSetup(false);
+      setQrCode(null);
+      setTOTPInputCode("");
+
+    } catch (err) {
+      console.error("TOTP verification failed", err);
+      alert("Invalid TOTP code.");
+    }
+  };
+
+
+
+  /*old Verify TOTP
   const handleVerifyTOTP = async () => {
     try {
       const code = prompt("Enter the 6-digit TOTP code:");
@@ -138,6 +166,7 @@ function Profile() {
       showError("Failed to verify TOTP. Please check the code and try again.", err);
     }
   };
+  */
 
 
 
@@ -180,6 +209,7 @@ function Profile() {
     }
   };
 
+  //Delete session
   const handleDeleteSession = async (sessionNumber: number) => {
     const confirmDelete = confirm("Are you sure you want to delete session #${sessionNumber}?");
     if (!confirmDelete) return;
@@ -257,15 +287,15 @@ function Profile() {
         }
       }
 
-      console.log("🚀 Sending request:", JSON.stringify(requestBody, null, 2)); // Log formatted request
+      console.log("Sending request:", JSON.stringify(requestBody, null, 2)); // Log formatted request
 
       const response = await API.api.updateUser(requestBody);
 
-      console.log("🔁 Response status:", response.status); // Log response status
+      console.log("Response status:", response.status); // Log response status
 
       if (!response.ok) {
         const errorData = await response.json();
-        console.error("❌ Server Response:", errorData);
+        console.error("Server Response:", errorData);
         throw new Error(`Failed to update ${field}: ${errorData.message || response.statusText}`);
       }
 
@@ -376,22 +406,36 @@ function Profile() {
 
             <button className='b1' onClick={handleRegenerateTOTP}>Regenerate TOTP</button>
 
-            {/* Modal for displaying QR code */}
-            {qrCode && (
-              <div className="modal">
-                <div className="modal-content">
-                  <h3>Scan the QR code</h3>
-                  <img src={qrCode} alt="TOTP QR Code" style={{ width: "250px", height: "250px" }} />
-                  <button className='b1' onClick={() => setQrCode(null)}>Close</button>
-                </div>
-              </div>
-            )}
+            {/* QR code display */}
+            {showTOTPSetup && (
+              <div style={{ marginTop: "20px" }}>
+              <h4>Scan this QR Code with your Authenticator App</h4>
+              <img src={qrCode!} alt="TOTP QR Code" style={{ width: "250px", height: "250px" }} />
 
-            <button className='b1' onClick={handleVerifyTOTP}>Verify TOTP</button>
+              <div style={{ marginTop: "10px" }}>
+                <input
+                  type="text"
+                  placeholder="Enter 6-digit code"
+                  value={totpInputCode}
+                  onChange={(e) => setTOTPInputCode(e.target.value)}
+                  maxLength={6}
+                  style={{ padding: "8px", width: "200px" }}
+                />
+                <button
+                  onClick={handleVerifyInline}
+                  style={{ marginLeft: "10px", padding: "8px 16px" }}>
+                    Verify
+                </button>
+            </div>
+          </div>
+          )}
+  
 
-            <button className='b1' onClick={handleEnableTOTP}>
+            {totpVerified && (
+            <button onClick={handleEnableTOTP}>
               {totpStatus ? "Disable TOTP" : "Enable TOTP"}
             </button>
+            )}
 
 
             {/* Sessions List */}
