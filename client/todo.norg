@@ -8,6 +8,7 @@
   -- ( ) Style file page
   -- ( ) Add logo/branding
   -- (x) Add colors
+  -- ( ) Styling sessions menu
   - (x) Populate text pages with information
   -- (x) Populate about us
   -- (x) Populate home
@@ -38,6 +39,7 @@
   -- (x) Add support for direct user sharing
   --- (x) Viewing files shared directly
   - ( ) Add proper login screen for totp verification
+  - ( ) Add preferences menu
   - ( ) Support for persistent settings
   -- (x) Dark/Light theme customization
   -- (x) Grid/List view by default
