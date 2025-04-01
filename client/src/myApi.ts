@@ -82,6 +82,13 @@ export type FileMetadata = UploadMetadata & {
   /** @format date-time */
   createdAt: string;
   /**
+   * Whether or not the user has edit permission to this file
+   * if this is not set then the file should inherit the edit permissions
+   * of the parent. This will not be sent when a user is querying their
+   * own files, as they will always have edit permissions.
+   */
+  editPermission?: boolean | null;
+  /**
    * The id of the file or directory
    * @format uuid
    */
@@ -97,7 +104,7 @@ export type FileMetadata = UploadMetadata & {
 };
 
 export interface FileResponse {
-  /** @example {"123e4567-e89b-12d3-a456-426614174000":{"children":["21f981a7-d21f-4aa5-9f6b-09005235236a"],"createdAt":"2025-03-31T18:26:27.249546272Z","encryptedFileName":"encryptedFileName","encryptedKey":"encryptedKey","encryptedMimeType":"encryptedMimeType","id":"123e4567-e89b-12d3-a456-426614174000","isDirectory":true,"modifiedAt":"2025-03-31T18:26:27.249546272Z","nonce":"exampleNonce","ownerId":"dae2b0f0-d84b-42c8-aebd-58a71ee1fb86","size":0,"uploaderId":"dae2b0f0-d84b-42c8-aebd-58a71ee1fb86"},"21f981a7-d21f-4aa5-9f6b-09005235236a":{"createdAt":"2025-03-31T18:26:27.249546272Z","encryptedFileName":"encryptedFileName","encryptedKey":"encryptedKey","encryptedMimeType":"encryptedMimeType","id":"21f981a7-d21f-4aa5-9f6b-09005235236a","isDirectory":false,"modifiedAt":"2025-03-31T18:26:27.249546272Z","nonce":"exampleNonce","ownerId":"dae2b0f0-d84b-42c8-aebd-58a71ee1fb86","parentId":"123e4567-e89b-12d3-a456-426614174000","size":32,"uploaderId":"dae2b0f0-d84b-42c8-aebd-58a71ee1fb86"}} */
+  /** @example {"123e4567-e89b-12d3-a456-426614174000":{"children":["21f981a7-d21f-4aa5-9f6b-09005235236a"],"createdAt":"2025-04-01T23:14:22.617886638Z","encryptedFileName":"encryptedFileName","encryptedKey":"encryptedKey","encryptedMimeType":"encryptedMimeType","id":"123e4567-e89b-12d3-a456-426614174000","isDirectory":true,"modifiedAt":"2025-04-01T23:14:22.617886638Z","nonce":"exampleNonce","ownerId":"dae2b0f0-d84b-42c8-aebd-58a71ee1fb86","size":0,"uploaderId":"dae2b0f0-d84b-42c8-aebd-58a71ee1fb86"},"21f981a7-d21f-4aa5-9f6b-09005235236a":{"createdAt":"2025-04-01T23:14:22.617886638Z","encryptedFileName":"encryptedFileName","encryptedKey":"encryptedKey","encryptedMimeType":"encryptedMimeType","id":"21f981a7-d21f-4aa5-9f6b-09005235236a","isDirectory":false,"modifiedAt":"2025-04-01T23:14:22.617886638Z","nonce":"exampleNonce","ownerId":"dae2b0f0-d84b-42c8-aebd-58a71ee1fb86","parentId":"123e4567-e89b-12d3-a456-426614174000","size":32,"uploaderId":"dae2b0f0-d84b-42c8-aebd-58a71ee1fb86"}} */
   files: Record<string, FileMetadata>;
   /** @example "123e4567-e89b-12d3-a456-426614174000" */
   root: string[];

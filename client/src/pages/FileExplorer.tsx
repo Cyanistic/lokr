@@ -461,13 +461,14 @@ export default function FileExplorer(
       setLoading(true);
     }
     try {
+      includeAncestors = includeAncestors ?? true;
       let resp;
       const body = {
         id: fileId,
         depth: depth ?? 1,
         limit: limit ?? 100,
         offset: offset ?? 0,
-        includeAncestors: includeAncestors ?? true,
+        includeAncestors: includeAncestors,
       };
       switch (type) {
         case "files":
@@ -490,13 +491,16 @@ export default function FileExplorer(
         setRoot(new Set(data.root));
       }
       setUsers({ ...users, ...data.users });
-      const tempFiles = { ...files, ...data.files };
+      const tempFiles: Record<string, FileMetadata> = {
+        ...files,
+        ...data.files,
+      };
       let queue: string[] = [];
       const stack = [];
       if (data.root.length) {
         queue = data.root;
-      } else if (parentId) {
-        queue = [parentId];
+      } else if (fileId) {
+        queue = [fileId];
       } else {
         setLoading(false);
         return;
@@ -506,21 +510,32 @@ export default function FileExplorer(
       let times = 0;
       let found = false;
       while (queue.length > 0) {
-        let next: string[] = [];
+        const next: string[] = [];
         await Promise.allSettled(
-          queue.map(async (fileId) => {
-            found ||= fileId === parentId;
-            const f = tempFiles[fileId];
+          queue.map(async (fId) => {
+            found ||= fId === parentId;
+            const f = tempFiles[fId];
             let unwrapKey: CryptoKey | undefined | null;
             let unwrapAlgorithm;
             let mimeType;
             const nonce = base64ToArrayBuffer(f.nonce);
+            /// Update the permissions of the children
+            /// if the current file has edit permissions
+            if (f.children) {
+              next.push(...f.children);
+              for (const child of f.children) {
+                tempFiles[child].editPermission ||= f.editPermission;
+              }
+            }
             if (f.parentId) {
               unwrapAlgorithm = { name: "AES-GCM", iv: nonce } as AesGcmParams;
               unwrapKey = tempFiles[f.parentId].key;
             } else {
               unwrapAlgorithm = { name: "RSA-OAEP" } as RsaOaepParams;
               unwrapKey = privateKey;
+              /// Files that are being shared directly should not have edit permission
+              /// to be moved or deleted, only their children should have those permissions
+              f.editPermission = false;
             }
             if (!unwrapKey) {
               console.error("Could not get parent key");
@@ -535,10 +550,7 @@ export default function FileExplorer(
             if (f.encryptedMimeType) {
               mimeType = await decryptText(f.encryptedMimeType, key, nonce);
             }
-            if (f.children) {
-              next.push(...f.children);
-            }
-            tempFiles[fileId] = {
+            tempFiles[fId] = {
               ...f,
               name,
               key,
@@ -634,6 +646,9 @@ export default function FileExplorer(
         break;
       case "info":
         setInfoOpen(true);
+        break;
+      case "download":
+        handleDownload(selectedFile.current);
         break;
       case "rename":
         break;
@@ -854,6 +869,7 @@ export default function FileExplorer(
               files={currentDir ?? []}
               loading={loading}
               users={users}
+              owner={type === "files"}
             />
           ) : (
             <>
@@ -896,7 +912,14 @@ export default function FileExplorer(
       {/* File move dialog */}
       {moveOpen && (
         <FileMoveModal
-          onClose={() => setMoveOpen(false)}
+          // On close we want to re-fetch files to prevent stale data on the edge
+          // case where the user is viewing files shared with them, and they move 
+          // to the root directory within the modal, then close the modal
+          // causing the file to have incorrect permissions
+          onClose={async () => {
+            setMoveOpen(false);
+            await fetchFiles();
+          }}
           file={selectedFile.current}
           files={files}
           root={[...root]}

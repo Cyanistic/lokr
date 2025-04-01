@@ -1,0 +1,98 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            WITH RECURSIVE ancestors AS (\n              -- Anchor member: start at the requested file.\n              SELECT\n                0 AS depth,\n                f.id,\n                -- If the file is directly shared (joined via share_user), hide its parent_id.\n                IIF(su.file_id IS NOT NULL, NULL, f.parent_id) AS parent_id,\n                f.encrypted_name,\n                COALESCE(su.encrypted_key, f.encrypted_key) AS encrypted_key,\n                f.nonce,\n                f.owner_id,\n                f.uploader_id,\n                f.is_directory,\n                f.mime,\n                f.created_at,\n                f.modified_at,\n                -- Mark whether this file is directly shared.\n                IIF(su.file_id IS NOT NULL, 1, 0) AS directly_shared,\n                edit_permission\n              FROM file f\n              LEFT JOIN share_user su\n                ON f.id = su.file_id AND su.user_id = ?  -- parameter: current user's id\n              WHERE f.id = ?                              -- parameter: requested file id\n                AND (su.user_id IS NULL OR su.user_id = ?)\n                AND f.owner_id != ?                       -- parameter: current user's id\n\n              UNION ALL\n\n              -- Recursive member: get ancestors only if the previous file was not directly shared.\n              SELECT\n                a.depth + 1 AS depth,\n                f.id,\n                IIF(su.file_id IS NOT NULL, NULL, f.parent_id) AS parent_id,\n                f.encrypted_name,\n                f.encrypted_key,\n                f.nonce,\n                f.owner_id,\n                f.uploader_id,\n                f.is_directory,\n                f.mime,\n                f.created_at,\n                f.modified_at,\n                IIF(su.file_id IS NOT NULL, 1, 0) AS directly_shared,\n                su.edit_permission\n              FROM file f\n              JOIN ancestors a ON f.id = a.parent_id\n              LEFT JOIN share_user su\n                ON f.id = su.file_id AND su.user_id = ?  -- parameter: current user's id again\n              WHERE a.directly_shared = 0\n            )\n            SELECT \n                depth AS \"depth!: u32\",\n                id AS \"id: Uuid\",\n                parent_id AS \"parent_id: Uuid\", \n                encrypted_name, \n                encrypted_key, \n                owner_id AS \"owner_id: Uuid\",\n                uploader_id AS \"uploader_id: Uuid\",\n                nonce, \n                is_directory AS \"is_directory!\",\n                mime,\n                -- Ancestors are always directories so their size must\n                -- be always be 0\n                0 AS \"size!: i64\",\n                edit_permission AS \"edit_permission?\",\n                created_at,\n                modified_at\n            FROM ancestors\n            WHERE depth > 0\n            ORDER BY depth DESC\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "depth!: u32",
+        "ordinal": 0,
+        "type_info": "Null"
+      },
+      {
+        "name": "id: Uuid",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "parent_id: Uuid",
+        "ordinal": 2,
+        "type_info": "Null"
+      },
+      {
+        "name": "encrypted_name",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "encrypted_key",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "owner_id: Uuid",
+        "ordinal": 5,
+        "type_info": "Blob"
+      },
+      {
+        "name": "uploader_id: Uuid",
+        "ordinal": 6,
+        "type_info": "Blob"
+      },
+      {
+        "name": "nonce",
+        "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "is_directory!",
+        "ordinal": 8,
+        "type_info": "Bool"
+      },
+      {
+        "name": "mime",
+        "ordinal": 9,
+        "type_info": "Text"
+      },
+      {
+        "name": "size!: i64",
+        "ordinal": 10,
+        "type_info": "Null"
+      },
+      {
+        "name": "edit_permission?",
+        "ordinal": 11,
+        "type_info": "Bool"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 12,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "modified_at",
+        "ordinal": 13,
+        "type_info": "Datetime"
+      }
+    ],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": [
+      null,
+      false,
+      null,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      true,
+      null,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "7b521d0cdaba1e958f948362ab91a620993f11adc957609ec932ad938fd08129"
+}

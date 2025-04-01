@@ -59,24 +59,36 @@ pub trait Normalize: Iterator {
 impl<T: Iterator<Item = FileMetadata>> Normalize for T {
     /// Convert rows into a tree like structure that represents the hierarchy of the files
     fn normalize(self) -> (HashMap<Uuid, Self::Item>, Vec<Uuid>) {
-        self.fold((HashMap::new(), Vec::new()), |(mut map, mut root), cur| {
-            let uuid = cur.id;
-            match cur.upload.parent_id {
-                // Normally we would need to worry about the parent_id being inserted into the file
-                // map before the child node. However, we have our queries return files/directories
-                // ordered by depth, so we can be sure that the parents always appear before the
-                // children
-                Some(parent_id) => {
-                    map.entry(parent_id)
-                        .and_modify(|entry| entry.children.push(uuid));
+        self.fold(
+            (HashMap::new(), Vec::new()),
+            |(mut map, mut root): (HashMap<Uuid, FileMetadata>, _), cur| {
+                let uuid = cur.id;
+                match cur.upload.parent_id {
+                    // Normally we would need to worry about the parent_id being inserted into the file
+                    // map before the child node. However, we have our queries return files/directories
+                    // ordered by depth, so we can be sure that the parents always appear before the
+                    // children
+                    Some(parent_id) => {
+                        map.entry(parent_id)
+                            .and_modify(|entry| entry.children.push(uuid));
+                    }
+                    None => {
+                        root.push(uuid);
+                    }
                 }
-                None => {
-                    root.push(uuid);
-                }
-            }
-            map.insert(uuid, cur);
-            (map, root)
-        })
+                map.entry(uuid)
+                    .and_modify(|e| {
+                        if cur
+                            .edit_permission
+                            .is_some_and(|edit_permission| edit_permission)
+                        {
+                            e.edit_permission = Some(true);
+                        }
+                    })
+                    .or_insert(cur);
+                (map, root)
+            },
+        )
     }
 }
 

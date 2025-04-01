@@ -30,7 +30,7 @@ use crate::{
 /// All encrypted fields are expected to be encrypted
 /// by the provided key, except for the key itself
 /// which is expected to be encrypted by the user's public key
-#[derive(Deserialize, Serialize, ToSchema, Clone)]
+#[derive(Deserialize, Debug, Serialize, ToSchema, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct UploadMetadata {
     /// The encrypted name of the file to be uploaded
@@ -688,7 +688,7 @@ pub async fn is_owner<'a, E: Executor<'a, Database = Sqlite>>(
 }
 
 /// Metadata of a file or directory
-#[derive(Serialize, ToSchema, Clone)]
+#[derive(Serialize, ToSchema, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct FileMetadata {
     /// The id of the file or directory
@@ -700,6 +700,12 @@ pub struct FileMetadata {
     pub owner_id: Option<Uuid>,
     pub uploader_id: Option<Uuid>,
     pub size: i64,
+    /// Whether or not the user has edit permission to this file
+    /// if this is not set then the file should inherit the edit permissions
+    /// of the parent. This will not be sent when a user is querying their
+    /// own files, as they will always have edit permissions.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub edit_permission: Option<bool>,
     /// The children of the directory.
     /// Only present if the file is a directory.
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -750,6 +756,7 @@ impl FileMetadata {
                 parent_id: None,
             },
             size: 0,
+            edit_permission: None,
             created_at: now,
             modified_at: now,
             owner_id: Some(user_id),
@@ -772,6 +779,7 @@ impl FileMetadata {
             owner_id: Some(user_id),
             uploader_id: Some(user_id),
             children: vec![],
+            edit_permission: None,
         };
         HashMap::from([(parent_uuid, first), (child_uuid, child)])
     }
@@ -976,6 +984,7 @@ pub async fn get_file_metadata(
             },
             size: row.size,
             children: Vec::new(),
+            edit_permission: None,
         });
         (query, Some(ancestors))
     } else {
@@ -1001,6 +1010,7 @@ pub async fn get_file_metadata(
             },
             size: row.size,
             children: Vec::new(),
+            edit_permission: None,
         }))
         .normalize();
     if params.id.is_some() && files.is_empty() {

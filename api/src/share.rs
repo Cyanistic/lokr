@@ -345,7 +345,8 @@ pub async fn get_user_shared_file(
                     mime,
                     size,
                     file.created_at,
-                    file.modified_at
+                    file.modified_at,
+                    edit_permission
                 FROM file
                 LEFT JOIN share_user ON file.id = share_user.file_id
                 WHERE
@@ -374,7 +375,8 @@ pub async fn get_user_shared_file(
                     f.mime,
                     f.size,
                     f.created_at,
-                    f.modified_at
+                    f.modified_at,
+                    NULL as "edit_permission"
                 FROM file f
                 JOIN children c ON f.parent_id = c.id
                 WHERE
@@ -393,6 +395,7 @@ pub async fn get_user_shared_file(
                 uploader_id AS "uploader_id: Uuid",
                 is_directory,
                 mime,
+                edit_permission AS "edit_permission?",
                 IIF(size - 16 < 0, 0, size - 16) AS "size!: i64",
                 created_at,
                 modified_at
@@ -430,7 +433,8 @@ pub async fn get_user_shared_file(
                 f.created_at,
                 f.modified_at,
                 -- Mark whether this file is directly shared.
-                IIF(su.file_id IS NOT NULL, 1, 0) AS directly_shared
+                IIF(su.file_id IS NOT NULL, 1, 0) AS directly_shared,
+                edit_permission
               FROM file f
               LEFT JOIN share_user su
                 ON f.id = su.file_id AND su.user_id = ?  -- parameter: current user's id
@@ -454,7 +458,8 @@ pub async fn get_user_shared_file(
                 f.mime,
                 f.created_at,
                 f.modified_at,
-                IIF(su.file_id IS NOT NULL, 1, 0) AS directly_shared
+                IIF(su.file_id IS NOT NULL, 1, 0) AS directly_shared,
+                su.edit_permission
               FROM file f
               JOIN ancestors a ON f.id = a.parent_id
               LEFT JOIN share_user su
@@ -475,6 +480,7 @@ pub async fn get_user_shared_file(
                 -- Ancestors are always directories so their size must
                 -- be always be 0
                 0 AS "size!: i64",
+                edit_permission AS "edit_permission?",
                 created_at,
                 modified_at
             FROM ancestors
@@ -506,6 +512,7 @@ pub async fn get_user_shared_file(
             },
             size: row.size,
             children: Vec::new(),
+            edit_permission: row.edit_permission,
         });
         (query, Some(ancestors))
     } else {
@@ -532,6 +539,7 @@ pub async fn get_user_shared_file(
             },
             size: row.size,
             children: Vec::new(),
+            edit_permission: row.edit_permission,
         }))
         .normalize();
     if params.id.is_some() && files.is_empty() {
@@ -671,7 +679,8 @@ pub async fn get_link_shared_file(
                     mime,
                     size,
                     file.created_at,
-                    file.modified_at
+                    file.modified_at,
+                    edit_permission
                 FROM file
                 LEFT JOIN share_link ON file.id = share_link.file_id
                 WHERE
@@ -699,7 +708,8 @@ pub async fn get_link_shared_file(
                     f.mime,
                     f.size,
                     f.created_at,
-                    f.modified_at
+                    f.modified_at,
+                    NULL AS edit_permission
                 FROM file f
                 JOIN children c ON f.parent_id = c.id
                 WHERE
@@ -718,6 +728,7 @@ pub async fn get_link_shared_file(
                 uploader_id AS "uploader_id: Uuid",
                 is_directory,
                 mime,
+                edit_permission AS "edit_permission?",
                 IIF(size - 16 < 0, 0, size - 16) AS "size!: i64",
                 created_at,
                 modified_at
@@ -753,7 +764,8 @@ pub async fn get_link_shared_file(
                     f.mime,
                     f.created_at,
                     f.modified_at,
-                    IIF(sl.file_id IS NOT NULL, 1, 0) AS directly_shared
+                    IIF(sl.file_id IS NOT NULL, 1, 0) AS directly_shared,
+                    edit_permission
                 FROM file f
                 LEFT JOIN share_link sl 
                     ON f.id = sl.file_id 
@@ -777,7 +789,8 @@ pub async fn get_link_shared_file(
                     f.mime,
                     f.created_at,
                     f.modified_at,
-                    IIF(sl.file_id IS NOT NULL, 1, 0) AS directly_shared
+                    IIF(sl.file_id IS NOT NULL, 1, 0) AS directly_shared,
+                    sl.edit_permission AS edit_permission
                 FROM file f
                 JOIN ancestors a ON f.id = a.parent_id
                 LEFT JOIN share_link sl 
@@ -800,6 +813,7 @@ pub async fn get_link_shared_file(
                 -- Ancestors are always directories so their size must
                 -- be always be 0
                 0 AS "size!: i64",
+                edit_permission AS "edit_permission?",
                 created_at,
                 modified_at
             FROM ancestors
@@ -829,6 +843,7 @@ pub async fn get_link_shared_file(
             },
             size: row.size,
             children: Vec::new(),
+            edit_permission: row.edit_permission,
         });
         (query, Some(ancestors))
     } else {
@@ -855,6 +870,7 @@ pub async fn get_link_shared_file(
             },
             size: row.size,
             children: Vec::new(),
+            edit_permission: row.edit_permission,
         }))
         .normalize();
 

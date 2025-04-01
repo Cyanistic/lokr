@@ -40,6 +40,7 @@ interface FileListProps {
   loading?: boolean;
   onRowClick: (fileId: string) => void;
   onAction: (action: string, fileId: string) => Promise<void>;
+  owner: boolean;
 }
 
 export default function FileList({
@@ -48,6 +49,7 @@ export default function FileList({
   loading,
   onRowClick,
   onAction,
+  owner,
 }: FileListProps) {
   const [sortModel, setSortModel] = useState<GridSortModel>([
     {
@@ -261,8 +263,10 @@ export default function FileList({
         if (!params.row) return null;
         return (
           <FileContextMenu
-            fileId={params.row.id as string}
+            fileId={params.row?.id as string}
             onAction={onAction}
+            owner={owner}
+            editor={params.row?.editPermission}
           />
         );
       },

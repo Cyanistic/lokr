@@ -59,7 +59,8 @@ export default function FileMoveModal({
     () =>
       (currentMoveFolder ? (files[currentMoveFolder]?.children ?? []) : root)
         .map((fileId) => files[fileId])
-        .filter((f) => f.isDirectory && f.id !== file?.id)
+        /// Only allow moving files across folders owned by the same owner
+        .filter((f) => f.isDirectory && f.id !== file?.id && f.ownerId === file?.ownerId)
         .sort((a, b) =>
           (a.name ?? a.encryptedFileName).localeCompare(
             b.name ?? b.encryptedFileName,

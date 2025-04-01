@@ -14,17 +14,22 @@ import ShareIcon from "@mui/icons-material/Share";
 import EditIcon from "@mui/icons-material/Edit";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import { useState } from "react";
+import { Download } from "@mui/icons-material";
 
 export interface FileContextMenuProps {
   fileId: string | null;
   anchorPosition?: { top: number; left: number };
   onAction: (action: string, fileId: string) => void;
+  owner: boolean;
+  editor: boolean;
 }
 
 export function FileContextMenu({
   fileId,
   anchorPosition,
   onAction,
+  owner,
+  editor,
 }: FileContextMenuProps) {
   // Determine which type of menu positioning to use
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
@@ -50,6 +55,7 @@ export function FileContextMenu({
     if (fileId !== null) {
       onAction(action, fileId);
     }
+    handleClose();
   };
 
   return (
@@ -86,34 +92,77 @@ export function FileContextMenu({
           </ListItemIcon>
           <ListItemText>Info</ListItemText>
         </MenuItem>
-        <MenuItem onClick={() => handleAction("rename")}>
+        <MenuItem onClick={() => handleAction("download")}>
           <ListItemIcon>
-            <EditIcon fontSize="small" />
+            <Download fontSize="small" />
           </ListItemIcon>
-          <ListItemText>Rename</ListItemText>
+          <ListItemText>Download</ListItemText>
         </MenuItem>
-        <MenuItem onClick={() => handleAction("share")}>
-          <ListItemIcon>
-            <ShareIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>Share</ListItemText>
-        </MenuItem>
-        <Divider />
-        <MenuItem onClick={() => handleAction("move")}>
-          <ListItemIcon>
-            <FolderIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>Move</ListItemText>
-        </MenuItem>
-        <MenuItem
-          onClick={() => handleAction("delete")}
-          sx={{ color: "error.main" }}
+        <span
+          title={
+            owner || editor
+              ? "Rename"
+              : "You do not have permission to rename this file"
+          }
         >
-          <ListItemIcon sx={{ color: "error.main" }}>
-            <DeleteIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>Delete</ListItemText>
-        </MenuItem>
+          <MenuItem
+            onClick={() => handleAction("rename")}
+            disabled={!owner && !editor}
+          >
+            <ListItemIcon>
+              <EditIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>Rename</ListItemText>
+          </MenuItem>
+        </span>
+        <span
+          title={
+            owner ? "Share this file" : "You cannot share files you do not own"
+          }
+        >
+          <MenuItem onClick={() => handleAction("share")} disabled={!owner}>
+            <ListItemIcon>
+              <ShareIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>Share</ListItemText>
+          </MenuItem>
+          <Divider />
+        </span>
+        <span
+          title={
+            owner || editor
+              ? "Move"
+              : "You do not have permission to move this file"
+          }
+        >
+          <MenuItem
+            onClick={() => handleAction("move")}
+            disabled={!owner && !editor}
+          >
+            <ListItemIcon>
+              <FolderIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>Move</ListItemText>
+          </MenuItem>
+        </span>
+        <span
+          title={
+            owner || editor
+              ? "Delete"
+              : "You do not have permission to delete this file"
+          }
+        >
+          <MenuItem
+            onClick={() => handleAction("delete")}
+            sx={{ color: "error.main" }}
+            disabled={!owner && !editor}
+          >
+            <ListItemIcon sx={{ color: "error.main" }}>
+              <DeleteIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>Delete</ListItemText>
+          </MenuItem>
+        </span>
       </Menu>
     </>
   );
