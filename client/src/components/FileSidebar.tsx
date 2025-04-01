@@ -1,7 +1,7 @@
-import type React from "react"
+import type React from "react";
 
-import { useEffect, useRef, useState } from "react"
-import { useWindowSize } from "./hooks/useWindowSize"
+import { useEffect, useRef, useState } from "react";
+import { useWindowSize } from "./hooks/useWindowSize";
 
 import {
   Avatar,
@@ -24,17 +24,17 @@ import {
   TextField,
   Tooltip,
   Typography,
-} from "@mui/material"
-import AccountCircleIcon from '@mui/icons-material/AccountCircle';
-import FolderIcon from '@mui/icons-material/Folder';
-import DeleteIcon from '@mui/icons-material/Delete';
-import PeopleAltIcon from '@mui/icons-material/PeopleAlt';
+} from "@mui/material";
+import AccountCircleIcon from "@mui/icons-material/AccountCircle";
+import FolderIcon from "@mui/icons-material/Folder";
+import DeleteIcon from "@mui/icons-material/Delete";
+import PeopleAltIcon from "@mui/icons-material/PeopleAlt";
 import { ChevronLeft, Logout, Settings } from "@mui/icons-material";
 import DefaultProfile from "/default-profile.webp";
 import { BASE_URL, formatBytes, logout } from "../utils";
 import { SessionUser } from "../myApi";
 import { Link } from "react-router-dom";
-import CreateNewFolderIcon from '@mui/icons-material/CreateNewFolder';
+import CreateNewFolderIcon from "@mui/icons-material/CreateNewFolder";
 
 interface SidebarProps {
   user?: SessionUser;
@@ -44,7 +44,13 @@ interface SidebarProps {
   current: "files" | "shared" | "link";
 }
 
-export function FileSidebar({ user, collapsed, setCollapsed, onCreateFolder, current }: SidebarProps) {
+export function FileSidebar({
+  user,
+  collapsed,
+  setCollapsed,
+  onCreateFolder,
+  current,
+}: SidebarProps) {
   const { width } = useWindowSize();
   const isMobile = width < 768;
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
@@ -70,7 +76,9 @@ export function FileSidebar({ user, collapsed, setCollapsed, onCreateFolder, cur
     setNewFolderDialogOpen(false);
   };
 
-  const handleNewFolderNameChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleNewFolderNameChange = (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
     setNewFolderName(event.target.value);
   };
 
@@ -96,20 +104,25 @@ export function FileSidebar({ user, collapsed, setCollapsed, onCreateFolder, cur
   // Handle click outside to close sidebar on mobile
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (isMobile && !collapsed && sidebarRef.current && !sidebarRef.current.contains(event.target as Node)) {
-        setCollapsed(true)
+      if (
+        isMobile &&
+        !collapsed &&
+        sidebarRef.current &&
+        !sidebarRef.current.contains(event.target as Node)
+      ) {
+        setCollapsed(true);
       }
     }
 
     // Add event listener only when sidebar is open on mobile
     if (isMobile && !collapsed) {
-      document.addEventListener("mousedown", handleClickOutside)
+      document.addEventListener("mousedown", handleClickOutside);
     }
 
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside)
-    }
-  }, [isMobile, collapsed, setCollapsed])
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isMobile, collapsed, setCollapsed]);
 
   return (
     <>
@@ -144,8 +157,10 @@ export function FileSidebar({ user, collapsed, setCollapsed, onCreateFolder, cur
           bgcolor: "background.paper",
           transition: "all 0.3s ease",
           width: collapsed ? "70px" : "250px",
-          transform: isMobile && collapsed ? "translateX(-100%)" : "translateX(0)",
-          boxShadow: isMobile && !collapsed ? "0 4px 20px rgba(0,0,0,0.15)" : "none",
+          transform:
+            isMobile && collapsed ? "translateX(-100%)" : "translateX(0)",
+          boxShadow:
+            isMobile && !collapsed ? "0 4px 20px rgba(0,0,0,0.15)" : "none",
           borderRadius: collapsed ? "0" : "0 24px 24px 0",
         }}
       >
@@ -168,7 +183,10 @@ export function FileSidebar({ user, collapsed, setCollapsed, onCreateFolder, cur
               </Typography>
             </>
           )}
-          <IconButton onClick={() => setCollapsed(!collapsed)} sx={{ ml: collapsed ? "auto" : 0 }}>
+          <IconButton
+            onClick={() => setCollapsed(!collapsed)}
+            sx={{ ml: collapsed ? "auto" : 0 }}
+          >
             <ChevronLeft
               sx={{
                 height: 20,
@@ -192,7 +210,12 @@ export function FileSidebar({ user, collapsed, setCollapsed, onCreateFolder, cur
             >
               {collapsed ? (
                 <Tooltip title="New Folder">
-                  <Fab color="primary" size="small" onClick={handleOpenNewFolderDialog} sx={{ boxShadow: 2 }}>
+                  <Fab
+                    color="primary"
+                    size="small"
+                    onClick={handleOpenNewFolderDialog}
+                    sx={{ boxShadow: 2 }}
+                  >
                     <CreateNewFolderIcon sx={{ fontSize: 20 }} />
                   </Fab>
                 </Tooltip>
@@ -213,12 +236,17 @@ export function FileSidebar({ user, collapsed, setCollapsed, onCreateFolder, cur
               )}
             </Box>
             {navItems.map((item, index) => (
-              <Link key={index} to={`${item.link}${viewParam ? `?view=${viewParam}` : ""}`}>
+              <Link
+                key={index}
+                to={`${item.link}${viewParam ? `?view=${viewParam}` : ""}`}
+              >
                 <ListItem disablePadding sx={{ mb: 0.5 }}>
                   <ListItemButton
                     sx={{
                       borderRadius: 1,
-                      bgcolor: item.link.endsWith(current) ? "action.selected" : "transparent",
+                      bgcolor: item.link.endsWith(current)
+                        ? "action.selected"
+                        : "transparent",
                       justifyContent: collapsed ? "center" : "flex-start",
                       px: collapsed ? 1 : 2,
                       py: 1,
@@ -227,7 +255,9 @@ export function FileSidebar({ user, collapsed, setCollapsed, onCreateFolder, cur
                     <ListItemIcon
                       sx={{
                         minWidth: collapsed ? 0 : 36,
-                        color: item.link.endsWith(current) ? "primary.main" : "text.secondary",
+                        color: item.link.endsWith(current)
+                          ? "primary.main"
+                          : "text.secondary",
                         mr: collapsed ? 0 : 1,
                       }}
                     >
@@ -249,7 +279,6 @@ export function FileSidebar({ user, collapsed, setCollapsed, onCreateFolder, cur
               </Link>
             ))}
           </List>
-
         </Box>
         <Divider sx={{ my: 2 }} />
 
@@ -274,38 +303,39 @@ export function FileSidebar({ user, collapsed, setCollapsed, onCreateFolder, cur
               visibility: collapsed ? "hidden" : "visible",
             }}
           >
-            {user && (<>
-              <Box
-                sx={{
-                  mb: 0.5,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  fontSize: "0.75rem",
-                }}
-              >
-                <Typography variant="caption">{`${Math.trunc((user.usedSpace / user.totalSpace) * 100)}% used`}</Typography>
-                <Typography variant="caption">{`${formatBytes(user.usedSpace)} / ${formatBytes(user.totalSpace)}`}</Typography>
-              </Box>
-              <Box
-                sx={{
-                  height: 8,
-                  borderRadius: 4,
-                  bgcolor: "action.hover",
-                  overflow: "hidden",
-                }}
-              >
+            {user && (
+              <>
                 <Box
                   sx={{
-                    height: "100%",
-                    width: `${(user.usedSpace / user.totalSpace) * 100}%`,
-                    borderRadius: 4,
-                    bgcolor: "primary.main",
+                    mb: 0.5,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    fontSize: "0.75rem",
                   }}
-                />
-              </Box>
-            </>)
-            }
+                >
+                  <Typography variant="caption">{`${Math.trunc((user.usedSpace / user.totalSpace) * 100)}% used`}</Typography>
+                  <Typography variant="caption">{`${formatBytes(user.usedSpace)} / ${formatBytes(user.totalSpace)}`}</Typography>
+                </Box>
+                <Box
+                  sx={{
+                    height: 8,
+                    borderRadius: 4,
+                    bgcolor: "action.hover",
+                    overflow: "hidden",
+                  }}
+                >
+                  <Box
+                    sx={{
+                      height: "100%",
+                      width: `${(user.usedSpace / user.totalSpace) * 100}%`,
+                      borderRadius: 4,
+                      bgcolor: "primary.main",
+                    }}
+                  />
+                </Box>
+              </>
+            )}
           </Box>
         </Box>
 
@@ -327,11 +357,17 @@ export function FileSidebar({ user, collapsed, setCollapsed, onCreateFolder, cur
               color: "text.primary",
             }}
           >
-            {user &&
-              (<>
+            {user && (
+              <>
                 <Avatar
-                  src={user.avatarExtension ? `${BASE_URL}/api/avatars/${user.id}.${user.avatarExtension}` : DefaultProfile}
-                  alt={user.username} sx={{ width: 32, height: 32 }}>
+                  src={
+                    user.avatarExtension
+                      ? `${BASE_URL}/api/avatars/${user.id}.${user.avatarExtension}`
+                      : DefaultProfile
+                  }
+                  alt={user.username}
+                  sx={{ width: 32, height: 32 }}
+                >
                   {user.username}
                 </Avatar>
                 {!collapsed && (
@@ -343,8 +379,9 @@ export function FileSidebar({ user, collapsed, setCollapsed, onCreateFolder, cur
                       {user.email}
                     </Typography>
                   </Box>
-                )}</>)
-            }
+                )}
+              </>
+            )}
           </Button>
           <Menu
             anchorEl={anchorEl}
@@ -378,7 +415,14 @@ export function FileSidebar({ user, collapsed, setCollapsed, onCreateFolder, cur
               <Typography variant="body2">Preferences</Typography>
             </MenuItem>
             <Divider />
-            <Link to="/home" onClick={async (e) => { if (!await logout()) { e.preventDefault(); } }}>
+            <Link
+              to="/home"
+              onClick={async (e) => {
+                if (!(await logout())) {
+                  e.preventDefault();
+                }
+              }}
+            >
               <MenuItem onClick={handleCloseMenu}>
                 <ListItemIcon sx={{ minWidth: 36 }}>
                   <Logout style={{ height: 16, width: 16 }} />
@@ -391,7 +435,12 @@ export function FileSidebar({ user, collapsed, setCollapsed, onCreateFolder, cur
       </Box>
 
       {/* New Folder Dialog */}
-      <Dialog open={newFolderDialogOpen} onClose={handleCloseNewFolderDialog} fullWidth maxWidth="xs">
+      <Dialog
+        open={newFolderDialogOpen}
+        onClose={handleCloseNewFolderDialog}
+        fullWidth
+        maxWidth="xs"
+      >
         <DialogTitle>Create New Folder</DialogTitle>
         <DialogContent>
           <TextField
@@ -406,7 +455,7 @@ export function FileSidebar({ user, collapsed, setCollapsed, onCreateFolder, cur
             onChange={handleNewFolderNameChange}
             sx={{ mt: 1 }}
             onKeyDown={async (event) => {
-              if (event.key === 'Enter' && newFolderName.trim()) {
+              if (event.key === "Enter" && newFolderName.trim()) {
                 handleCreateFolder();
               }
             }}
@@ -416,12 +465,16 @@ export function FileSidebar({ user, collapsed, setCollapsed, onCreateFolder, cur
           <Button onClick={handleCloseNewFolderDialog} color="inherit">
             Cancel
           </Button>
-          <Button onClick={handleCreateFolder} variant="contained" color="primary" disabled={!newFolderName.trim()}>
+          <Button
+            onClick={handleCreateFolder}
+            variant="contained"
+            color="primary"
+            disabled={!newFolderName.trim()}
+          >
             Create
           </Button>
         </DialogActions>
       </Dialog>
     </>
-  )
+  );
 }
-

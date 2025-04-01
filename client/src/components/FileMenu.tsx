@@ -1,11 +1,19 @@
-import { Menu, MenuItem, ListItemIcon, ListItemText, Divider, type MenuProps, IconButton } from "@mui/material"
-import InfoIcon from "@mui/icons-material/Info"
-import DeleteIcon from "@mui/icons-material/Delete"
-import FolderIcon from "@mui/icons-material/Folder"
-import ShareIcon from "@mui/icons-material/Share"
-import EditIcon from "@mui/icons-material/Edit"
-import MoreVertIcon from '@mui/icons-material/MoreVert';
-import { useState } from "react"
+import {
+  Menu,
+  MenuItem,
+  ListItemIcon,
+  ListItemText,
+  Divider,
+  type MenuProps,
+  IconButton,
+} from "@mui/material";
+import InfoIcon from "@mui/icons-material/Info";
+import DeleteIcon from "@mui/icons-material/Delete";
+import FolderIcon from "@mui/icons-material/Folder";
+import ShareIcon from "@mui/icons-material/Share";
+import EditIcon from "@mui/icons-material/Edit";
+import MoreVertIcon from "@mui/icons-material/MoreVert";
+import { useState } from "react";
 
 export interface FileContextMenuProps {
   fileId: string | null;
@@ -13,36 +21,47 @@ export interface FileContextMenuProps {
   onAction: (action: string, fileId: string) => void;
 }
 
-export function FileContextMenu({ fileId, anchorPosition, onAction }: FileContextMenuProps) {
+export function FileContextMenu({
+  fileId,
+  anchorPosition,
+  onAction,
+}: FileContextMenuProps) {
   // Determine which type of menu positioning to use
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const menuProps: Partial<MenuProps> = anchorPosition
     ? {
-      anchorReference: "anchorPosition",
-      anchorPosition,
-    }
+        anchorReference: "anchorPosition",
+        anchorPosition,
+      }
     : {
-      anchorEl,
-    }
-  const open = Boolean(anchorEl)
+        anchorEl,
+      };
+  const open = Boolean(anchorEl);
 
   const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
-    setAnchorEl(event.currentTarget)
-  }
+    setAnchorEl(event.currentTarget);
+  };
   const handleClose = () => {
-    setAnchorEl(null)
-  }
+    setAnchorEl(null);
+  };
 
   // Handle menu actions
   const handleAction = (action: string) => {
     if (fileId !== null) {
-      onAction(action, fileId)
+      onAction(action, fileId);
     }
-  }
+  };
 
   return (
     <>
-      <IconButton aria-label="more" aria-controls="file-menu" aria-haspopup="true" onClick={handleClick} size="small" sx={{zIndex: 3}}>
+      <IconButton
+        aria-label="more"
+        aria-controls="file-menu"
+        aria-haspopup="true"
+        onClick={handleClick}
+        size="small"
+        sx={{ zIndex: 3 }}
+      >
         <MoreVertIcon />
       </IconButton>
       <Menu
@@ -58,7 +77,7 @@ export function FileContextMenu({ fileId, anchorPosition, onAction }: FileContex
               overflow: "hidden",
               mt: 1,
             },
-          }
+          },
         }}
       >
         <MenuItem onClick={() => handleAction("info")}>
@@ -86,7 +105,10 @@ export function FileContextMenu({ fileId, anchorPosition, onAction }: FileContex
           </ListItemIcon>
           <ListItemText>Move</ListItemText>
         </MenuItem>
-        <MenuItem onClick={() => handleAction("delete")} sx={{ color: "error.main" }}>
+        <MenuItem
+          onClick={() => handleAction("delete")}
+          sx={{ color: "error.main" }}
+        >
           <ListItemIcon sx={{ color: "error.main" }}>
             <DeleteIcon fontSize="small" />
           </ListItemIcon>
@@ -94,6 +116,5 @@ export function FileContextMenu({ fileId, anchorPosition, onAction }: FileContex
         </MenuItem>
       </Menu>
     </>
-  )
+  );
 }
-

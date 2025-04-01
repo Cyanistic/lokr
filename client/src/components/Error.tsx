@@ -1,21 +1,21 @@
-import { useEffect } from "react"
-import { Button, Container, Typography, Box } from "@mui/material"
-import { useErrorToast } from "./ErrorToastProvider"
+import { useEffect } from "react";
+import { Button, Container, Typography, Box } from "@mui/material";
+import { useErrorToast } from "./ErrorToastProvider";
 
 export default function Error({
   error,
   reset,
 }: {
-  error: Error & { digest?: string }
-  reset: () => void
+  error: Error & { digest?: string };
+  reset: () => void;
 }) {
-  const {showError} = useErrorToast();
+  const { showError } = useErrorToast();
 
   useEffect(() => {
     // Log the error to an error reporting service
     showError(error.message);
     console.log(error.message);
-  }, [error])
+  }, [error]);
 
   return (
     <Container maxWidth="sm">
@@ -34,13 +34,18 @@ export default function Error({
           Something went wrong!
         </Typography>
         <Typography variant="body1" color="text.secondary" component="p">
-          We apologize for the inconvenience. Please try again or contact support if the issue persists.
+          We apologize for the inconvenience. Please try again or contact
+          support if the issue persists.
         </Typography>
-        <Button variant="contained" color="primary" onClick={() => reset()} sx={{ mt: 2 }}>
+        <Button
+          variant="contained"
+          color="primary"
+          onClick={() => reset()}
+          sx={{ mt: 2 }}
+        >
           Try again
         </Button>
       </Box>
     </Container>
-  )
+  );
 }
-

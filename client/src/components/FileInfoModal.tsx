@@ -18,7 +18,7 @@ import { BASE_URL, formatBytes } from "../utils";
 import theme from "../theme";
 import { getFileIcon } from "../pages/FileExplorer";
 import { CalendarMonth, SdStorage } from "@mui/icons-material";
-import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
+import InsertDriveFileIcon from "@mui/icons-material/InsertDriveFile";
 import DefaultProfile from "/default-profile.webp";
 
 interface FileInfoModalProps {
@@ -29,17 +29,28 @@ interface FileInfoModalProps {
   onClose: () => void;
 }
 
-function FileInfoModal({ open, onClose, file, users, path }: FileInfoModalProps) {
-  const isMobile = useMediaQuery(theme.breakpoints.down("sm"))
-  if (!file) return null
+function FileInfoModal({
+  open,
+  onClose,
+  file,
+  users,
+  path,
+}: FileInfoModalProps) {
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  if (!file) return null;
   if (!path) path = [];
 
   // Get MIME type if not provided
   const mimeType = file.isDirectory ? "Directory" : file.mimeType;
 
-  const owner = file.ownerId ? users[file.ownerId] ?? "Unknown user" : null;
-  const uploader = file.uploaderId ? users[file.uploaderId] ?? "Unknown user" : null;
-  const filePath = `/${[...path, file].filter(f => f.name).map(f => f.name).join("/")}`
+  const owner = file.ownerId ? (users[file.ownerId] ?? "Unknown user") : null;
+  const uploader = file.uploaderId
+    ? (users[file.uploaderId] ?? "Unknown user")
+    : null;
+  const filePath = `/${[...path, file]
+    .filter((f) => f.name)
+    .map((f) => f.name)
+    .join("/")}`;
 
   return (
     <Dialog
@@ -54,7 +65,7 @@ function FileInfoModal({ open, onClose, file, users, path }: FileInfoModalProps)
             borderRadius: isMobile ? 0 : 2,
             overflow: "hidden",
           },
-        }
+        },
       }}
     >
       {/* Header */}
@@ -119,7 +130,14 @@ function FileInfoModal({ open, onClose, file, users, path }: FileInfoModalProps)
           >
             {getFileIcon(file.mimeType)}
           </Paper>
-          <Typography variant="h6" sx={{ fontWeight: 600, textAlign: "center", wordBreak: "break-word" }}>
+          <Typography
+            variant="h6"
+            sx={{
+              fontWeight: 600,
+              textAlign: "center",
+              wordBreak: "break-word",
+            }}
+          >
             {file.name}
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
@@ -159,7 +177,9 @@ function FileInfoModal({ open, onClose, file, users, path }: FileInfoModalProps)
                   <Typography variant="caption" color="text.secondary">
                     Size
                   </Typography>
-                  <Typography variant="body2">{formatBytes(file.size)}</Typography>
+                  <Typography variant="body2">
+                    {formatBytes(file.size)}
+                  </Typography>
                 </Box>
               </Box>
             </Grid>
@@ -174,7 +194,9 @@ function FileInfoModal({ open, onClose, file, users, path }: FileInfoModalProps)
                   <Typography variant="caption" color="text.secondary">
                     Created
                   </Typography>
-                  <Typography variant="body2">{file.createdAtDate?.toLocaleString()}</Typography>
+                  <Typography variant="body2">
+                    {file.createdAtDate?.toLocaleString()}
+                  </Typography>
                 </Box>
               </Box>
             </Grid>
@@ -189,7 +211,9 @@ function FileInfoModal({ open, onClose, file, users, path }: FileInfoModalProps)
                   <Typography variant="caption" color="text.secondary">
                     Modified
                   </Typography>
-                  <Typography variant="body2">{file.modifiedAtDate?.toLocaleString()}</Typography>
+                  <Typography variant="body2">
+                    {file.modifiedAtDate?.toLocaleString()}
+                  </Typography>
                 </Box>
               </Box>
             </Grid>
@@ -230,10 +254,14 @@ function FileInfoModal({ open, onClose, file, users, path }: FileInfoModalProps)
                 </Typography>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
                   <Avatar
-                    src={uploader?.avatarExtension ? `${BASE_URL}/api/avatars/${uploader.id}.${uploader.avatarExtension}` : DefaultProfile}
+                    src={
+                      uploader?.avatarExtension
+                        ? `${BASE_URL}/api/avatars/${uploader.id}.${uploader.avatarExtension}`
+                        : DefaultProfile
+                    }
                     alt={uploader?.username ?? "Anonymous"}
-                    sx={{ width: 32, height: 32 }}>
-                  </Avatar>
+                    sx={{ width: 32, height: 32 }}
+                  ></Avatar>
                   <Box>
                     <Typography variant="body2" sx={{ fontWeight: 500 }}>
                       {uploader?.username ?? "Anonymous"}
@@ -256,10 +284,14 @@ function FileInfoModal({ open, onClose, file, users, path }: FileInfoModalProps)
                 </Typography>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
                   <Avatar
-                    src={owner?.avatarExtension ? `${BASE_URL}/api/avatars/${owner.id}.${owner.avatarExtension}` : DefaultProfile}
+                    src={
+                      owner?.avatarExtension
+                        ? `${BASE_URL}/api/avatars/${owner.id}.${owner.avatarExtension}`
+                        : DefaultProfile
+                    }
                     alt={owner?.username ?? "Anonymous"}
-                    sx={{ width: 32, height: 32 }}>
-                  </Avatar>
+                    sx={{ width: 32, height: 32 }}
+                  ></Avatar>
                   <Box>
                     <Typography variant="body2" sx={{ fontWeight: 500 }}>
                       {owner?.username ?? "Anonymous"}
@@ -277,7 +309,7 @@ function FileInfoModal({ open, onClose, file, users, path }: FileInfoModalProps)
         </Box>
       </DialogContent>
     </Dialog>
-  )
-};
+  );
+}
 
 export default FileInfoModal;

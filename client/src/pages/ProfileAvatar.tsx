@@ -7,7 +7,10 @@ type AvatarUploadProps = {
   onAvatarChange: (url: string) => void;
 };
 
-const AvatarUpload: React.FC<AvatarUploadProps> = ({ avatarUrl, onAvatarChange }) => {
+const AvatarUpload: React.FC<AvatarUploadProps> = ({
+  avatarUrl,
+  onAvatarChange,
+}) => {
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { showError } = useErrorToast();
@@ -39,7 +42,7 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({ avatarUrl, onAvatarChange }
       const response = await fetch(`${BASE_URL}/api/profile/upload`, {
         method: "PUT",
         body: file,
-        credentials: import.meta.env.DEV ? "include" : "same-origin"
+        credentials: import.meta.env.DEV ? "include" : "same-origin",
       });
 
       if (!response.ok) throw await response.json();
@@ -49,7 +52,6 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({ avatarUrl, onAvatarChange }
     } catch (err: any) {
       showError("Failed to upload the image. Please try again.", err);
     }
-
   };
 
   return (
@@ -68,8 +70,10 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({ avatarUrl, onAvatarChange }
           onChange={handleFileChange}
         />
       </div>
-      {error && <p style={{ color: "red", marginBottom: "20px" }}>{error}</p>} {/* Error spacing */}
-      <button className="b1"
+      {error && <p style={{ color: "red", marginBottom: "20px" }}>{error}</p>}{" "}
+      {/* Error spacing */}
+      <button
+        className="b1"
         onClick={handleUpload}
         style={{
           padding: "10px 20px",

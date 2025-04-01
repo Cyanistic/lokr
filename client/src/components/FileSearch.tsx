@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react"
+import React, { useEffect, useRef, useState } from "react";
 import {
   Box,
   TextField,
@@ -11,13 +11,13 @@ import {
   MenuItem,
   Paper,
   SvgIcon,
-} from "@mui/material"
-import SearchIcon from "@mui/icons-material/Search"
-import FolderIcon from "@mui/icons-material/Folder"
-import MoreVertIcon from "@mui/icons-material/MoreVert"
-import { FileMetadata } from "../types"
-import { getFileIcon } from "../pages/FileExplorer"
-import Fuse from "fuse.js"
+} from "@mui/material";
+import SearchIcon from "@mui/icons-material/Search";
+import FolderIcon from "@mui/icons-material/Folder";
+import MoreVertIcon from "@mui/icons-material/MoreVert";
+import { FileMetadata } from "../types";
+import { getFileIcon } from "../pages/FileExplorer";
+import Fuse from "fuse.js";
 
 interface FileSearchProps {
   files: Record<string, FileMetadata>;
@@ -27,25 +27,32 @@ interface FileSearchProps {
   onFileSelected?: (file: FileMetadata) => void;
 }
 
-export default function FileSearch({ files, onNavigateToPath, onOpen, onFileSelected }: FileSearchProps) {
+export default function FileSearch({
+  files,
+  onNavigateToPath,
+  onOpen,
+  onFileSelected,
+}: FileSearchProps) {
   const fuse = useRef<Fuse<FileMetadata>>(new Fuse([]));
   const [filteredFiles, setFilteredFiles] = useState<FileMetadata[]>([]);
-  const [inputValue, setInputValue] = useState("")
-  const [open, setOpen] = useState(false)
-  const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null)
-  const [_selectedFileId, setSelectedFileId] = useState<string | null>(null)
+  const [inputValue, setInputValue] = useState("");
+  const [open, setOpen] = useState(false);
+  const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
+  const [_selectedFileId, setSelectedFileId] = useState<string | null>(null);
 
   useEffect(() => {
     fuse.current = new Fuse(Object.values(files), {
       keys: ["name", "mimeType"],
-      minMatchCharLength: 1
-    })
+      minMatchCharLength: 1,
+    });
   }, [files]);
 
   useEffect(() => {
     if (!inputValue) {
       const items = Object.values(files);
-      items.sort((a, b) => (a.name ?? "encryptedFile").localeCompare(b.name ?? "encryptedFile"));
+      items.sort((a, b) =>
+        (a.name ?? "encryptedFile").localeCompare(b.name ?? "encryptedFile"),
+      );
       setFilteredFiles(items);
     } else {
       const items = fuse.current.search(inputValue);
@@ -57,24 +64,30 @@ export default function FileSearch({ files, onNavigateToPath, onOpen, onFileSele
     if (open && onOpen) {
       onOpen();
     }
-  }, [open])
+  }, [open]);
 
-  const handleMenuOpen = (event: React.MouseEvent<HTMLElement>, fileId: string) => {
-    event.stopPropagation() // Prevent the autocomplete item from being selected
-    setMenuAnchorEl(event.currentTarget)
-    setSelectedFileId(fileId)
-  }
+  const handleMenuOpen = (
+    event: React.MouseEvent<HTMLElement>,
+    fileId: string,
+  ) => {
+    event.stopPropagation(); // Prevent the autocomplete item from being selected
+    setMenuAnchorEl(event.currentTarget);
+    setSelectedFileId(fileId);
+  };
 
   const handleMenuClose = () => {
-    setMenuAnchorEl(null)
-    setSelectedFileId(null)
-  }
+    setMenuAnchorEl(null);
+    setSelectedFileId(null);
+  };
 
-  const handleJumpToFolder = (event: React.MouseEvent<HTMLElement>, path?: string | null) => {
-    event.stopPropagation() // Prevent the autocomplete item from being selected
-    onNavigateToPath(path)
-    setOpen(false)
-  }
+  const handleJumpToFolder = (
+    event: React.MouseEvent<HTMLElement>,
+    path?: string | null,
+  ) => {
+    event.stopPropagation(); // Prevent the autocomplete item from being selected
+    onNavigateToPath(path);
+    setOpen(false);
+  };
 
   return (
     <Box sx={{ width: "100%" }}>
@@ -93,7 +106,7 @@ export default function FileSearch({ files, onNavigateToPath, onOpen, onFileSele
           if (reason === "selectOption" || reason === "reset") {
             setInputValue("");
           } else {
-            setInputValue(newInputValue)
+            setInputValue(newInputValue);
           }
         }}
         options={filteredFiles}
@@ -113,12 +126,16 @@ export default function FileSearch({ files, onNavigateToPath, onOpen, onFileSele
                     <SearchIcon />
                   </InputAdornment>
                 ),
-              }
+              },
             }}
           />
         )}
         renderOption={({ key, ...props }, option) => (
-          <li {...props} key={`${option.id}-autocomplete`} style={{ padding: 0 }}>
+          <li
+            {...props}
+            key={`${option.id}-autocomplete`}
+            style={{ padding: 0 }}
+          >
             <Box
               sx={{
                 width: "100%",
@@ -128,13 +145,22 @@ export default function FileSearch({ files, onNavigateToPath, onOpen, onFileSele
                 p: 1.5,
               }}
             >
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flex: 1 }}>
-                <SvgIcon>
-                  {getFileIcon(option.mimeType)}
-                </SvgIcon>
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 1.5,
+                  flex: 1,
+                }}
+              >
+                <SvgIcon>{getFileIcon(option.mimeType)}</SvgIcon>
                 <Box>
                   <Typography variant="body1">{option.name}</Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.75rem" }}>
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{ fontSize: "0.75rem" }}
+                  >
                     {/* TODO: Add path functionality */}
                   </Typography>
                 </Box>
@@ -172,11 +198,15 @@ export default function FileSearch({ files, onNavigateToPath, onOpen, onFileSele
                 overflowY: "auto",
               }}
             />
-          )
+          ),
         }}
       />
 
-      <Menu anchorEl={menuAnchorEl} open={Boolean(menuAnchorEl)} onClose={handleMenuClose}>
+      <Menu
+        anchorEl={menuAnchorEl}
+        open={Boolean(menuAnchorEl)}
+        onClose={handleMenuClose}
+      >
         <MenuItem onClick={handleMenuClose}>Open</MenuItem>
         <MenuItem onClick={handleMenuClose}>Download</MenuItem>
         <MenuItem onClick={handleMenuClose}>Share</MenuItem>
@@ -184,5 +214,5 @@ export default function FileSearch({ files, onNavigateToPath, onOpen, onFileSele
         <MenuItem onClick={handleMenuClose}>Delete</MenuItem>
       </Menu>
     </Box>
-  )
+  );
 }

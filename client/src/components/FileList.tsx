@@ -1,59 +1,74 @@
-import { useEffect, useState } from "react"
-import DefaultProfile from "/default-profile.webp"
+import { useEffect, useState } from "react";
+import DefaultProfile from "/default-profile.webp";
 import {
   DataGrid,
   type GridColDef,
   GridColumnVisibilityModel,
   type GridRenderCellParams,
   type GridSortModel,
-} from "@mui/x-data-grid"
-import { Avatar, Box, Typography } from "@mui/material"
-import { FileMetadata } from "../types"
-import { PublicUser } from "../myApi"
-import { getFileIcon } from "../pages/FileExplorer"
-import { BASE_URL, formatBytes } from "../utils"
-import FolderOffIcon from '@mui/icons-material/FolderOff';
-import { useWindowSize } from "./hooks/useWindowSize"
-import { FileContextMenu } from "./FileMenu"
+} from "@mui/x-data-grid";
+import { Avatar, Box, Typography } from "@mui/material";
+import { FileMetadata } from "../types";
+import { PublicUser } from "../myApi";
+import { getFileIcon } from "../pages/FileExplorer";
+import { BASE_URL, formatBytes } from "../utils";
+import FolderOffIcon from "@mui/icons-material/FolderOff";
+import { useWindowSize } from "./hooks/useWindowSize";
+import { FileContextMenu } from "./FileMenu";
 
 export function NoFilesFound() {
   return (
-    <Box sx={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center" }}>
+    <Box
+      sx={{
+        width: "100%",
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "center",
+        alignItems: "center",
+      }}
+    >
       <FolderOffIcon sx={{ fontSize: 42 }} />
       <Typography variant="body1">{"No files found"}</Typography>
     </Box>
   );
 }
 
-
 interface FileListProps {
-  files: FileMetadata[],
-  users: Record<string, PublicUser>,
-  loading?: boolean
+  files: FileMetadata[];
+  users: Record<string, PublicUser>;
+  loading?: boolean;
   onRowClick: (fileId: string) => void;
   onAction: (action: string, fileId: string) => Promise<void>;
 }
 
-export default function FileList({ files, users, loading, onRowClick, onAction }: FileListProps) {
+export default function FileList({
+  files,
+  users,
+  loading,
+  onRowClick,
+  onAction,
+}: FileListProps) {
   const [sortModel, setSortModel] = useState<GridSortModel>([
     {
       field: "name",
       sort: "asc",
     },
-  ])
+  ]);
 
-  const [columnVisibility, setColumnVisibility] = useState<GridColumnVisibilityModel>({
-    name: true,
-    size: true,
-    createdAtDate: true,
-    modifiedAtDate: true,
-    uploaderId: true,
-    ownerId: true,
-    actions: true,
-  })
+  const [columnVisibility, setColumnVisibility] =
+    useState<GridColumnVisibilityModel>({
+      name: true,
+      size: true,
+      createdAtDate: true,
+      modifiedAtDate: true,
+      uploaderId: true,
+      ownerId: true,
+      actions: true,
+    });
 
   // Get window size for responsive design
-  const { width } = useWindowSize()
+  const { width } = useWindowSize();
 
   // Update column visibility based on screen size
   useEffect(() => {
@@ -67,7 +82,7 @@ export default function FileList({ files, users, loading, onRowClick, onAction }
         uploaderId: false,
         ownerId: false,
         actions: true,
-      })
+      });
     } else if (width < 1000) {
       // Small screens: Show name, size, modified date, and actions
       setColumnVisibility({
@@ -78,7 +93,7 @@ export default function FileList({ files, users, loading, onRowClick, onAction }
         uploaderId: false,
         ownerId: false,
         actions: true,
-      })
+      });
     } else if (width < 1200) {
       // Medium screens: Show all except created date
       setColumnVisibility({
@@ -89,7 +104,7 @@ export default function FileList({ files, users, loading, onRowClick, onAction }
         uploaderId: true,
         ownerId: false,
         actions: true,
-      })
+      });
     } else if (width < 1400) {
       // Medium screens: Show all except created date
       setColumnVisibility({
@@ -100,7 +115,7 @@ export default function FileList({ files, users, loading, onRowClick, onAction }
         uploaderId: true,
         ownerId: false,
         actions: true,
-      })
+      });
     } else {
       // Large screens: Show all columns
       setColumnVisibility({
@@ -111,9 +126,9 @@ export default function FileList({ files, users, loading, onRowClick, onAction }
         uploaderId: true,
         ownerId: true,
         actions: true,
-      })
+      });
     }
-  }, [width])
+  }, [width]);
 
   // Define columns for DataGrid
   const columns: GridColDef[] = [
@@ -131,7 +146,7 @@ export default function FileList({ files, users, loading, onRowClick, onAction }
               {params.row.name}
             </Typography>
           </Box>
-        )
+        );
       },
     },
     {
@@ -143,7 +158,7 @@ export default function FileList({ files, users, loading, onRowClick, onAction }
           return "";
         }
         return formatBytes(value);
-      }
+      },
     },
     {
       field: "createdAtDate",
@@ -151,14 +166,20 @@ export default function FileList({ files, users, loading, onRowClick, onAction }
       width: 120,
       valueFormatter: (value?: Date) => {
         if (!value) {
-          return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          return new Date().toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          });
         }
         if (new Date().toDateString() === value.toDateString()) {
-          return value.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          return value.toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          });
         } else {
           return value.toLocaleDateString();
         }
-      }
+      },
     },
     {
       field: "modifiedAtDate",
@@ -166,29 +187,44 @@ export default function FileList({ files, users, loading, onRowClick, onAction }
       width: 120,
       valueFormatter: (value?: Date) => {
         if (!value) {
-          return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          return new Date().toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          });
         }
         if (new Date().toDateString() === value.toDateString()) {
-          return value.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          return value.toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          });
         } else {
           return value.toLocaleDateString();
         }
-      }
+      },
     },
     {
       field: "uploaderId",
       headerName: "Uploader",
       width: 150,
       renderCell: (params: GridRenderCellParams) => {
-        if (!params.row || !params.row.uploaderId) return null
+        if (!params.row || !params.row.uploaderId) return null;
         const uploader: PublicUser | undefined = users[params.row.uploaderId];
         return (
           <Box sx={{ display: "flex", alignItems: "center", gap: 1, pt: 1.5 }}>
-            <Avatar src={uploader?.avatarExtension ? `${BASE_URL}/api/avatars/${uploader.id}.${uploader.avatarExtension}` : DefaultProfile}
-              alt={uploader.username} sx={{ width: 24, height: 24 }} />
-            <Typography variant="body2" noWrap>{uploader.username}</Typography>
+            <Avatar
+              src={
+                uploader?.avatarExtension
+                  ? `${BASE_URL}/api/avatars/${uploader.id}.${uploader.avatarExtension}`
+                  : DefaultProfile
+              }
+              alt={uploader.username}
+              sx={{ width: 24, height: 24 }}
+            />
+            <Typography variant="body2" noWrap>
+              {uploader.username}
+            </Typography>
           </Box>
-        )
+        );
       },
     },
     {
@@ -196,15 +232,24 @@ export default function FileList({ files, users, loading, onRowClick, onAction }
       headerName: "Owner",
       width: 150,
       renderCell: (params: GridRenderCellParams) => {
-        if (!params.row || !params.row.ownerId) return null
+        if (!params.row || !params.row.ownerId) return null;
         const owner: PublicUser | undefined = users[params.row.ownerId];
         return (
           <Box sx={{ display: "flex", alignItems: "center", gap: 1, pt: 1.5 }}>
-            <Avatar src={owner?.avatarExtension ? `${BASE_URL}/api/avatars/${owner.id}.${owner.avatarExtension}` : DefaultProfile}
-              alt={owner.username} sx={{ width: 24, height: 24 }} />
-            <Typography variant="body2" noWrap>{owner.username}</Typography>
+            <Avatar
+              src={
+                owner?.avatarExtension
+                  ? `${BASE_URL}/api/avatars/${owner.id}.${owner.avatarExtension}`
+                  : DefaultProfile
+              }
+              alt={owner.username}
+              sx={{ width: 24, height: 24 }}
+            />
+            <Typography variant="body2" noWrap>
+              {owner.username}
+            </Typography>
           </Box>
-        )
+        );
       },
     },
     {
@@ -213,17 +258,27 @@ export default function FileList({ files, users, loading, onRowClick, onAction }
       width: 80,
       sortable: false,
       renderCell: (params: GridRenderCellParams) => {
-        if (!params.row) return null
-        return <FileContextMenu
-          fileId={params.row.id as string}
-          onAction={onAction}
-        />
+        if (!params.row) return null;
+        return (
+          <FileContextMenu
+            fileId={params.row.id as string}
+            onAction={onAction}
+          />
+        );
       },
     },
-  ]
+  ];
 
   return (
-    <Box sx={{ flexDirection: "column", minWidth: 0, flexGrow: 1, flexBasis: 0, flexShrink: 0 }}>
+    <Box
+      sx={{
+        flexDirection: "column",
+        minWidth: 0,
+        flexGrow: 1,
+        flexBasis: 0,
+        flexShrink: 0,
+      }}
+    >
       <DataGrid
         rows={files}
         columns={columns}
@@ -237,17 +292,17 @@ export default function FileList({ files, users, loading, onRowClick, onAction }
         onSortModelChange={setSortModel}
         disableRowSelectionOnClick
         slots={{
-          noRowsOverlay: NoFilesFound
+          noRowsOverlay: NoFilesFound,
         }}
         slotProps={{
           loadingOverlay: {
-            variant: 'skeleton',
-            noRowsVariant: 'skeleton',
+            variant: "skeleton",
+            noRowsVariant: "skeleton",
           },
         }}
         columnVisibilityModel={columnVisibility}
         onColumnVisibilityModelChange={(newModel) => {
-          setColumnVisibility(newModel)
+          setColumnVisibility(newModel);
         }}
         onCellClick={(params) => {
           if (params.field === "actions") {
@@ -257,7 +312,7 @@ export default function FileList({ files, users, loading, onRowClick, onAction }
         }}
         sx={{
           "& .MuiDataGrid-cell": {
-            borderBottom: "none"
+            borderBottom: "none",
           },
           // border: 1,
           borderColor: "divider",
@@ -268,21 +323,20 @@ export default function FileList({ files, users, loading, onRowClick, onAction }
             borderColor: "divider",
           },
           "& .MuiDataGrid-columnSeparator": {
-            display: "none"
+            display: "none",
           },
           "& .MuiDataGrid-cell:focus": {
-            outline: 'none'
+            outline: "none",
           },
           "& .MuiDataGrid-cell:focus-within": {
-            outline: 'neone'
+            outline: "neone",
           },
           "& *": {
-            minWidth: 0
-          }
+            minWidth: 0,
+          },
         }}
         loading={loading}
       />
     </Box>
-  )
+  );
 }
-

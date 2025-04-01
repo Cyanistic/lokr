@@ -45,7 +45,7 @@ import ShareModal from "../components/ShareModal";
 import FileInfoModal from "../components/FileInfoModal";
 import FileMoveModal from "../components/FileMoveModal";
 import { BreadcrumbsNavigation } from "../components/BreadcrumbsNavigation";
-import './FileExplorer.css';
+import "./FileExplorer.css";
 
 /** Return an icon based on file extension. */
 export function getFileIcon(mimeType: string | undefined) {
@@ -144,7 +144,7 @@ const FileGridItem = ({
     <button onClick={() => onDelete(file)}>Delete</button>
   </div>
 );
-  
+
 /** Main FileExplorer Component. */
 interface FileExplorerProps {
   type: "files" | "shared" | "link";
@@ -773,27 +773,30 @@ export default function FileExplorer(
             </Box>
           </Box>
           <div style={styles.controls}>
-            <button className="b1" onClick={() => setShowUpload(true)}>Upload File</button>
-            {showUpload && 
+            <button className="b1" onClick={() => setShowUpload(true)}>
+              Upload File
+            </button>
+            {showUpload && (
               <Upload
                 isOverlay={true}
                 parentId={parentId}
                 parentKey={parentId ? files[parentId]?.key : null}
                 onUpload={async (file) => {
-                  file.uploaderId = await localforage.getItem("userId") || "";
-                  file.ownerId = files[parentId ?? ""]?.ownerId || file.uploaderId;
+                  file.uploaderId = (await localforage.getItem("userId")) || "";
+                  file.ownerId =
+                    files[parentId ?? ""]?.ownerId || file.uploaderId;
                   const tempFiles = { ...files };
                   tempFiles[file.id] = file;
                   if (file.parentId) {
                     tempFiles[file.parentId].children?.push(file.id);
                   } else {
-                    setRoot(new Set([...root, file.id]))
+                    setRoot(new Set([...root, file.id]));
                   }
-                  setFiles(tempFiles)
+                  setFiles(tempFiles);
                 }}
                 onClose={() => setShowUpload(false)}
               />
-            }
+            )}
             <FileSearch
               loading={loading}
               files={files}

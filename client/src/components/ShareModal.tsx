@@ -812,7 +812,11 @@ const ShareModal: React.FC<ShareModalProps> = ({
                                     togglePasswordEditMode(link.id)
                                   }
                                   startIcon={
-                                    link.passwordProtected ? <Visibility /> : <Add />
+                                    link.passwordProtected ? (
+                                      <Visibility />
+                                    ) : (
+                                      <Add />
+                                    )
                                   }
                                   sx={{ textTransform: "none" }}
                                 >

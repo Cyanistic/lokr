@@ -1,12 +1,6 @@
-import React, { useState, useRef } from 'react';
-import {
-  Box,
-  Button,
-  Typography,
-  Container,
-  
-} from '@mui/material';
-import FilePreviewModal from '../components/FilePreviewModal';
+import React, { useState, useRef } from "react";
+import { Box, Button, Typography, Container } from "@mui/material";
+import FilePreviewModal from "../components/FilePreviewModal";
 
 const TestPreviewPage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -32,7 +26,7 @@ const TestPreviewPage: React.FC = () => {
 
   const closeModal = () => {
     setIsModalOpen(false);
-    if (selectedFile?.url?.startsWith('blob:')) {
+    if (selectedFile?.url?.startsWith("blob:")) {
       URL.revokeObjectURL(selectedFile.url);
     }
   };
@@ -40,11 +34,11 @@ const TestPreviewPage: React.FC = () => {
   return (
     <Box
       sx={{
-        minHeight: '100vh',
+        minHeight: "100vh",
         background: "linear-gradient(to bottom, #0044cc, #000066)",
-        color: 'white',
+        color: "white",
         py: 10,
-        textAlign: 'center',
+        textAlign: "center",
       }}
     >
       <Container maxWidth="sm">
@@ -56,7 +50,7 @@ const TestPreviewPage: React.FC = () => {
           type="file"
           ref={fileInputRef}
           onChange={handleFileUpload}
-          style={{ display: 'none' }}
+          style={{ display: "none" }}
         />
 
         <Button
@@ -65,13 +59,13 @@ const TestPreviewPage: React.FC = () => {
           sx={{
             mt: 4,
             fontWeight: 600,
-            fontSize: '1rem',
+            fontSize: "1rem",
             px: 4,
             py: 2,
-            backgroundColor: '#fff',
-            color: '#0050c5',
-            '&:hover': {
-              backgroundColor: '#f0f0f0',
+            backgroundColor: "#fff",
+            color: "#0050c5",
+            "&:hover": {
+              backgroundColor: "#f0f0f0",
             },
           }}
         >
@@ -89,3 +83,4 @@ const TestPreviewPage: React.FC = () => {
 };
 
 export default TestPreviewPage;
+

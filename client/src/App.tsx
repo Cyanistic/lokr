@@ -1,11 +1,18 @@
-import './App.css'
-import { BrowserRouter, Routes, Route, Link, Navigate, useNavigate } from 'react-router-dom'
-import Register from './pages/Register'
-import Login from './pages/Login'
-import Upload from './pages/Upload'
-import TestPage from "./pages/TestPage"
+import "./App.css";
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Link,
+  Navigate,
+  useNavigate,
+} from "react-router-dom";
+import Register from "./pages/Register";
+import Login from "./pages/Login";
+import Upload from "./pages/Upload";
+import TestPage from "./pages/TestPage";
 import TestPreviewPage from "./pages/TestPreviewPage";
-import NotFound from './pages/404Page.tsx'
+import NotFound from "./pages/404Page.tsx";
 import { isAuthenticated, logout } from "./utils.ts";
 import { ProtectedRoute } from "./utils/ProtectedRoute.tsx";
 import React from "react";
@@ -13,7 +20,7 @@ import { FaLink, FaShieldAlt, FaLock } from "react-icons/fa";
 import "./SecurityFeatures.css";
 const Profile = React.lazy(() => import("./pages/Profile.tsx"));
 const FileExplorer = React.lazy(() => import("./pages/FileExplorer.tsx"));
-import "./NavBar.css"
+import "./NavBar.css";
 
 function App() {
   return (
@@ -39,8 +46,14 @@ function App() {
           <Route path="*" element={<NotFound />} />
           <Route element={<ProtectedRoute />}>
             <Route path="/profile" element={<Profile />} />
-            <Route path="/files" element={<FileExplorer key={"files"} type={"files"} />} />
-            <Route path="/shared" element={<FileExplorer key={"shared"} type={"shared"} />} />
+            <Route
+              path="/files"
+              element={<FileExplorer key={"files"} type={"files"} />}
+            />
+            <Route
+              path="/shared"
+              element={<FileExplorer key={"shared"} type={"shared"} />}
+            />
             <Route path="/test" element={<TestPage />} />
             <Route path="/preview" element={<TestPreviewPage />} />
           </Route>
@@ -62,101 +75,106 @@ function Navigation() {
             🔒
           </span>
           Lokr
-
         </Link>
         <div className="nav-links">
           <Link to="/about">About</Link>
           {isAuthenticated() ? (
             <>
               <Link to="/test">Share Files</Link>
-              <Link to="/files">Files</Link>          
+              <Link to="/files">Files</Link>
             </>
           ) : (
-            <>
-            
-            </>
+            <></>
           )}
         </div>
       </div>
-
 
       <div className="nav-actions">
         {isAuthenticated() ? (
           <>
             <Link to="/profile">Profile</Link>
-            <Link to="/home" onClick={async (e) => {
-              e.preventDefault();
-              if (await logout()) {
-                navigate("/home");
-              }
-            }}>Logout</Link>
+            <Link
+              to="/home"
+              onClick={async (e) => {
+                e.preventDefault();
+                if (await logout()) {
+                  navigate("/home");
+                }
+              }}
+            >
+              Logout
+            </Link>
           </>
         ) : (
           <>
             <Link to="/login">Sign in</Link>
             <Link to="/register">
-              <button className='b1'>
-                Get Started
-              </button>
+              <button className="b1">Get Started</button>
             </Link>
           </>
         )}
       </div>
     </nav>
-  )
+  );
 }
 
 //Home Page
 function Home() {
   const features = [
     {
-      icon: <FaLink size={24} />, 
-      title: "Secure Link Sharing", 
-      description: "Generate secure, expiring links for file sharing with optional password protection."
+      icon: <FaLink size={24} />,
+      title: "Secure Link Sharing",
+      description:
+        "Generate secure, expiring links for file sharing with optional password protection.",
     },
     {
-      icon: <FaShieldAlt size={24} />, 
-      title: "2FA Protection", 
-      description: "Add an extra layer of security with two-factor authentication for your account."
+      icon: <FaShieldAlt size={24} />,
+      title: "2FA Protection",
+      description:
+        "Add an extra layer of security with two-factor authentication for your account.",
     },
     {
-      icon: <FaLock size={24} />, 
-      title: "End-to-End Encryption", 
-      description: "Military-grade encryption ensures your files remain private and secure."
-    }
+      icon: <FaLock size={24} />,
+      title: "End-to-End Encryption",
+      description:
+        "Military-grade encryption ensures your files remain private and secure.",
+    },
   ];
 
   return (
-    <div className = 'main'>
-      <div className='main-home-box'>
-
-        <div className='left-home-box'>
-          <h1>Secure File Sharing <br /> Made <span style={{color: "#81E6D9"}}>Simple</span></h1>
-          <p>Share files with confidence using encryption and
-            advanced privacy features.
+    <div className="main">
+      <div className="main-home-box">
+        <div className="left-home-box">
+          <h1>
+            Secure File Sharing <br /> Made{" "}
+            <span style={{ color: "#81E6D9" }}>Simple</span>
+          </h1>
+          <p>
+            Share files with confidence using encryption and advanced privacy
+            features.
           </p>
-          <div className='home-buttons'>
+          <div className="home-buttons">
             <a href="/register">
-              <button className='b1'>Start Sharing</button>
+              <button className="b1">Start Sharing</button>
             </a>
             <a href="/about">
-              <button className='b2'>Learn More</button>
+              <button className="b2">Learn More</button>
             </a>
           </div>
         </div>
 
-
-        <div className='right-home-box'>
+        <div className="right-home-box">
           <Upload />
         </div>
       </div>
 
       <section className="security-section">
         <h2 className="security-title">Advanced Security Features</h2>
-        <p className="security-subtitle">Protect your files with industry-leading security measures</p>
+        <p className="security-subtitle">
+          Protect your files with industry-leading security measures
+        </p>
 
         <div className="security-cards">
-
           {features.map((feature, index) => (
             <div key={index} className="security-card">
               <div className="icon-wrapper">{feature.icon}</div>
@@ -164,11 +182,8 @@ function Home() {
               <p>{feature.description}</p>
             </div>
           ))}
-          
         </div>
       </section>
-
-
     </div>
   );
 }

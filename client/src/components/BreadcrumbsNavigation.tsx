@@ -1,28 +1,41 @@
-import { ChevronRight, Folder, Home } from "@mui/icons-material"
-import { Breadcrumbs, Link, Typography, Box, useTheme, useMediaQuery, Skeleton, Fade } from "@mui/material"
+import { ChevronRight, Folder, Home } from "@mui/icons-material";
+import {
+  Breadcrumbs,
+  Link,
+  Typography,
+  Box,
+  useTheme,
+  useMediaQuery,
+  Skeleton,
+  Fade,
+} from "@mui/material";
 
 interface BreadcrumbsNavigationProps {
-  path: string[]
-  onNavigate: (index: number) => void
-  loading?: boolean
+  path: string[];
+  onNavigate: (index: number) => void;
+  loading?: boolean;
 }
 
-export function BreadcrumbsNavigation({ path, onNavigate, loading = false }: BreadcrumbsNavigationProps) {
-  const theme = useTheme()
-  const isMobile = useMediaQuery(theme.breakpoints.down("sm"))
+export function BreadcrumbsNavigation({
+  path,
+  onNavigate,
+  loading = false,
+}: BreadcrumbsNavigationProps) {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
   // Calculate how many segments to show based on screen size
   const getVisiblePath = () => {
     if (isMobile && path.length > 2) {
       // On mobile with long paths, show only first and last segments
-      return [path[0], "...", path[path.length - 1]]
+      return [path[0], "...", path[path.length - 1]];
     }
 
     // On larger screens or with shorter paths, show all segments
-    return path
-  }
+    return path;
+  };
 
-  const visiblePath = getVisiblePath()
+  const visiblePath = getVisiblePath();
 
   // Loading state breadcrumbs
   if (loading) {
@@ -86,7 +99,12 @@ export function BreadcrumbsNavigation({ path, onNavigate, loading = false }: Bre
                   color: theme.palette.text.disabled,
                 }}
               />
-              <Skeleton variant="text" width={isMobile ? 60 : 80 + Math.random() * 40} height={24} animation="wave" />
+              <Skeleton
+                variant="text"
+                width={isMobile ? 60 : 80 + Math.random() * 40}
+                height={24}
+                animation="wave"
+              />
             </Box>
           ))}
 
@@ -104,7 +122,7 @@ export function BreadcrumbsNavigation({ path, onNavigate, loading = false }: Bre
           </Box>
         </Breadcrumbs>
       </Box>
-    )
+    );
   }
 
   // Regular breadcrumbs when not loading
@@ -149,8 +167,8 @@ export function BreadcrumbsNavigation({ path, onNavigate, loading = false }: Bre
             }}
             href="#"
             onClick={(e) => {
-              e.preventDefault()
-              onNavigate(0)
+              e.preventDefault();
+              onNavigate(0);
             }}
           >
             <Home style={{ height: 16, width: 16, marginRight: 4 }} />
@@ -169,17 +187,24 @@ export function BreadcrumbsNavigation({ path, onNavigate, loading = false }: Bre
             // Skip rendering for ellipsis placeholder
             if (segment === "...") {
               return (
-                <Typography key="ellipsis" variant="body2" color="text.secondary">
+                <Typography
+                  key="ellipsis"
+                  variant="body2"
+                  color="text.secondary"
+                >
                   ...
                 </Typography>
-              )
+              );
             }
 
             // Calculate the actual index in the original path array
-            const actualIndex = isMobile && path.length > 2 && index === 2 ? path.length - 1 : index
+            const actualIndex =
+              isMobile && path.length > 2 && index === 2
+                ? path.length - 1
+                : index;
 
             // For the last item, don't make it a link
-            const isLastItem = index === visiblePath.length - 1
+            const isLastItem = index === visiblePath.length - 1;
 
             if (isLastItem) {
               return (
@@ -203,7 +228,7 @@ export function BreadcrumbsNavigation({ path, onNavigate, loading = false }: Bre
                   />
                   {segment}
                 </Typography>
-              )
+              );
             }
 
             // For other items, make them clickable links
@@ -221,17 +246,17 @@ export function BreadcrumbsNavigation({ path, onNavigate, loading = false }: Bre
                 }}
                 href="#"
                 onClick={(e) => {
-                  e.preventDefault()
-                  onNavigate(actualIndex + 1) // +1 because Home is index 0
+                  e.preventDefault();
+                  onNavigate(actualIndex + 1); // +1 because Home is index 0
                 }}
               >
                 <Folder style={{ height: 16, width: 16, marginRight: 4 }} />
                 <Typography variant="body2">{segment}</Typography>
               </Link>
-            )
+            );
           })}
         </Breadcrumbs>
       </Fade>
     </Box>
-  )
+  );
 }

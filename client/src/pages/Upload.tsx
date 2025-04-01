@@ -1,11 +1,15 @@
-import { API } from '../utils';
-import { FileMetadata } from '../types';
-import { UploadResponse } from '../myApi';
-import { encryptAESKeyWithParentKey, encryptText, generateKeyAndNonce } from '../cryptoFunctions';
-import { useErrorToast } from '../components/ErrorToastProvider';
-import React, { useState, useEffect, useRef } from 'react';
+import { API } from "../utils";
+import { FileMetadata } from "../types";
+import { UploadResponse } from "../myApi";
+import {
+  encryptAESKeyWithParentKey,
+  encryptText,
+  generateKeyAndNonce,
+} from "../cryptoFunctions";
+import { useErrorToast } from "../components/ErrorToastProvider";
+import React, { useState, useEffect, useRef } from "react";
 import { useDropzone } from "react-dropzone";
-import './Upload.css'
+import "./Upload.css";
 import { GrUploadOption } from "react-icons/gr";
 
 interface Props {
@@ -16,8 +20,13 @@ interface Props {
   onClose?: () => void;
 }
 
-export default function Upload({ parentId, parentKey, onUpload, isOverlay = false, onClose}: Props) {
-
+export default function Upload({
+  parentId,
+  parentKey,
+  onUpload,
+  isOverlay = false,
+  onClose,
+}: Props) {
   interface FileMetadata {
     name: string;
     isDirectory: boolean;
@@ -25,12 +34,11 @@ export default function Upload({ parentId, parentKey, onUpload, isOverlay = fals
 
   const [files, setFile] = useState<File[]>([]);
   const [fileMeta, setFileMeta] = useState<FileMetadata[]>([]);
-  const [uploadStatus, setUploadStatus] = useState<string>('');
+  const [uploadStatus, setUploadStatus] = useState<string>("");
   const [userPublicKey, setUserPublicKey] = useState<CryptoKey | null>(null);
   const { showError } = useErrorToast();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const overlayRef = useRef<HTMLDivElement | null>(null);
-
 
   // Function to fetch the user's profile (including the public key) from the server
   const fetchUserProfile = async () => {
@@ -44,7 +52,7 @@ export default function Upload({ parentId, parentKey, onUpload, isOverlay = fals
       const cryptoKey = await importPublicKey(publicKeyPem);
       setUserPublicKey(cryptoKey); // Store the user's public key
     } catch (error) {
-      showError('Error fetching user profile.', error);
+      showError("Error fetching user profile.", error);
     }
   };
 
@@ -52,11 +60,11 @@ export default function Upload({ parentId, parentKey, onUpload, isOverlay = fals
   const importPublicKey = async (pem: string): Promise<CryptoKey> => {
     const binaryDer = str2ab(pem); // Convert PEM to ArrayBuffer
     return await window.crypto.subtle.importKey(
-      'spki',
+      "spki",
       binaryDer,
-      { name: 'RSA-OAEP', hash: { name: 'SHA-256' } },
+      { name: "RSA-OAEP", hash: { name: "SHA-256" } },
       false,
-      ['encrypt', 'wrapKey']
+      ["encrypt", "wrapKey"],
     );
   };
 
@@ -77,42 +85,54 @@ export default function Upload({ parentId, parentKey, onUpload, isOverlay = fals
   }, []);
 
   // Function to encrypt the file content using AES and return the encrypted file
-  const encryptFileWithAES = async (aesKey: CryptoKey, file: File, nonce: Uint8Array): Promise<Blob> => {
+  const encryptFileWithAES = async (
+    aesKey: CryptoKey,
+    file: File,
+    nonce: Uint8Array,
+  ): Promise<Blob> => {
     const fileArrayBuffer = await file.arrayBuffer();
 
     const encryptedFile = await window.crypto.subtle.encrypt(
       {
-        name: 'AES-GCM',
+        name: "AES-GCM",
         iv: nonce,
       },
       aesKey,
-      fileArrayBuffer
+      fileArrayBuffer,
     );
 
     // Combine the encrypted content with the nonce
     const encryptedArray = new Uint8Array(encryptedFile);
-    return new Blob([encryptedArray])
+    return new Blob([encryptedArray]);
   };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     //const uploadedFiles = e.target.files; //? e.target.files[0] : null;
-    const uploadedFiles = event.target.files ? Array.from(event.target.files) : [];
+    const uploadedFiles = event.target.files
+      ? Array.from(event.target.files)
+      : [];
     if (uploadedFiles && uploadedFiles.length > 0) {
+      setFile(
+        (prevFiles) => [
+          ...prevFiles,
+          ...uploadedFiles,
+        ] /*Array.from(uploadedFiles)*/,
+      );
 
-      setFile((prevFiles) => [...prevFiles, ...uploadedFiles]/*Array.from(uploadedFiles)*/);
-
-      const metadata: FileMetadata[] = Array.from(uploadedFiles).map(uploadedFile => {
-        // Check if the file is part of a directory (directories usually have the 'webkitRelativePath' attribute)
-        const isDirectory = Boolean(uploadedFile.webkitRelativePath);
-        return {
-          name: uploadedFile.name,
-          isDirectory: isDirectory,
-        };
-      });
+      const metadata: FileMetadata[] = Array.from(uploadedFiles).map(
+        (uploadedFile) => {
+          // Check if the file is part of a directory (directories usually have the 'webkitRelativePath' attribute)
+          const isDirectory = Boolean(uploadedFile.webkitRelativePath);
+          return {
+            name: uploadedFile.name,
+            isDirectory: isDirectory,
+          };
+        },
+      );
 
       // Store the metadata in state
       setFileMeta(
-        (prevMeta) => [...prevMeta, ...metadata]
+        (prevMeta) => [...prevMeta, ...metadata],
         //metadata
       );
     }
@@ -121,8 +141,7 @@ export default function Upload({ parentId, parentKey, onUpload, isOverlay = fals
   const handleSubmit = async () => {
     // Here you can handle file upload logic (e.g., sending to server)
 
-    setUploadStatus('Uploading...');
-
+    setUploadStatus("Uploading...");
 
     if (files.length === 0) {
       setUploadStatus("");
@@ -133,11 +152,11 @@ export default function Upload({ parentId, parentKey, onUpload, isOverlay = fals
     // Ensure public key is loaded before proceeding
     if (!userPublicKey) {
       setUploadStatus("");
-      showError('Could not upload file. User public key not loaded.');
+      showError("Could not upload file. User public key not loaded.");
       return;
     }
 
-    console.log('File ready to upload:', files);
+    console.log("File ready to upload:", files);
     let key: CryptoKey;
     let algorithm: AesGcmParams | RsaOaepParams;
     if (parentId && parentKey) {
@@ -163,7 +182,11 @@ export default function Upload({ parentId, parentKey, onUpload, isOverlay = fals
         algorithm = { name: "RSA-OAEP" };
       }
       // Encrypt the AES key using the user's public RSA key
-      const encryptedAESKey = await encryptAESKeyWithParentKey(key, aesKey, algorithm);
+      const encryptedAESKey = await encryptAESKeyWithParentKey(
+        key,
+        aesKey,
+        algorithm,
+      );
 
       const metadata = {
         encryptedFileName: btoa(String.fromCharCode(...encryptedFileName)),
@@ -171,28 +194,30 @@ export default function Upload({ parentId, parentKey, onUpload, isOverlay = fals
         encryptedMimeType: btoa(String.fromCharCode(...encryptedMimeType)),
         isDirectory: fileMeta[ind].isDirectory || false,
         nonce: btoa(String.fromCharCode(...nonce)),
-        parentId
+        parentId,
       };
 
       try {
         const response = await API.api.uploadFile({
           metadata,
           //@ts-ignore
-          file: encryptedFile
+          file: encryptedFile,
         });
 
         if (response.status === 402) {
-          showError('Error during file upload. You do not have enough free storage space. Please purchase more.');
+          showError(
+            "Error during file upload. You do not have enough free storage space. Please purchase more.",
+          );
           return;
         } else if (response.status === 405) {
-          showError('Error during file upload. Your file is too large');
+          showError("Error during file upload. Your file is too large");
           return;
         } else if (!response.ok) {
           throw response.error;
         }
         const data: UploadResponse = response.data;
-        console.log('File uploaded successfully');
-        setUploadStatus('File uploaded successfully!');
+        console.log("File uploaded successfully");
+        setUploadStatus("File uploaded successfully!");
         const createdAtDate = new Date();
         const modifiedAtDate = new Date();
         if (onUpload) {
@@ -206,17 +231,16 @@ export default function Upload({ parentId, parentKey, onUpload, isOverlay = fals
             key: aesKey,
             name: file.name,
             mimeType: file.type,
-            size: data.size
-          })
+            size: data.size,
+          });
         }
       } catch (error) {
-        showError('Error during file upload.', error);
+        showError("Error during file upload.", error);
       }
     }
   };
 
   const { getRootProps, getInputProps } = useDropzone({
-
     onDrop: (acceptedFiles) => {
       setFile((prevFiles) => [...prevFiles, ...acceptedFiles]);
       const metadata: FileMetadata[] = acceptedFiles.map((file) => ({
@@ -229,7 +253,11 @@ export default function Upload({ parentId, parentKey, onUpload, isOverlay = fals
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (isOverlay && overlayRef.current && !overlayRef.current.contains(event.target as Node)) {
+      if (
+        isOverlay &&
+        overlayRef.current &&
+        !overlayRef.current.contains(event.target as Node)
+      ) {
         onClose?.();
       }
     };
@@ -243,54 +271,66 @@ export default function Upload({ parentId, parentKey, onUpload, isOverlay = fals
     };
   }, [isOverlay, onClose]);
 
-
   return (
-      <div ref={overlayRef} className={isOverlay ? "upload-overlay" : "file-upload-container"}>
-        {isOverlay && (
-          <button className="close-button" onClick={() => onClose?.()}>
-            X
+    <div
+      ref={overlayRef}
+      className={isOverlay ? "upload-overlay" : "file-upload-container"}
+    >
+      {isOverlay && (
+        <button className="close-button" onClick={() => onClose?.()}>
+          X
+        </button>
+      )}
+      <div {...getRootProps()} className="dropzone">
+        <input
+          {...getInputProps()}
+          className="hidden"
+          style={{ display: "none" }}
+        />
+        <div className="dropzone-text">
+          <div className="upload-icon">
+            <GrUploadOption size={30} />
+          </div>
+          <p>Drag & Drop Files</p>
+          <p style={{ fontSize: 14, color: "gray" }}>Max File Size: 1GB</p>
+          <button
+            className="browse-button"
+            onClick={(e) => {
+              e.stopPropagation();
+              fileInputRef.current?.click();
+            }}
+          >
+            Browse Files
+          </button>
+        </div>
+      </div>
+      <input
+        type="file"
+        multiple
+        ref={fileInputRef}
+        className="hidden"
+        style={{ display: "none" }}
+        onChange={handleFileChange}
+      />
+      {files.length > 0 && (
+        <div className="file-list">
+          <ul>
+            {fileMeta.map((meta, index) => (
+              <li key={index}>
+                {meta.name} {meta.isDirectory ? "(Directory)" : "(File)"}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      <div className="button-container">
+        {files.length > 0 && (
+          <button onClick={handleSubmit} className="upload-button">
+            Upload Files
           </button>
         )}
-        <div {...getRootProps()} className="dropzone">
-          <input {...getInputProps()} className="hidden" style={{display: "none"}}/>
-          <div className='dropzone-text'>
-            <div className='upload-icon'><GrUploadOption size={30} /></div>
-            <p>Drag & Drop Files</p>
-            <p style={{fontSize:14, color: "gray"}}>Max File Size: 1GB</p>
-            <button className="browse-button" onClick={(e) => {e.stopPropagation(); fileInputRef.current?.click()}}>
-              Browse Files
-            </button>
-          </div>
-        </div>
-        <input
-          type="file"
-          multiple
-          ref={fileInputRef}
-          className="hidden"
-          style={{display: "none"}}
-          onChange={handleFileChange}
-        />
-        {files.length > 0 && (
-          <div className="file-list">
-            <ul>
-              {fileMeta.map((meta, index) => (
-                <li key={index}>
-                  {meta.name} {meta.isDirectory ? "(Directory)" : "(File)"}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-        <div className="button-container">
-          
-          {files.length > 0 && (
-            <button onClick={handleSubmit} className="upload-button">
-              Upload Files
-            </button>
-          )}
-        </div>
-        {uploadStatus && <p>{uploadStatus}</p>}
       </div>
+      {uploadStatus && <p>{uploadStatus}</p>}
+    </div>
   );
-
 }

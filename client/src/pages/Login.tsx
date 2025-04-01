@@ -1,11 +1,14 @@
 import React, { useState } from "react";
 import localforage from "localforage";
-import { Button, useTheme } from '@mui/material';
+import { Button, useTheme } from "@mui/material";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { LoginUser, PublicUser } from "../types";
-import { deriveKeyFromPassword, hashPassword, unwrapPrivateKey } from "../cryptoFunctions";
+import {
+  deriveKeyFromPassword,
+  hashPassword,
+  unwrapPrivateKey,
+} from "../cryptoFunctions";
 import { API } from "../utils";
-
 
 async function getPasswordSalt(username: string): Promise<string | null> {
   const response = await API.api.searchUsers(username, { limit: 1, offset: 0 });
@@ -29,7 +32,7 @@ const Login: React.FC = () => {
   });
   const [totpCode, setTotpCode] = useState(""); // Optional for 2FA users
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [searchParams,] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const [showTotp, setShowTotp] = useState<boolean>(false);
   const navigate = useNavigate();
 
@@ -58,26 +61,29 @@ const Login: React.FC = () => {
       }
 
       const passwordSalt = await getPasswordSalt(user.username);
-      const passwordSaltUint8Array = passwordSalt ? Uint8Array.from(atob(passwordSalt), c => c.charCodeAt(0)) : null;
-      const password = await hashPassword(user.password, passwordSaltUint8Array);
+      const passwordSaltUint8Array = passwordSalt
+        ? Uint8Array.from(atob(passwordSalt), (c) => c.charCodeAt(0))
+        : null;
+      const password = await hashPassword(
+        user.password,
+        passwordSaltUint8Array,
+      );
 
       const loginResponse = await API.api.authenticateUser({
         username: user.username,
         password,
-        totpCode: totpCode || undefined
+        totpCode: totpCode || undefined,
       });
 
       console.log("Login Response Status:", loginResponse.status);
       const responseData = await loginResponse.json();
       console.log("Server Response:", responseData);
-      
 
-      if(loginResponse.status === 307){
+      if (loginResponse.status === 307) {
         console.log("TOTP required, showing TOTP input field.");
         setErrorMessage("TOTP required.");
         return;
       }
-
 
       if (loginResponse.status === 401) {
         console.log("Invalid username or password.");
@@ -93,18 +99,30 @@ const Login: React.FC = () => {
 
       if (!loginResponse.ok) {
         console.log("Login failed:", responseData.message);
-        setErrorMessage(`Login failed: ${responseData.message || "Unknown error"}`);
+        setErrorMessage(
+          `Login failed: ${responseData.message || "Unknown error"}`,
+        );
         return;
       }
 
       // Save session data
       console.log("Login successful! Saving session data...");
 
-      const masterKey = await deriveKeyFromPassword(user.password, responseData.salt);
-      const privateKey = await unwrapPrivateKey(responseData.encryptedPrivateKey, masterKey, responseData.iv);
+      const masterKey = await deriveKeyFromPassword(
+        user.password,
+        responseData.salt,
+      );
+      const privateKey = await unwrapPrivateKey(
+        responseData.encryptedPrivateKey,
+        masterKey,
+        responseData.iv,
+      );
       localforage.setItem("iv", responseData.iv);
       localforage.setItem("publicKey", responseData.publicKey);
-      localforage.setItem("encryptedPrivateKey", responseData.encryptedPrivateKey);
+      localforage.setItem(
+        "encryptedPrivateKey",
+        responseData.encryptedPrivateKey,
+      );
       localforage.setItem("salt", responseData.salt);
       localforage.setItem("privateKey", privateKey);
       localforage.setItem("passwordSalt", passwordSaltUint8Array);
@@ -164,20 +182,27 @@ const Login: React.FC = () => {
         {/*<button type="submit" style={{ marginTop: "10px", padding: "8px 20px", cursor: "pointer" }}>
           Login
         </button>*/}
-        <Button type="submit" variant="contained" style={
-          {
+        <Button
+          type="submit"
+          variant="contained"
+          style={{
             marginTop: "10px",
             padding: "8px 20px",
             cursor: "pointer",
-            backgroundColor: theme.palette.mode === 'dark' ? '#2f27ce' : '#3a31d8',
-            color: theme.palette.mode === 'dark' ? '#050316' : '#eae9fc'
-          }
-        }>Login</Button>
+            backgroundColor:
+              theme.palette.mode === "dark" ? "#2f27ce" : "#3a31d8",
+            color: theme.palette.mode === "dark" ? "#050316" : "#eae9fc",
+          }}
+        >
+          Login
+        </Button>
       </form>
 
       <p>
         Don't have an account?{" "}
-        <Link to="/register" /*style={/*{ color: theme.palette.mode === 'dark' ? '#2f27ce': '#3a31d8' }*/>
+        <Link
+          to="/register" /*style={/*{ color: theme.palette.mode === 'dark' ? '#2f27ce': '#3a31d8' }*/
+        >
           Register here
         </Link>
       </p>
