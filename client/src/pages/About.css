@@ -1,0 +1,53 @@
+.about-body {
+    font-family: Arial, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 0;
+    flex-direction: column; /* Center content vertically */
+    gap: 15px;
+}
+* {
+    /* Include padding and borders in the element's total width and height */
+    box-sizing: border-box;
+    /* REALLY IMPORTANT DO NOT REMOVE THIS
+    *  Video for context: https://www.youtube.com/watch?v=cH8VbLM1958
+    */
+    min-width: 0;
+}
+
+.about-box {
+    width: 80%; /* Default width for responsive design */
+    max-width: 800px; /* Max width on larger screens */
+    padding: 20px;
+    font-size: 16px;
+    background-color: light-dark(#e2e8f0, #1e293b); /* White background */
+    color: light-dark(#050316, #eae9fc);
+    border: 2px solid;
+    border-radius: 12px; /* Rounded corners */
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2); /* Soft shadow to make it pop */
+    transition: box-shadow 0.3s ease, border-color 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.icon-container {
+    flex-shrink: 0;
+    color: light-dark(#050316, #eae9fc);
+}
+
+.text-content {
+    flex: 1;
+}
+
+.about-box p {
+    margin: 0;
+    font-size: 16px;
+    color: light-dark(#050316, #eae9fc);
+    text-align: justify;
+}
+
+.about-box.left {
+    flex-direction: row;
+}

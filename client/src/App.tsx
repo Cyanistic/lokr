@@ -13,6 +13,7 @@ import Upload from "./pages/Upload";
 import TestPage from "./pages/TestPage";
 import TestPreviewPage from "./pages/TestPreviewPage";
 import NotFound from "./pages/404Page.tsx";
+import About from "./pages/About.tsx"
 import { isAuthenticated, logout } from "./utils.ts";
 import { ProtectedRoute } from "./utils/ProtectedRoute.tsx";
 import React from "react";
@@ -189,7 +190,7 @@ function Home() {
 }
 
 //About us page
-function About() {
+/*function About() {
   return (
     <div className="main">
       <h1>About Us</h1>
@@ -256,6 +257,6 @@ function About() {
       </div>
     </div>
   );
-}
+}*/
 
 export default App;
