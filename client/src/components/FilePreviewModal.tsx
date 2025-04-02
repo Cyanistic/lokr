@@ -1,262 +1,246 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
-import {
-  Dialog,
-  DialogContent,
-  IconButton,
-  Box,
-  CircularProgress,
-  Typography,
-  InputBase,
-  Slider,
-} from "@mui/material";
-import CloseIcon from "@mui/icons-material/Close";
-import DownloadIcon from "@mui/icons-material/Download";
-import ZoomInIcon from "@mui/icons-material/ZoomIn";
-import ZoomOutIcon from "@mui/icons-material/ZoomOut";
-import RestartAltIcon from "@mui/icons-material/RestartAlt";
-import ArrowBackIosNewIcon from "@mui/icons-material/ArrowBackIosNew";
-import ArrowForwardIosIcon from "@mui/icons-material/ArrowForwardIos";
-import PlayArrowIcon from "@mui/icons-material/PlayArrow";
-import PauseIcon from "@mui/icons-material/Pause";
-import VolumeUpIcon from "@mui/icons-material/VolumeUp";
-import VolumeOffIcon from "@mui/icons-material/VolumeOff";
-import { Document, Page, pdfjs } from "react-pdf";
-import "react-pdf/dist/esm/Page/AnnotationLayer.css";
-import mammoth from "mammoth";
+"use client"
 
-pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.js";
+import { Select, MenuItem } from "@mui/material"
+import type React from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
+import { Dialog, DialogContent, IconButton, Box, CircularProgress, Typography, InputBase, Slider } from "@mui/material"
+import CloseIcon from "@mui/icons-material/Close"
+import DownloadIcon from "@mui/icons-material/Download"
+import ZoomInIcon from "@mui/icons-material/ZoomIn"
+import ZoomOutIcon from "@mui/icons-material/ZoomOut"
+import RestartAltIcon from "@mui/icons-material/RestartAlt"
+import ArrowBackIosNewIcon from "@mui/icons-material/ArrowBackIosNew"
+import ArrowForwardIosIcon from "@mui/icons-material/ArrowForwardIos"
+import PlayArrowIcon from "@mui/icons-material/PlayArrow"
+import PauseIcon from "@mui/icons-material/Pause"
+import VolumeUpIcon from "@mui/icons-material/VolumeUp"
+import VolumeOffIcon from "@mui/icons-material/VolumeOff"
+import { Document, Page, pdfjs } from "react-pdf"
+import "react-pdf/dist/esm/Page/AnnotationLayer.css"
+import mammoth from "mammoth"
+
+pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.js"
 
 interface FilePreviewModalProps {
-  isOpen: boolean;
-  onClose: () => void;
+  isOpen: boolean
+  onClose: () => void
   file: {
-    name: string;
-    type: string;
-    url: string;
-  } | null;
+    name: string
+    type: string
+    url: string
+  } | null
 }
 
-const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
-  isOpen,
-  onClose,
-  file,
-}) => {
-  const [numPages, setNumPages] = useState<number | null>(null);
-  const [scale, setScale] = useState(1.0);
-  const [loading, setLoading] = useState(true);
-  const [fallback, setFallback] = useState(false);
-  const [pageNumber, setPageNumber] = useState(1);
-  const [textContent, setTextContent] = useState("");
-  const [wordDocContent, setWordDocContent] = useState("");
-  const containerRef = useRef<HTMLDivElement>(null);
-  const observer = useRef<IntersectionObserver | null>(null);
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [volume, setVolume] = useState(1);
-  const [isMuted, setIsMuted] = useState(false);
-
-  const fileExtension = file?.name.split(".").pop()?.toLowerCase();
+const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, file }) => {
+  const [numPages, setNumPages] = useState<number | null>(null)
+  const [scale, setScale] = useState(1.0)
+  const [loading, setLoading] = useState(true)
+  const [fallback, setFallback] = useState(false)
+  const [pageNumber, setPageNumber] = useState(1)
+  const [textContent, setTextContent] = useState("")
+  const [wordDocContent, setWordDocContent] = useState("")
+  const containerRef = useRef<HTMLDivElement>(null)
+  const observer = useRef<IntersectionObserver | null>(null)
+  const audioRef = useRef<HTMLAudioElement>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [currentTime, setCurrentTime] = useState(0)
+  const [duration, setDuration] = useState(0)
+  const [volume, setVolume] = useState(1)
+  const [isMuted, setIsMuted] = useState(false)
+  const [playbackSpeed, setPlaybackSpeed] = useState(1.0) // Playback speed state
+  const fileExtension = file?.name.split(".").pop()?.toLowerCase()
 
   useEffect(() => {
     if (isOpen && file) {
-      setScale(1.0);
-      setLoading(true);
-      setFallback(false);
-      setPageNumber(1);
-      setTextContent("");
-      setWordDocContent("");
-      setIsPlaying(false);
-      setCurrentTime(0);
-      setDuration(0);
-      setVolume(1);
-      setIsMuted(false);
+      setScale(1.0)
+      setLoading(true)
+      setFallback(false)
+      setPageNumber(1)
+      setTextContent("")
+      setWordDocContent("")
+      setIsPlaying(false)
+      setCurrentTime(0)
+      setDuration(0)
+      setVolume(1)
+      setIsMuted(false)
     }
-  }, [isOpen, file]);
+  }, [isOpen, file])
 
   useEffect(() => {
     const loadText = async () => {
-      if (
-        isOpen &&
-        file &&
-        (file.type === "text/plain" || fileExtension === "txt")
-      ) {
+      if (isOpen && file && (file.type === "text/plain" || fileExtension === "txt")) {
         try {
-          const res = await fetch(file.url);
-          const text = await res.text();
-          setTextContent(text);
-          setLoading(false);
+          const res = await fetch(file.url)
+          const text = await res.text()
+          setTextContent(text)
+          setLoading(false)
         } catch (err) {
-          console.error("Failed to load .txt content:", err);
-          setLoading(false);
+          console.error("Failed to load .txt content:", err)
+          setLoading(false)
         }
       }
-    };
+    }
 
-    loadText();
-  }, [isOpen, file, fileExtension]);
+    loadText()
+  }, [isOpen, file, fileExtension])
 
   useEffect(() => {
     const loadWordDoc = async () => {
       if (
         isOpen &&
         file &&
-        (file.type ===
-          "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+        (file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
           fileExtension === "docx" ||
           fileExtension === "doc")
       ) {
         try {
-          const res = await fetch(file.url);
-          const blob = await res.blob();
-          const arrayBuffer = await blob.arrayBuffer();
+          const res = await fetch(file.url)
+          const blob = await res.blob()
+          const arrayBuffer = await blob.arrayBuffer()
 
-          const result = await mammoth.convertToHtml({ arrayBuffer });
-          setWordDocContent(result.value);
-          setLoading(false);
+          const result = await mammoth.convertToHtml({ arrayBuffer })
+          setWordDocContent(result.value)
+          setLoading(false)
         } catch (err) {
-          console.error("Failed to load Word document:", err);
-          setLoading(false);
+          console.error("Failed to load Word document:", err)
+          setLoading(false)
         }
       }
-    };
+    }
 
-    loadWordDoc();
-  }, [isOpen, file, fileExtension]);
+    loadWordDoc()
+  }, [isOpen, file, fileExtension])
 
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
-    setNumPages(numPages);
-    setLoading(false);
-  };
+    setNumPages(numPages)
+    setLoading(false)
+  }
 
-  const handleZoomIn = () => setScale((prev) => Math.min(prev + 0.2, 3));
-  const handleZoomOut = () => setScale((prev) => Math.max(prev - 0.2, 0.4));
-  const handleResetZoom = () => setScale(1.0);
+  const handleZoomIn = () => setScale((prev) => Math.min(prev + 0.2, 3))
+  const handleZoomOut = () => setScale((prev) => Math.max(prev - 0.2, 0.4))
+  const handleResetZoom = () => setScale(1.0)
 
   const scrollToPage = (page: number) => {
-    const container = containerRef.current;
-    if (!container) return;
-    const pageElement = container.querySelector(`[data-page-number="${page}"]`);
+    const container = containerRef.current
+    if (!container) return
+    const pageElement = container.querySelector(`[data-page-number="${page}"]`)
     if (pageElement) {
-      (pageElement as HTMLElement).scrollIntoView({
+      ;(pageElement as HTMLElement).scrollIntoView({
         behavior: "smooth",
         block: "start",
-      });
+      })
     }
-  };
+  }
 
   const handleNext = () => {
-    if (pageNumber < (numPages || 1)) scrollToPage(pageNumber + 1);
-  };
+    if (pageNumber < (numPages || 1)) scrollToPage(pageNumber + 1)
+  }
 
   const handlePrev = () => {
-    if (pageNumber > 1) scrollToPage(pageNumber - 1);
-  };
+    if (pageNumber > 1) scrollToPage(pageNumber - 1)
+  }
 
-  const handleVisiblePages = useCallback(
-    (entries: IntersectionObserverEntry[]) => {
-      const visible = entries
-        .filter((entry) => entry.isIntersecting)
-        .map((entry) => Number(entry.target.getAttribute("data-page-number")));
+  const handleVisiblePages = useCallback((entries: IntersectionObserverEntry[]) => {
+    const visible = entries
+      .filter((entry) => entry.isIntersecting)
+      .map((entry) => Number(entry.target.getAttribute("data-page-number")))
 
-      if (visible.length > 0) {
-        const closest = Math.min(...visible);
-        setPageNumber(closest);
-      }
-    },
-    [],
-  );
+    if (visible.length > 0) {
+      const closest = Math.min(...visible)
+      setPageNumber(closest)
+    }
+  }, [])
 
   useEffect(() => {
-    const container = containerRef.current;
-    if (!container || !numPages) return;
+    const container = containerRef.current
+    if (!container || !numPages) return
 
-    if (observer.current) observer.current.disconnect();
+    if (observer.current) observer.current.disconnect()
 
     observer.current = new IntersectionObserver(handleVisiblePages, {
       root: container,
       rootMargin: "0px 0px -70% 0px",
       threshold: 0.1,
-    });
+    })
 
     for (let i = 1; i <= numPages; i++) {
-      const pageEl = container.querySelector(`[data-page-number="${i}"]`);
-      if (pageEl) observer.current.observe(pageEl);
+      const pageEl = container.querySelector(`[data-page-number="${i}"]`)
+      if (pageEl) observer.current.observe(pageEl)
     }
 
-    return () => observer.current?.disconnect();
-  }, [numPages, scale, handleVisiblePages]);
+    return () => observer.current?.disconnect()
+  }, [numPages, scale, handleVisiblePages])
 
   // Audio/Video controls
   const togglePlay = () => {
     if (audioRef.current) {
       if (isPlaying) {
-        audioRef.current.pause();
+        audioRef.current.pause()
       } else {
-        audioRef.current.play();
+        audioRef.current.play()
       }
-      setIsPlaying(!isPlaying);
+      setIsPlaying(!isPlaying)
     } else if (videoRef.current) {
       if (isPlaying) {
-        videoRef.current.pause();
+        videoRef.current.pause()
       } else {
-        videoRef.current.play();
+        videoRef.current.play()
       }
-      setIsPlaying(!isPlaying);
+      setIsPlaying(!isPlaying)
     }
-  };
+  }
 
-  const handleTimeUpdate = (
-    e: React.SyntheticEvent<HTMLAudioElement | HTMLVideoElement>,
-  ) => {
-    setCurrentTime(e.currentTarget.currentTime);
-  };
+  const handleTimeUpdate = (e: React.SyntheticEvent<HTMLAudioElement | HTMLVideoElement>) => {
+    setCurrentTime(e.currentTarget.currentTime)
+  }
 
-  const handleLoadedMetadata = (
-    e: React.SyntheticEvent<HTMLAudioElement | HTMLVideoElement>,
-  ) => {
-    setDuration(e.currentTarget.duration);
-    setLoading(false);
-  };
+  const handleLoadedMetadata = (e: React.SyntheticEvent<HTMLAudioElement | HTMLVideoElement>) => {
+    setDuration(e.currentTarget.duration)
+    setLoading(false)
+  }
 
   const handleSeek = (_: Event, value: number | number[]) => {
-    const newTime = typeof value === "number" ? value : value[0];
-    setCurrentTime(newTime);
+    const newTime = typeof value === "number" ? value : value[0]
+    setCurrentTime(newTime)
     if (audioRef.current) {
-      audioRef.current.currentTime = newTime;
+      audioRef.current.currentTime = newTime
     } else if (videoRef.current) {
-      videoRef.current.currentTime = newTime;
+      videoRef.current.currentTime = newTime
     }
-  };
+  }
 
   const handleVolumeChange = (_: Event, value: number | number[]) => {
-    const newVolume = typeof value === "number" ? value : value[0];
-    setVolume(newVolume);
+    const newVolume = typeof value === "number" ? value : value[0]
+    setVolume(newVolume)
     if (audioRef.current) {
-      audioRef.current.volume = newVolume;
-      setIsMuted(newVolume === 0);
+      audioRef.current.volume = newVolume
+      setIsMuted(newVolume === 0)
     } else if (videoRef.current) {
-      videoRef.current.volume = newVolume;
-      setIsMuted(newVolume === 0);
+      videoRef.current.volume = newVolume
+      setIsMuted(newVolume === 0)
     }
-  };
+  }
 
   const toggleMute = () => {
     if (audioRef.current) {
-      audioRef.current.muted = !isMuted;
+      audioRef.current.muted = !isMuted
     } else if (videoRef.current) {
-      videoRef.current.muted = !isMuted;
+      videoRef.current.muted = !isMuted
     }
-    setIsMuted(!isMuted);
-  };
+    setIsMuted(!isMuted)
+  }
 
   const formatTime = (seconds: number) => {
-    const minutes = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${minutes}:${secs < 10 ? "0" : ""}${secs}`;
-  };
+    const hours = Math.floor(seconds / 3600)
+    const minutes = Math.floor((seconds % 3600) / 60)
+    const secs = Math.floor(seconds % 60)
+
+    if (hours > 0) {
+      return `${hours}:${minutes < 10 ? "0" : ""}${minutes}:${secs < 10 ? "0" : ""}${secs}`
+    }
+    return `${minutes}:${secs < 10 ? "0" : ""}${secs}`
+  }
 
   const renderPdf = () => {
     if (fallback) {
@@ -267,7 +251,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
           onLoad={() => setLoading(false)}
           style={{ width: "100%", height: "100%", border: "none" }}
         />
-      );
+      )
     }
 
     return (
@@ -275,8 +259,8 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
         file={file!.url}
         onLoadSuccess={onDocumentLoadSuccess}
         onLoadError={(error) => {
-          console.error("react-pdf failed, falling back to iframe:", error);
-          setFallback(true);
+          console.error("react-pdf failed, falling back to iframe:", error)
+          setFallback(true)
         }}
         loading=""
       >
@@ -290,8 +274,8 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
           />
         ))}
       </Document>
-    );
-  };
+    )
+  }
 
   const renderAudio = () => {
     return (
@@ -388,9 +372,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
               aria-label="Time"
               sx={{ color: "#1976d2" }}
             />
-            <Box
-              sx={{ display: "flex", justifyContent: "space-between", px: 1 }}
-            >
+            <Box sx={{ display: "flex", justifyContent: "space-between", px: 1 }}>
               <Typography variant="caption" sx={{ color: "white" }}>
                 {formatTime(currentTime)}
               </Typography>
@@ -435,10 +417,19 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
           </Box>
         </Box>
       </Box>
-    );
-  };
+    )
+  }
 
   const renderVideo = () => {
+    console.log("🔍 renderVideo() called")
+    console.log("📂 file.type:", file?.type)
+    console.log("📄 fileExtension:", fileExtension)
+    console.log("🎞️ video URL:", file?.url)
+    console.log("📏 currentTime:", currentTime, "| ⏱️ duration:", duration)
+    console.log("🔊 volume:", volume, "| 🔇 isMuted:", isMuted)
+    console.log("▶️ isPlaying:", isPlaying)
+    console.log("⏩ playbackSpeed:", playbackSpeed)
+
     return (
       <Box
         sx={{
@@ -446,102 +437,206 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
           flexDirection: "column",
           width: "100%",
           height: "100%",
-          justifyContent: "center",
-          alignItems: "center",
           backgroundColor: "#000",
+          position: "relative",
         }}
       >
-        <Box sx={{ width: "100%", maxWidth: "900px", position: "relative" }}>
+        {/* Video container with black background and full-width video */}
+        <Box
+          sx={{
+            width: "100%",
+            height: "100%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            position: "relative",
+            backgroundColor: "#000",
+          }}
+        >
           <video
             ref={videoRef}
             src={file?.url}
+            controls={false}
             onTimeUpdate={handleTimeUpdate}
-            onLoadedMetadata={handleLoadedMetadata}
+            onLoadedMetadata={(e) => {
+              handleLoadedMetadata(e)
+              e.currentTarget.playbackRate = playbackSpeed
+            }}
             onEnded={() => setIsPlaying(false)}
+            onClick={togglePlay}
             style={{
               width: "100%",
-              borderRadius: "8px",
-              boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.2)",
+              height: "100%",
+              objectFit: "contain", // This maintains aspect ratio while filling the container
             }}
-            onClick={togglePlay}
           />
 
-          {/* Controls that appear on hover */}
-          <Box
-            sx={{
-              position: "absolute",
-              bottom: 0,
-              left: 0,
-              right: 0,
-              backgroundColor: "rgba(33, 33, 33, 0.8)",
-              padding: "8px 16px",
-              borderBottomLeftRadius: "8px",
-              borderBottomRightRadius: "8px",
-              transition: "opacity 0.3s",
-              opacity: "1",
-              "&:hover": { opacity: "1" },
-              display: "flex",
-              flexDirection: "column",
-              gap: "8px",
-            }}
-            className="controls-container"
-          >
-            {/* Progress bar */}
-            <Slider
-              value={currentTime}
-              max={duration || 100}
-              onChange={handleSeek}
-              aria-label="Time"
-              sx={{
-                color: "#4285F4", // Google blue
-                height: 4,
-                "& .MuiSlider-thumb": {
-                  width: 12,
-                  height: 12,
-                  "&:hover, &.Mui-focusVisible": {
-                    boxShadow: "0px 0px 0px 8px rgba(66, 133, 244, 0.16)",
-                  },
-                },
-                "& .MuiSlider-rail": {
-                  opacity: 0.28,
-                },
-              }}
-            />
-
-            {/* Controls row */}
+          {/* Play/Pause overlay button that appears in center when paused */}
+          {!isPlaying && !loading && (
             <Box
+              onClick={togglePlay}
               sx={{
+                position: "absolute",
+                width: "68px",
+                height: "68px",
+                borderRadius: "50%",
+                backgroundColor: "rgba(0,0,0,0.6)",
                 display: "flex",
                 alignItems: "center",
-                justifyContent: "space-between",
+                justifyContent: "center",
+                cursor: "pointer",
+                transition: "transform 0.2s",
+                "&:hover": {
+                  transform: "scale(1.1)",
+                  backgroundColor: "rgba(0,0,0,0.7)",
+                },
               }}
             >
-              {/* Left side controls */}
-              <Box sx={{ display: "flex", alignItems: "center" }}>
-                <IconButton
-                  onClick={togglePlay}
-                  sx={{
-                    color: "white",
-                    padding: "4px",
-                  }}
-                >
-                  {isPlaying ? (
-                    <PauseIcon sx={{ fontSize: "24px" }} />
-                  ) : (
-                    <PlayArrowIcon sx={{ fontSize: "24px" }} />
-                  )}
-                </IconButton>
+              <PlayArrowIcon sx={{ fontSize: 40, color: "white" }} />
+            </Box>
+          )}
 
-                <Typography
-                  variant="caption"
-                  sx={{ color: "white", ml: 1, fontSize: "12px" }}
-                >
-                  {formatTime(currentTime)} / {formatTime(duration)}
-                </Typography>
-              </Box>
+          {/* Loading indicator */}
+          {loading && (
+            <CircularProgress
+              size={48}
+              sx={{
+                position: "absolute",
+                color: "white",
+              }}
+            />
+          )}
+        </Box>
 
-              {/* Right side controls */}
-              <Box sx={{ display: "flex", alignItems: "center" }}>
+        {/* Google Drive-style controls bar */}
+        <Box
+          sx={{
+            position: "absolute",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.75)",
+            padding: "8px 16px",
+            transition: "opacity 0.3s",
+            opacity: isPlaying ? "0" : "1",
+            "&:hover": { opacity: "1" },
+            display: "flex",
+            flexDirection: "column",
+            gap: "8px",
+          }}
+          className="controls-container"
+        >
+          {/* Progress bar */}
+          <Slider
+            value={currentTime}
+            max={duration || 100}
+            onChange={handleSeek}
+            aria-label="Time"
+            sx={{
+              color: "#DB4437", // Google Drive's red color
+              height: 4,
+              "& .MuiSlider-thumb": {
+                width: 12,
+                height: 12,
+                transition: "width 0.2s, height 0.2s",
+                "&:hover, &.Mui-focusVisible, &.Mui-active": {
+                  boxShadow: "0px 0px 0px 8px rgba(219, 68, 55, 0.16)",
+                  width: 16,
+                  height: 16,
+                },
+              },
+              "& .MuiSlider-rail": {
+                opacity: 0.28,
+              },
+            }}
+          />
+
+          {/* Controls row */}
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            {/* Left side controls */}
+            <Box sx={{ display: "flex", alignItems: "center" }}>
+              <IconButton
+                onClick={togglePlay}
+                sx={{
+                  color: "white",
+                  padding: "4px",
+                }}
+              >
+                {isPlaying ? <PauseIcon sx={{ fontSize: "24px" }} /> : <PlayArrowIcon sx={{ fontSize: "24px" }} />}
+              </IconButton>
+
+              {/* Time display */}
+              <Typography
+                variant="caption"
+                sx={{ color: "white", ml: 1, fontSize: "13px", fontFamily: "Roboto, Arial, sans-serif" }}
+              >
+                {formatTime(currentTime)} / {formatTime(duration)}
+              </Typography>
+            </Box>
+
+            {/* Right side controls */}
+            <Box sx={{ display: "flex", alignItems: "center" }}>
+              {/* Playback speed control - Google Drive style */}
+              <Select
+                value={playbackSpeed}
+                onChange={(e) => {
+                  const speed = Number(e.target.value)
+                  setPlaybackSpeed(speed)
+                  if (videoRef.current) {
+                    videoRef.current.playbackRate = speed
+                  }
+                }}
+                sx={{
+                  color: "white",
+                  fontSize: "13px",
+                  height: "28px",
+                  mr: 2,
+                  ".MuiOutlinedInput-notchedOutline": { border: "none" },
+                  "&:hover .MuiOutlinedInput-notchedOutline": { border: "none" },
+                  ".MuiSvgIcon-root": { color: "white", fontSize: "18px" },
+                  ".MuiSelect-select": {
+                    padding: "2px 8px",
+                    paddingRight: "24px !important",
+                    fontFamily: "Roboto, Arial, sans-serif",
+                  },
+                  backgroundColor: "transparent",
+                  "&:hover": { backgroundColor: "rgba(255,255,255,0.1)" },
+                  borderRadius: "4px",
+                }}
+                MenuProps={{
+                  PaperProps: {
+                    sx: {
+                      backgroundColor: "#333",
+                      color: "white",
+                      "& .MuiMenuItem-root": {
+                        fontSize: "13px",
+                        fontFamily: "Roboto, Arial, sans-serif",
+                        "&:hover": {
+                          backgroundColor: "rgba(255,255,255,0.1)",
+                        },
+                        "&.Mui-selected": {
+                          backgroundColor: "rgba(255,255,255,0.2)",
+                        },
+                      },
+                    },
+                  },
+                }}
+              >
+                {[0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0].map((speed) => (
+                  <MenuItem key={speed} value={speed} sx={{ fontSize: "13px" }}>
+                    {speed === 1 ? "Normal" : `${speed}x`}
+                  </MenuItem>
+                ))}
+              </Select>
+
+              {/* Volume control */}
+              <Box sx={{ display: "flex", alignItems: "center", mr: 1 }}>
                 <IconButton
                   onClick={toggleMute}
                   sx={{
@@ -549,11 +644,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
                     padding: "4px",
                   }}
                 >
-                  {isMuted ? (
-                    <VolumeOffIcon sx={{ fontSize: "20px" }} />
-                  ) : (
-                    <VolumeUpIcon sx={{ fontSize: "20px" }} />
-                  )}
+                  {isMuted ? <VolumeOffIcon sx={{ fontSize: "20px" }} /> : <VolumeUpIcon sx={{ fontSize: "20px" }} />}
                 </IconButton>
 
                 <Slider
@@ -571,6 +662,9 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
                     "& .MuiSlider-thumb": {
                       width: 10,
                       height: 10,
+                      "&:hover, &.Mui-focusVisible": {
+                        boxShadow: "0px 0px 0px 8px rgba(255, 255, 255, 0.16)",
+                      },
                     },
                   }}
                 />
@@ -579,8 +673,8 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
           </Box>
         </Box>
       </Box>
-    );
-  };
+    )
+  }
 
   const renderImage = () => {
     return (
@@ -595,7 +689,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
         }}
       >
         <img
-          src={file!.url}
+          src={file!.url || "/placeholder.svg"}
           alt={file!.name}
           style={{
             transformOrigin: "center",
@@ -608,8 +702,8 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
           onLoad={() => setLoading(false)}
         />
       </Box>
-    );
-  };
+    )
+  }
 
   const renderWordDoc = () => {
     return (
@@ -633,14 +727,14 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
           style={{ fontFamily: "Arial, sans-serif", lineHeight: "1.5" }}
         />
       </Box>
-    );
-  };
+    )
+  }
 
   const renderContent = () => {
-    if (!file) return null;
+    if (!file) return null
 
     if (file.type === "application/pdf" || fileExtension === "pdf") {
-      return renderPdf();
+      return renderPdf()
     }
 
     if (file.type === "text/plain" || fileExtension === "txt") {
@@ -661,7 +755,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
         >
           {textContent}
         </Box>
-      );
+      )
     }
 
     if (
@@ -670,7 +764,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
       fileExtension === "wav" ||
       fileExtension === "m4a"
     ) {
-      return renderAudio();
+      return renderAudio()
     }
 
     if (
@@ -679,39 +773,34 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
       fileExtension === "mov" ||
       fileExtension === "webm"
     ) {
-      return renderVideo();
+      return renderVideo()
     }
 
     if (
       file.type.startsWith("image/") ||
-      ["jpg", "jpeg", "png", "gif", "bmp", "webp", "svg"].includes(
-        fileExtension || "",
-      )
+      ["jpg", "jpeg", "png", "gif", "bmp", "webp", "svg"].includes(fileExtension || "")
     ) {
-      return renderImage();
+      return renderImage()
     }
 
     if (
-      file.type ===
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+      file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
       fileExtension === "doc" ||
       fileExtension === "docx"
     ) {
-      return renderWordDoc();
+      return renderWordDoc()
     }
 
-    return <Typography>Unsupported file type</Typography>;
-  };
+    return <Typography>Unsupported file type</Typography>
+  }
 
-  if (!file) return null;
+  if (!file) return null
 
   const showZoomControls =
     file.type === "application/pdf" ||
     fileExtension === "pdf" ||
     file.type.startsWith("image/") ||
-    ["jpg", "jpeg", "png", "gif", "bmp", "webp", "svg"].includes(
-      fileExtension || "",
-    );
+    ["jpg", "jpeg", "png", "gif", "bmp", "webp", "svg"].includes(fileExtension || "")
 
   return (
     <Dialog open={isOpen} onClose={onClose} fullWidth maxWidth="md">
@@ -773,100 +862,76 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
         </Box>
 
         {/* Bottom Bar for PDFs */}
-        {!fallback &&
-          numPages &&
-          (file.type === "application/pdf" || fileExtension === "pdf") && (
-            <Box
-              sx={{
-                position: "absolute",
-                bottom: 16,
-                left: "50%",
-                transform: "translateX(-50%)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                borderRadius: "40px",
-                backdropFilter: "blur(8px)",
-                backgroundColor: "rgba(30, 30, 30, 0.6)",
-                color: "#fff",
-                px: 1.5,
-                py: 0.5,
-                gap: 1,
-                zIndex: 2,
-                fontSize: "0.8rem",
+        {!fallback && numPages && (file.type === "application/pdf" || fileExtension === "pdf") && (
+          <Box
+            sx={{
+              position: "absolute",
+              bottom: 16,
+              left: "50%",
+              transform: "translateX(-50%)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: "40px",
+              backdropFilter: "blur(8px)",
+              backgroundColor: "rgba(30, 30, 30, 0.6)",
+              color: "#fff",
+              px: 1.5,
+              py: 0.5,
+              gap: 1,
+              zIndex: 2,
+              fontSize: "0.8rem",
+            }}
+          >
+            <IconButton onClick={handlePrev} size="small" sx={{ color: "#fff" }}>
+              <ArrowBackIosNewIcon fontSize="small" />
+            </IconButton>
+
+            <Typography variant="body2" mx={1}>
+              Page
+            </Typography>
+
+            <InputBase
+              value={pageNumber}
+              onChange={(e) => {
+                const value = Number.parseInt(e.target.value)
+                if (!isNaN(value)) scrollToPage(value)
               }}
-            >
-              <IconButton
-                onClick={handlePrev}
-                size="small"
-                sx={{ color: "#fff" }}
-              >
-                <ArrowBackIosNewIcon fontSize="small" />
-              </IconButton>
+              inputProps={{
+                type: "number",
+                min: 1,
+                max: numPages,
+                style: {
+                  color: "#fff",
+                  backgroundColor: "#111",
+                  border: "none",
+                  width: 28,
+                  textAlign: "center",
+                  fontSize: "0.75rem",
+                  borderRadius: 4,
+                },
+              }}
+            />
 
-              <Typography variant="body2" mx={1}>
-                Page
-              </Typography>
+            <Typography variant="body2">/ {numPages}</Typography>
 
-              <InputBase
-                value={pageNumber}
-                onChange={(e) => {
-                  const value = parseInt(e.target.value);
-                  if (!isNaN(value)) scrollToPage(value);
-                }}
-                inputProps={{
-                  type: "number",
-                  min: 1,
-                  max: numPages,
-                  style: {
-                    color: "#fff",
-                    backgroundColor: "#111",
-                    border: "none",
-                    width: 28,
-                    textAlign: "center",
-                    fontSize: "0.75rem",
-                    borderRadius: 4,
-                  },
-                }}
-              />
+            <IconButton onClick={handleNext} size="small" sx={{ color: "#fff" }}>
+              <ArrowForwardIosIcon fontSize="small" />
+            </IconButton>
 
-              <Typography variant="body2">/ {numPages}</Typography>
+            <Box sx={{ mx: 1, height: "20px", borderLeft: "1px solid #666" }} />
 
-              <IconButton
-                onClick={handleNext}
-                size="small"
-                sx={{ color: "#fff" }}
-              >
-                <ArrowForwardIosIcon fontSize="small" />
-              </IconButton>
-
-              <Box
-                sx={{ mx: 1, height: "20px", borderLeft: "1px solid #666" }}
-              />
-
-              <IconButton
-                onClick={handleZoomOut}
-                size="small"
-                sx={{ color: "#fff" }}
-              >
-                <ZoomOutIcon fontSize="small" />
-              </IconButton>
-              <IconButton
-                onClick={handleZoomIn}
-                size="small"
-                sx={{ color: "#fff" }}
-              >
-                <ZoomInIcon fontSize="small" />
-              </IconButton>
-              <IconButton
-                onClick={handleResetZoom}
-                size="small"
-                sx={{ color: "#fff" }}
-              >
-                <RestartAltIcon fontSize="small" />
-              </IconButton>
-            </Box>
-          )}
+            <IconButton onClick={handleZoomOut} size="small" sx={{ color: "#fff" }}>
+              <ZoomOutIcon fontSize="small" />
+            </IconButton>
+            <IconButton onClick={handleZoomIn} size="small" sx={{ color: "#fff" }}>
+              <ZoomInIcon fontSize="small" />
+            </IconButton>
+            <IconButton onClick={handleResetZoom} size="small" sx={{ color: "#fff" }}>
+              <RestartAltIcon fontSize="small" />
+            </IconButton>
+          </Box>
+        )}
 
         {/* Zoom Controls for Images */}
         {showZoomControls && !numPages && (
@@ -888,25 +953,13 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
               zIndex: 2,
             }}
           >
-            <IconButton
-              onClick={handleZoomOut}
-              size="small"
-              sx={{ color: "#fff" }}
-            >
+            <IconButton onClick={handleZoomOut} size="small" sx={{ color: "#fff" }}>
               <ZoomOutIcon fontSize="small" />
             </IconButton>
-            <IconButton
-              onClick={handleZoomIn}
-              size="small"
-              sx={{ color: "#fff" }}
-            >
+            <IconButton onClick={handleZoomIn} size="small" sx={{ color: "#fff" }}>
               <ZoomInIcon fontSize="small" />
             </IconButton>
-            <IconButton
-              onClick={handleResetZoom}
-              size="small"
-              sx={{ color: "#fff" }}
-            >
+            <IconButton onClick={handleResetZoom} size="small" sx={{ color: "#fff" }}>
               <RestartAltIcon fontSize="small" />
             </IconButton>
           </Box>
@@ -930,23 +983,18 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
         )}
       </DialogContent>
     </Dialog>
-  );
-};
+  )
+}
 
 // Helper component for audio icon
 const AudioIcon = ({ size = 24 }: { size?: number }) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-  >
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path
       d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM12 16C10.9 16 9.88 15.61 9.11 14.88C8.35 14.16 7.94 13.18 7.94 12.12C7.94 10.06 9.73 8.27 11.79 8.27C11.97 8.27 12.15 8.29 12.33 8.32C11.89 8.95 11.65 9.71 11.65 10.5C11.65 11.27 11.86 11.99 12.26 12.61C12.66 13.23 13.22 13.69 13.89 13.97C13.45 15.19 12.69 16 12 16Z"
       fill="#FFF"
     />
   </svg>
-);
+)
 
-export default FilePreviewModal;
+export default FilePreviewModal
+
