@@ -1,6 +1,10 @@
 import { motion, useAnimation } from "framer-motion";
 import { useEffect } from "react";
-import { Shield, File, Lock, Globe, Users } from "lucide-react";
+import SecurityIcon from "@mui/icons-material/Security";
+import InsertDriveFileIcon from "@mui/icons-material/InsertDriveFile";
+import LockIcon from "@mui/icons-material/Lock";
+import PublicIcon from "@mui/icons-material/Public";
+import GroupIcon from "@mui/icons-material/Group";
 import { useInView } from "react-intersection-observer";
 import "./About.css"
 
@@ -17,7 +21,7 @@ const aboutSections: AboutSection[] = [
       `Lokr is more than just a file-sharing service—it's a movement toward reclaiming your digital rights. 
       In an age where every click and upload can be tracked, Lokr empowers you with a platform built on robust 
       privacy and security, ensuring your data stays yours.`,
-    icon: <Users size={80} />,
+    icon: <GroupIcon sx={{width: 80, height: 80}} />,
   },
   {
     title: "Privacy and Security First",
@@ -27,7 +31,7 @@ const aboutSections: AboutSection[] = [
       and efficiency. Our response is clear: a platform where your files are shielded by end-to-end encryption, making sure 
       that no one—not even the server—can read your data. Every file you send is protected by cutting-edge cryptographic 
       protocols, ensuring that even if an attacker gains access, your sensitive information remains completely unreadable.`,
-    icon: <Shield size={80} />,
+    icon: <SecurityIcon sx={{width: 80, height: 80}} />,
   },
   {
     title: "Seamless and Secure File Sharing",
@@ -38,14 +42,14 @@ const aboutSections: AboutSection[] = [
       with customizable expiration times, allowing you to control who can view your files, even if the link is distributed widely. 
       Our system is built to balance usability with uncompromising security, so you can collaborate confidently while maintaining 
       full control over your data.`,
-    icon: <File size={80} />,
+    icon: <InsertDriveFileIcon sx={{width: 80, height: 80}} />,
   },
   {
     title: "Complete Anonymity",
     content:
       `For those who value complete anonymity, Lokr allows you to upload and share files without creating an account. 
       This feature gives you the power to disseminate information without leaving any personal trace.`,
-    icon: <Globe size={80} />,
+    icon: <PublicIcon sx={{width: 80, height: 80}} />,
   },
   {
     title: "Our Commitment to You",
@@ -53,7 +57,7 @@ const aboutSections: AboutSection[] = [
       `We are dedicated to continuously advancing our technology and security measures. Lokr is designed from the ground up 
       to protect your digital privacy, and we remain committed to researching and implementing the latest cryptographic 
       innovations. Join us in creating a safer digital landscape where privacy and anonymity aren't privileges, but rights for everyone.`,
-    icon: <Lock size={80} />,
+    icon: <LockIcon sx={{width: 80, height: 80}} />,
   },
 ];
 

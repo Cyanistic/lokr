@@ -23,7 +23,6 @@
     "js-cookie": "^3.0.5",
     "jszip": "^3.10.1",
     "localforage": "^1.10.0",
-    "lucide-react": "^0.486.0",
     "mammoth": "^1.9.0",
     "pdfjs-dist": "^5.1.91",
     "react": "^18.3.1",
