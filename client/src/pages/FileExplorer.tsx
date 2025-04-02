@@ -29,7 +29,11 @@ import {
   bufferToBase64,
   base64ToArrayBuffer,
 } from "../cryptoFunctions";
-import { useSearchParams } from "react-router-dom";
+import {
+  NavigateOptions,
+  URLSearchParamsInit,
+  useSearchParams,
+} from "react-router-dom";
 import { FileMetadata, FileResponse } from "../types";
 import { useErrorToast } from "../components/ErrorToastProvider";
 import FileSearch from "../components/FileSearch";
@@ -157,7 +161,7 @@ export default function FileExplorer(
     "name",
   );
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
-  const [params, setParams] = useSearchParams();
+  const [params, updateParams] = useSearchParams();
   const [currentUser, setCurrentUser] = useState<SessionUser>();
   const preferredView = useRef<"list" | "grid">("list");
   const parentId = params.get("parentId");
@@ -185,19 +189,56 @@ export default function FileExplorer(
   const [infoOpen, setInfoOpen] = useState<boolean>(false);
   const selectedFile = useRef<FileMetadata>();
   const [linkPassword, _setLinkPasword] = useState<string | null>(null);
+  const linkKey = useRef<CryptoKey>();
+
+  useEffect(() => {
+    async function importLinkKey() {
+      const hash = window.location.hash.slice(1);
+      linkKey.current = await crypto.subtle.importKey(
+        "raw",
+        base64ToArrayBuffer(hash),
+        {
+          name: "AES-GCM",
+        },
+        true,
+        ["decrypt", "encrypt", "wrapKey", "unwrapKey"],
+      );
+    }
+    importLinkKey();
+  }, []);
 
   // ***** New State for Move Functionality *****
   const [moveOpen, setMoveOpen] = useState(false);
 
   const [showUpload, setShowUpload] = useState(false);
 
+  // Updating the query params directly completely nukes the url hash, so we need to use
+  // this workaround to save the hash and restore it after the params are updated.
+  // Issue for context: https://github.com/remix-run/react-router/issues/8393
+  // Workaround: https://github.com/remix-run/react-router/issues/8393#issuecomment-2402660908
+  function setParams(
+    nextInit?:
+      | URLSearchParamsInit
+      | ((prev: URLSearchParams) => URLSearchParamsInit),
+    navigateOpts?: NavigateOptions,
+  ): void {
+    const currentHash = window.location.hash; // Save hash
+    updateParams(nextInit, navigateOpts); // Update query params
+
+    if (currentHash) {
+      setTimeout(() => {
+        window.location.hash = currentHash; // Restore hash after React updates
+      }, 0);
+    }
+  }
+
   // Whenever currentDir or privateKey changes, fetch the files
   useEffect(() => {
-    if (!privateKey) {
+    if (!privateKey && !linkKey) {
       return;
     }
     fetchFiles();
-  }, [parentId, privateKey]);
+  }, [parentId, privateKey, linkKey]);
 
   const currentDir = useMemo(() => {
     if (loading) {
@@ -478,7 +519,15 @@ export default function FileExplorer(
           resp = await API.api.getUserSharedFile(body);
           break;
         case "link":
-          resp = await API.api.getLinkSharedFile(linkId!, body, linkPassword);
+          if (!linkId) {
+            showError("Error retrieving files. No link id provided.");
+            return;
+          }
+          resp = await API.api.getLinkSharedFile(
+            linkId,
+            body,
+            linkPassword || "",
+          );
           break;
       }
       if (!resp.ok) {
@@ -518,6 +567,7 @@ export default function FileExplorer(
             let unwrapKey: CryptoKey | undefined | null;
             let unwrapAlgorithm;
             let mimeType;
+            let key;
             const nonce = base64ToArrayBuffer(f.nonce);
             /// Update the permissions of the children
             /// if the current file has edit permissions
@@ -531,21 +581,39 @@ export default function FileExplorer(
               unwrapAlgorithm = { name: "AES-GCM", iv: nonce } as AesGcmParams;
               unwrapKey = tempFiles[f.parentId].key;
             } else {
-              unwrapAlgorithm = { name: "RSA-OAEP" } as RsaOaepParams;
-              unwrapKey = privateKey;
+              // If this is a share link and there is no parent id
+              // then this is file is encrypted using the key in
+              // the link's hash fragment. So we need to skip
+              // decrypting the key for this file because
+              // we already have it.
+              if (type === "link") {
+                unwrapAlgorithm = {
+                  name: "AES-GCM",
+                  iv: nonce,
+                } as AesGcmParams;
+                key = linkKey.current;
+              } else {
+                unwrapAlgorithm = { name: "RSA-OAEP" } as RsaOaepParams;
+                unwrapKey = privateKey;
+              }
               /// Files that are being shared directly should not have edit permission
               /// to be moved or deleted, only their children should have those permissions
               f.editPermission = false;
             }
-            if (!unwrapKey) {
-              console.error("Could not get parent key");
-              return;
+            // Only enter this section if we don't have a key
+            // (occurs if the current access is not via a link
+            // or parent id is not null)
+            if (!key) {
+              if (!unwrapKey) {
+                console.error("Could not get parent key");
+                return;
+              }
+              key = await unwrapAESKey(
+                f.encryptedKey,
+                unwrapKey,
+                unwrapAlgorithm,
+              );
             }
-            const key = await unwrapAESKey(
-              f.encryptedKey,
-              unwrapKey,
-              unwrapAlgorithm,
-            );
             const name = await decryptText(f.encryptedFileName, key, nonce);
             if (f.encryptedMimeType) {
               mimeType = await decryptText(f.encryptedMimeType, key, nonce);
@@ -913,7 +981,7 @@ export default function FileExplorer(
       {moveOpen && (
         <FileMoveModal
           // On close we want to re-fetch files to prevent stale data on the edge
-          // case where the user is viewing files shared with them, and they move 
+          // case where the user is viewing files shared with them, and they move
           // to the root directory within the modal, then close the modal
           // causing the file to have incorrect permissions
           onClose={async () => {
