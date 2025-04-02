@@ -1,5 +1,6 @@
 "use client"
 
+
 import { Select, MenuItem } from "@mui/material"
 import type React from "react"
 import { useState, useEffect, useRef, useCallback } from "react"
@@ -84,6 +85,12 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
 
     loadText()
   }, [isOpen, file, fileExtension])
+
+  useEffect(() => {
+    if (file?.type.startsWith("video")) {
+      console.log("🎥 A new video file was selected:", file.name)
+    }
+  }, [file])
 
   useEffect(() => {
     const loadWordDoc = async () => {
@@ -420,37 +427,113 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
     )
   }
 
-  const renderVideo = () => {
-    console.log("🔍 renderVideo() called")
-    console.log("📂 file.type:", file?.type)
-    console.log("📄 fileExtension:", fileExtension)
-    console.log("🎞️ video URL:", file?.url)
-    console.log("📏 currentTime:", currentTime, "| ⏱️ duration:", duration)
-    console.log("🔊 volume:", volume, "| 🔇 isMuted:", isMuted)
-    console.log("▶️ isPlaying:", isPlaying)
-    console.log("⏩ playbackSpeed:", playbackSpeed)
+  const [showControlsBar, setShowControlsBar] = useState(true)
+  const hideControlsTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  const handleMouseMove = () => {
+    setShowControlsBar(true)
+    if (hideControlsTimeout.current) clearTimeout(hideControlsTimeout.current)
+    hideControlsTimeout.current = setTimeout(() => {
+      setShowControlsBar(false)
+    }, 2000) // hide after 2s idle
+  }
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    container.addEventListener("mousemove", handleMouseMove)
+    return () => {
+      container.removeEventListener("mousemove", handleMouseMove)
+      if (hideControlsTimeout.current) clearTimeout(hideControlsTimeout.current)
+    }
+  }, [])
+
+
+  // Replace the renderVideo function with this updated version that better matches Google Drive's player
+  const renderVideo = () => {
+    console.log("🟦 renderVideo()");
+    console.log("📁 File:", file);
+    console.log("🎬 File type:", file?.type);
+    console.log("🎞️ File extension:", fileExtension);
+    console.log("🔊 Volume:", volume);
+    console.log("⏯️ Playing:", isPlaying);
+    console.log("📍 Current Time:", currentTime, "/", duration);
+    console.log("⚡ Playback Speed:", playbackSpeed);
+    console.log("🖥️ Viewport width:", window.innerWidth);
+  
     return (
       <Box
         sx={{
+          width: "100%",
           display: "flex",
           flexDirection: "column",
-          width: "100%",
-          height: "100%",
-          backgroundColor: "#000",
+          alignItems: "center",
+          backgroundColor: "transparent",
           position: "relative",
+          height: "100%",
+          py: 2,
         }}
       >
-        {/* Video container with black background and full-width video */}
+        {/* Floating Translucent Top Bar */}
         <Box
           sx={{
-            width: "100%",
-            height: "100%",
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 64,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            px: 2,
+            background: "rgba(0, 0, 0, 0.5)",
+            zIndex: 10,
+            backdropFilter: "blur(8px)",
+            opacity: showControlsBar ? 1 : 0,
+            transition: "opacity 0.3s ease-in-out",
+          }}
+        >
+          <Typography
+            variant="subtitle2"
+            sx={{
+              color: "#fff",
+              fontSize: "15px",
+              fontWeight: 500,
+              overflow: "hidden",
+              whiteSpace: "nowrap",
+              textOverflow: "ellipsis",
+              maxWidth: "70%",
+            }}
+          >
+            {decodeURIComponent(file!.name)}
+          </Typography>
+          <Box>
+            <IconButton
+              href={file!.url}
+              download={file!.name}
+              size="small"
+              sx={{ color: "#fff" }}
+            >
+              <DownloadIcon />
+            </IconButton>
+            <IconButton onClick={onClose} size="small" sx={{ color: "#fff" }}>
+              <CloseIcon />
+            </IconButton>
+          </Box>
+        </Box>
+  
+        {/* Video Player Container */}
+        <Box
+          sx={{
+            width: "1070px",
+            height: "598px",
+            backgroundColor: "transparent",
+            position: "relative",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            position: "relative",
-            backgroundColor: "#000",
+            borderRadius: 1,
           }}
         >
           <video
@@ -459,19 +542,25 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
             controls={false}
             onTimeUpdate={handleTimeUpdate}
             onLoadedMetadata={(e) => {
-              handleLoadedMetadata(e)
-              e.currentTarget.playbackRate = playbackSpeed
+              console.log("✅ Metadata loaded");
+              handleLoadedMetadata(e);
+              e.currentTarget.playbackRate = playbackSpeed;
             }}
-            onEnded={() => setIsPlaying(false)}
+            onEnded={() => {
+              console.log("🔚 Video ended");
+              setIsPlaying(false);
+            }}
             onClick={togglePlay}
             style={{
               width: "100%",
               height: "100%",
-              objectFit: "contain", // This maintains aspect ratio while filling the container
+              objectFit: "contain",
+              borderRadius: "8px",
+              cursor: "pointer",
             }}
           />
-
-          {/* Play/Pause overlay button that appears in center when paused */}
+  
+          {/* Overlay Play Button */}
           {!isPlaying && !loading && (
             <Box
               onClick={togglePlay}
@@ -495,8 +584,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
               <PlayArrowIcon sx={{ fontSize: 40, color: "white" }} />
             </Box>
           )}
-
-          {/* Loading indicator */}
+  
           {loading && (
             <CircularProgress
               size={48}
@@ -507,42 +595,35 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
             />
           )}
         </Box>
-
-        {/* Google Drive-style controls bar */}
+  
+        {/* Floating Bottom Controls Bar */}
         <Box
           sx={{
             position: "absolute",
             bottom: 0,
             left: 0,
             right: 0,
-            backgroundColor: "rgba(0, 0, 0, 0.75)",
-            padding: "8px 16px",
-            transition: "opacity 0.3s",
-            opacity: isPlaying ? "0" : "1",
-            "&:hover": { opacity: "1" },
-            display: "flex",
+            padding: "16px 24px",
+            background: "linear-gradient(transparent, rgba(0,0,0,0.7))",
+            display: showControlsBar ? "flex" : "none",
             flexDirection: "column",
-            gap: "8px",
+            gap: 1,
+            transition: "opacity 0.3s ease-in-out",
           }}
-          className="controls-container"
         >
-          {/* Progress bar */}
           <Slider
             value={currentTime}
             max={duration || 100}
             onChange={handleSeek}
             aria-label="Time"
             sx={{
-              color: "#DB4437", // Google Drive's red color
+              color: "#DB4437",
               height: 4,
               "& .MuiSlider-thumb": {
                 width: 12,
                 height: 12,
-                transition: "width 0.2s, height 0.2s",
-                "&:hover, &.Mui-focusVisible, &.Mui-active": {
+                "&:hover": {
                   boxShadow: "0px 0px 0px 8px rgba(219, 68, 55, 0.16)",
-                  width: 16,
-                  height: 16,
                 },
               },
               "& .MuiSlider-rail": {
@@ -550,63 +631,39 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
               },
             }}
           />
-
-          {/* Controls row */}
           <Box
             sx={{
               display: "flex",
-              alignItems: "center",
               justifyContent: "space-between",
+              alignItems: "center",
+              px: 1,
             }}
           >
-            {/* Left side controls */}
             <Box sx={{ display: "flex", alignItems: "center" }}>
-              <IconButton
-                onClick={togglePlay}
-                sx={{
-                  color: "white",
-                  padding: "4px",
-                }}
-              >
-                {isPlaying ? <PauseIcon sx={{ fontSize: "24px" }} /> : <PlayArrowIcon sx={{ fontSize: "24px" }} />}
+              <IconButton onClick={togglePlay} sx={{ color: "white" }}>
+                {isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
               </IconButton>
-
-              {/* Time display */}
-              <Typography
-                variant="caption"
-                sx={{ color: "white", ml: 1, fontSize: "13px", fontFamily: "Roboto, Arial, sans-serif" }}
-              >
+              <Typography variant="caption" sx={{ color: "white", ml: 1 }}>
                 {formatTime(currentTime)} / {formatTime(duration)}
               </Typography>
             </Box>
-
-            {/* Right side controls */}
             <Box sx={{ display: "flex", alignItems: "center" }}>
-              {/* Playback speed control - Google Drive style */}
               <Select
                 value={playbackSpeed}
                 onChange={(e) => {
-                  const speed = Number(e.target.value)
-                  setPlaybackSpeed(speed)
+                  const speed = Number(e.target.value);
+                  setPlaybackSpeed(speed);
                   if (videoRef.current) {
-                    videoRef.current.playbackRate = speed
+                    videoRef.current.playbackRate = speed;
                   }
                 }}
                 sx={{
                   color: "white",
                   fontSize: "13px",
-                  height: "28px",
                   mr: 2,
                   ".MuiOutlinedInput-notchedOutline": { border: "none" },
-                  "&:hover .MuiOutlinedInput-notchedOutline": { border: "none" },
-                  ".MuiSvgIcon-root": { color: "white", fontSize: "18px" },
-                  ".MuiSelect-select": {
-                    padding: "2px 8px",
-                    paddingRight: "24px !important",
-                    fontFamily: "Roboto, Arial, sans-serif",
-                  },
-                  backgroundColor: "transparent",
-                  "&:hover": { backgroundColor: "rgba(255,255,255,0.1)" },
+                  "& .MuiSvgIcon-root": { color: "white" },
+                  backgroundColor: "rgba(255,255,255,0.1)",
                   borderRadius: "4px",
                 }}
                 MenuProps={{
@@ -614,67 +671,40 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
                     sx: {
                       backgroundColor: "#333",
                       color: "white",
-                      "& .MuiMenuItem-root": {
-                        fontSize: "13px",
-                        fontFamily: "Roboto, Arial, sans-serif",
-                        "&:hover": {
-                          backgroundColor: "rgba(255,255,255,0.1)",
-                        },
-                        "&.Mui-selected": {
-                          backgroundColor: "rgba(255,255,255,0.2)",
-                        },
-                      },
                     },
                   },
                 }}
               >
-                {[0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0].map((speed) => (
-                  <MenuItem key={speed} value={speed} sx={{ fontSize: "13px" }}>
+                {[0.25, 0.5, 0.75, 1, 1.25, 1.5, 2].map((speed) => (
+                  <MenuItem key={speed} value={speed}>
                     {speed === 1 ? "Normal" : `${speed}x`}
                   </MenuItem>
                 ))}
               </Select>
-
-              {/* Volume control */}
-              <Box sx={{ display: "flex", alignItems: "center", mr: 1 }}>
-                <IconButton
-                  onClick={toggleMute}
-                  sx={{
-                    color: "white",
-                    padding: "4px",
-                  }}
-                >
-                  {isMuted ? <VolumeOffIcon sx={{ fontSize: "20px" }} /> : <VolumeUpIcon sx={{ fontSize: "20px" }} />}
-                </IconButton>
-
-                <Slider
-                  value={volume}
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  onChange={handleVolumeChange}
-                  aria-label="Volume"
-                  sx={{
-                    color: "white",
-                    width: 80,
-                    height: 4,
-                    marginRight: "8px",
-                    "& .MuiSlider-thumb": {
-                      width: 10,
-                      height: 10,
-                      "&:hover, &.Mui-focusVisible": {
-                        boxShadow: "0px 0px 0px 8px rgba(255, 255, 255, 0.16)",
-                      },
-                    },
-                  }}
-                />
-              </Box>
+              <IconButton onClick={toggleMute} sx={{ color: "white" }}>
+                {isMuted ? <VolumeOffIcon /> : <VolumeUpIcon />}
+              </IconButton>
+              <Slider
+                value={volume}
+                min={0}
+                max={1}
+                step={0.01}
+                onChange={handleVolumeChange}
+                aria-label="Volume"
+                sx={{
+                  color: "white",
+                  width: 80,
+                }}
+              />
             </Box>
           </Box>
         </Box>
       </Box>
-    )
-  }
+    );
+  };
+  
+  
+  
 
   const renderImage = () => {
     return (
@@ -802,8 +832,23 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
     file.type.startsWith("image/") ||
     ["jpg", "jpeg", "png", "gif", "bmp", "webp", "svg"].includes(fileExtension || "")
 
+  // Also update the Dialog component to remove borders and make it more like Google Drive
   return (
-    <Dialog open={isOpen} onClose={onClose} fullWidth maxWidth="md">
+    <Dialog
+      open={isOpen}
+      onClose={onClose}
+      fullWidth
+      maxWidth={false}
+      PaperProps={{
+        sx: {
+          width: "100%",
+          maxWidth: "1120px",
+          borderRadius: 0,
+          overflow: "hidden",
+          backgroundColor: "#000",
+        },
+      }}
+    >
       <Box
         sx={{
           display: "flex",
@@ -811,7 +856,9 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
           alignItems: "center",
           px: 2,
           py: 1,
-          borderBottom: "1px solid #ddd",
+          borderBottom: "1px solid rgba(255,255,255,0.1)",
+          backgroundColor: "#000",
+          color: "white",
         }}
       >
         <Typography
@@ -821,16 +868,17 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
             whiteSpace: "nowrap",
             overflow: "hidden",
             textOverflow: "ellipsis",
+            color: "white",
           }}
         >
           {decodeURIComponent(file.name)}
         </Typography>
 
         <Box>
-          <IconButton href={file.url} download={file.name} size="small">
+          <IconButton href={file.url} download={file.name} size="small" sx={{ color: "white" }}>
             <DownloadIcon />
           </IconButton>
-          <IconButton onClick={onClose} size="small">
+          <IconButton onClick={onClose} size="small" sx={{ color: "white" }}>
             <CloseIcon />
           </IconButton>
         </Box>
@@ -844,7 +892,8 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
           position: "relative",
           display: "flex",
           flexDirection: "column",
-          bgcolor: "#f8f8f8",
+          bgcolor: "#000",
+          border: "none",
         }}
       >
         <Box
