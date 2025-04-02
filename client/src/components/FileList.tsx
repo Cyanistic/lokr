@@ -209,7 +209,7 @@ export default function FileList({
       headerName: "Uploader",
       width: 150,
       renderCell: (params: GridRenderCellParams) => {
-        if (!params.row || !params.row.uploaderId) return null;
+        if (!params.row) return null;
         const uploader: PublicUser | undefined = users[params.row.uploaderId];
         return (
           <Box sx={{ display: "flex", alignItems: "center", gap: 1, pt: 1.5 }}>
@@ -219,11 +219,11 @@ export default function FileList({
                   ? `${BASE_URL}/api/avatars/${uploader.id}.${uploader.avatarExtension}`
                   : DefaultProfile
               }
-              alt={uploader.username}
+              alt={uploader?.username ?? "Anonymous"}
               sx={{ width: 24, height: 24 }}
             />
             <Typography variant="body2" noWrap>
-              {uploader.username}
+              {uploader?.username ?? "Anonymous"}
             </Typography>
           </Box>
         );

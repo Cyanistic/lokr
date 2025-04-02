@@ -31,7 +31,7 @@
   -- (x) Managing permissions and updating with drop-down menu
   -- (x) Viewing all users that have access to a file (only if you own the file)
   -- ( ) Share Links
-  --- ( ) Viewing all active links for a file and when they expire
+  --- (x) Viewing all active links for a file and when they expire
   --- (x) Link creation
   --- ( ) Uploading and viewing through links
   --- ( ) Upload progress indicators
@@ -40,6 +40,13 @@
   --- (x) Viewing files shared directly
   - ( ) Add proper login screen for totp verification
   - ( ) Add preferences menu
+  - ( ) Properly handle anonymous uploads
+  -- ( ) Do not show an error on home page when the user is not logged in
+  -- ( ) Provide a share link after a successful anonymous upload
+  - ( ) Show file context menu upon right clicking on a file
+  - ( ) Grid view
+  -- ( ) Add context menu to grid view
+  -- ( ) Add file previews to grid view
   - ( ) Support for persistent settings
   -- (x) Dark/Light theme customization
   -- (x) Grid/List view by default

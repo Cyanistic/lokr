@@ -25,14 +25,17 @@ import {
   Paper,
   Divider,
   InputAdornment,
+  Tooltip,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import {
   AccountCircle,
   Add,
+  AlarmOff,
   ContentCopy,
   Delete,
   Link,
+  MoreTime,
   Visibility,
   VisibilityOff,
 } from "@mui/icons-material";
@@ -75,10 +78,7 @@ const ShareModal: React.FC<ShareModalProps> = ({
   const [autocompleteOptions, setAutocompleteOptions] = useState<
     ApiPublicUser[]
   >([]);
-  const [permission, setPermission] = useState("viewer");
-  const [anyonePermission, setAnyonePermission] = useState<"viewer" | "editor">(
-    "viewer",
-  );
+  const [permission, setPermission] = useState<"viewer" | "editor">("viewer");
   const [password, setPassword] = useState("");
   const availableDurationUnits = ["never", "hours", "days", "weeks"] as const;
   const [durationUnits, setExpiration] =
@@ -142,7 +142,7 @@ const ShareModal: React.FC<ShareModalProps> = ({
 
   // Handle Username Input Change
   const handleUsernameChange = async (
-    _: any,
+    _: unknown,
     value: string | ApiPublicUser,
   ) => {
     if (typeof value !== "string") {
@@ -322,8 +322,10 @@ const ShareModal: React.FC<ShareModalProps> = ({
             break;
           default:
             expires = 0;
+            break;
         }
         try {
+          console.log(expires);
           const response = await API.api.shareFile({
             type: "link",
             id: file.id,
@@ -452,11 +454,13 @@ const ShareModal: React.FC<ShareModalProps> = ({
               />
 
               <FormControl variant="outlined" sx={{ width: 150 }}>
-                <InputLabel>Permissions</InputLabel>
+                <InputLabel>Permission</InputLabel>
                 <Select
-                  label="Permissions"
+                  label="Permission"
                   value={permission}
-                  onChange={(e) => setPermission(e.target.value)}
+                  onChange={(e) =>
+                    setPermission(e.target.value as "viewer" | "editor")
+                  }
                   sx={{ width: 150 }}
                 >
                   <MenuItem value="viewer">Viewer</MenuItem>
@@ -598,12 +602,12 @@ const ShareModal: React.FC<ShareModalProps> = ({
                   onChange={(e) => setPassword(e.target.value)}
                 />
                 <FormControl variant="outlined" sx={{ minWidth: 100 }}>
-                  <InputLabel>Permissions</InputLabel>
+                  <InputLabel>Permission</InputLabel>
                   <Select
-                    label="Permissions"
-                    value={anyonePermission}
+                    label="Permission"
+                    value={permission}
                     onChange={(e) =>
-                      setAnyonePermission(e.target.value as "viewer" | "editor")
+                      setPermission(e.target.value as "viewer" | "editor")
                     }
                   >
                     <MenuItem value="viewer">Viewer</MenuItem>
@@ -696,6 +700,9 @@ const ShareModal: React.FC<ShareModalProps> = ({
                         const link = {
                           ...access,
                           id: access.linkId,
+                          expiresAt: access.expiresAt
+                            ? new Date(access.expiresAt)
+                            : null,
                           createdAt: new Date(access.createdAt),
                           modifiedAt: new Date(access.modifiedAt),
                         } as ShareLink;
@@ -765,12 +772,55 @@ const ShareModal: React.FC<ShareModalProps> = ({
                                 my: 1,
                               }}
                             >
-                              <Typography
-                                variant="caption"
-                                color="text.secondary"
+                              <Tooltip title={`Created: ${link.createdAt.toLocaleString()}`}>
+                                <Box
+                                  sx={{ display: "flex", alignItems: "center" }}
+                                >
+                                  <MoreTime
+                                    sx={{
+                                      fontSize: 20,
+                                      color: "text.secondary",
+                                      mr: 1,
+                                      mt: -0.5,
+                                    }}
+                                  />
+                                  <Typography
+                                    variant="caption"
+                                    color="text.secondary"
+                                  >
+                                    {link.createdAt.toLocaleString()}
+                                  </Typography>
+                                </Box>
+                              </Tooltip>
+
+                              <Tooltip
+                                title={
+                                  link.expiresAt
+                                    ? `Expires: ${link.expiresAt.toLocaleString()}`
+                                    : "Never Expires"
+                                }
                               >
-                                Created: {link.createdAt.toLocaleString()}
-                              </Typography>
+                                <Box
+                                  sx={{ display: "flex", alignItems: "center" }}
+                                >
+                                  <AlarmOff
+                                    sx={{
+                                      fontSize: 20,
+                                      color: "text.secondary",
+                                      mr: 1,
+                                      mt: -0.5,
+                                    }}
+                                  />
+                                  <Typography
+                                    variant="caption"
+                                    color="text.secondary"
+                                  >
+                                    {link.expiresAt
+                                      ? link.expiresAt.toLocaleString()
+                                      : "Never"}
+                                  </Typography>
+                                </Box>
+                              </Tooltip>
 
                               <Box
                                 sx={{
@@ -779,25 +829,26 @@ const ShareModal: React.FC<ShareModalProps> = ({
                                   gap: 1,
                                 }}
                               >
-                                <Typography
-                                  variant="caption"
-                                  color="text.secondary"
-                                >
-                                  Permission:
-                                </Typography>
-                                <Select
-                                  size="small"
-                                  value={
-                                    link.editPermission ? "editor" : "viewer"
-                                  }
-                                  onChange={(e) =>
-                                    handlePermissionChange(link, e.target.value)
-                                  }
-                                  sx={{ minWidth: 100, height: 30 }}
-                                >
-                                  <MenuItem value="viewer">Viewer</MenuItem>
-                                  <MenuItem value="editor">Editor</MenuItem>
-                                </Select>
+                                <FormControl>
+                                  <InputLabel>Permission</InputLabel>
+                                  <Select
+                                    size="small"
+                                    label="Permission"
+                                    value={
+                                      link.editPermission ? "editor" : "viewer"
+                                    }
+                                    onChange={(e) =>
+                                      handlePermissionChange(
+                                        link,
+                                        e.target.value,
+                                      )
+                                    }
+                                    sx={{ minWidth: 100, height: 30 }}
+                                  >
+                                    <MenuItem value="viewer">Viewer</MenuItem>
+                                    <MenuItem value="editor">Editor</MenuItem>
+                                  </Select>
+                                </FormControl>
                               </Box>
                             </Box>
 

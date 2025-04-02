@@ -42,6 +42,7 @@ interface SidebarProps {
   setCollapsed: (collapsed: boolean) => void;
   onCreateFolder: (name: string) => Promise<void>;
   current: "files" | "shared" | "link";
+  editor?: boolean;
 }
 
 export function FileSidebar({
@@ -50,6 +51,7 @@ export function FileSidebar({
   setCollapsed,
   onCreateFolder,
   current,
+  editor,
 }: SidebarProps) {
   const { width } = useWindowSize();
   const isMobile = width < 768;
@@ -72,7 +74,6 @@ export function FileSidebar({
   };
 
   const handleCloseNewFolderDialog = () => {
-    console.log(newFolderDialogOpen);
     setNewFolderDialogOpen(false);
   };
 
@@ -205,34 +206,44 @@ export function FileSidebar({
               sx={{
                 pb: 2,
                 display: "flex",
-                justifyContent: collapsed ? "center" : "flex-start",
+                justifyContent: "center",
+                px: 1,
+                width: "100%"
               }}
             >
               {collapsed ? (
-                <Tooltip title="New Folder">
-                  <Fab
-                    color="primary"
-                    size="small"
-                    onClick={handleOpenNewFolderDialog}
-                    sx={{ boxShadow: 2 }}
-                  >
-                    <CreateNewFolderIcon sx={{ fontSize: 20 }} />
-                  </Fab>
+                <Tooltip title={!editor && current !== "files" ? "You don't have permission to create folders here" : "New Folder"}>
+                  <span>
+                    <Fab
+                      color="primary"
+                      size="small"
+                      onClick={handleOpenNewFolderDialog}
+                      sx={{ boxShadow: 2 }}
+                      disabled={!editor && current !== "files"}
+                    >
+                      <CreateNewFolderIcon sx={{ fontSize: 20 }} />
+                    </Fab>
+                  </span>
                 </Tooltip>
               ) : (
-                <Button
-                  variant="contained"
-                  startIcon={<CreateNewFolderIcon sx={{ fontSize: 18 }} />}
-                  onClick={handleOpenNewFolderDialog}
-                  fullWidth
-                  sx={{
-                    boxShadow: 2,
-                    textTransform: "none",
-                    fontWeight: 500,
-                  }}
-                >
-                  New Folder
-                </Button>
+                <Tooltip title={!editor && current !== "files" ? "You don't have permission to create folders here" : ""}>
+                  <span style={{ width: "100%" }}>
+                    <Button
+                      variant="contained"
+                      startIcon={<CreateNewFolderIcon sx={{ fontSize: 18 }} />}
+                      onClick={handleOpenNewFolderDialog}
+                      fullWidth
+                      sx={{
+                        boxShadow: 2,
+                        textTransform: "none",
+                        fontWeight: 500,
+                      }}
+                      disabled={!editor && current !== "files"}
+                    >
+                      New Folder
+                    </Button>
+                  </span>
+                </Tooltip>
               )}
             </Box>
             {navItems.map((item, index) => (

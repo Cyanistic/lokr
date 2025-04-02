@@ -51,7 +51,7 @@ export interface FileMetadata {
   createdAtDate?: Date;
   modifiedAtDate?: Date;
   size: number;
-  editPermission?: boolean;
+  editPermission?: boolean | "children";
 }
 
 export interface FileResponse {

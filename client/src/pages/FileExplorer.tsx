@@ -42,7 +42,7 @@ import { useThrottledCallback } from "use-debounce";
 import FileList from "../components/FileList";
 import { PublicUser, SessionUser } from "../myApi";
 import { FileSidebar } from "../components/FileSidebar";
-import { Box, IconButton, Typography } from "@mui/material";
+import { Box, Button, IconButton, Tooltip, Typography } from "@mui/material";
 import { useWindowSize } from "../components/hooks/useWindowSize";
 import { GridMenuIcon } from "@mui/x-data-grid";
 import ShareModal from "../components/ShareModal";
@@ -189,19 +189,22 @@ export default function FileExplorer(
   const [infoOpen, setInfoOpen] = useState<boolean>(false);
   const selectedFile = useRef<FileMetadata>();
   const [linkPassword, _setLinkPasword] = useState<string | null>(null);
-  const linkKey = useRef<CryptoKey>();
+  const [linkKey, setLinkKey] = useState<CryptoKey | null>(null);
 
   useEffect(() => {
     async function importLinkKey() {
       const hash = window.location.hash.slice(1);
-      linkKey.current = await crypto.subtle.importKey(
-        "raw",
-        base64ToArrayBuffer(hash),
-        {
-          name: "AES-GCM",
-        },
-        true,
-        ["decrypt", "encrypt", "wrapKey", "unwrapKey"],
+      if (!hash) return;
+      setLinkKey(
+        await crypto.subtle.importKey(
+          "raw",
+          base64ToArrayBuffer(hash),
+          {
+            name: "AES-GCM",
+          },
+          true,
+          ["decrypt", "encrypt", "wrapKey", "unwrapKey"],
+        ),
       );
     }
     importLinkKey();
@@ -591,14 +594,16 @@ export default function FileExplorer(
                   name: "AES-GCM",
                   iv: nonce,
                 } as AesGcmParams;
-                key = linkKey.current;
+                key = linkKey;
               } else {
                 unwrapAlgorithm = { name: "RSA-OAEP" } as RsaOaepParams;
                 unwrapKey = privateKey;
               }
               /// Files that are being shared directly should not have edit permission
               /// to be moved or deleted, only their children should have those permissions
-              f.editPermission = false;
+              if (f.editPermission) {
+                f.editPermission = "children";
+              }
             }
             // Only enter this section if we don't have a key
             // (occurs if the current access is not via a link
@@ -760,8 +765,8 @@ export default function FileExplorer(
 
   /** Create a new folder by encrypting the name with the public key. */
   const handleCreateFolder = async (folderName: string) => {
-    if (!userPublicKey) {
-      showError("User public key not loaded");
+    if (!parentId && type !== "files") {
+      showError("You cannot create folders here!");
       return;
     }
     try {
@@ -777,6 +782,10 @@ export default function FileExplorer(
         }
         algorithm = { name: "AES-GCM", iv: nonce };
       } else {
+        if (!userPublicKey) {
+          showError("User public key not loaded");
+          return;
+        }
         parentKey = userPublicKey;
         algorithm = { name: "RSA-OAEP" };
       }
@@ -797,6 +806,7 @@ export default function FileExplorer(
 
       const resp = await API.api.uploadFile({
         metadata,
+        linkId: linkId || null,
       });
       if (!resp.ok) throw resp.error;
       fetchFiles();
@@ -820,6 +830,7 @@ export default function FileExplorer(
           setCollapsed={setCollapsed}
           user={currentUser}
           onCreateFolder={handleCreateFolder}
+          editor={parentId ? Boolean(files[parentId]?.editPermission) : false}
         />
         <Box
           sx={{
@@ -856,14 +867,36 @@ export default function FileExplorer(
             </Box>
           </Box>
           <div style={styles.controls}>
-            <button className="b1" onClick={() => setShowUpload(true)}>
-              Upload File
-            </button>
+            <Tooltip
+              title={
+                !(parentId
+                  ? Boolean(files[parentId]?.editPermission)
+                  : false) && type !== "files"
+                  ? "You do not have permission to upload files here"
+                  : "Upload Files"
+              }
+            >
+              <span>
+                <Button
+                  variant="contained"
+                  className="b1"
+                  onClick={() => setShowUpload(true)}
+                  disabled={
+                    !(parentId
+                      ? Boolean(files[parentId]?.editPermission)
+                      : false) && type !== "files"
+                  }
+                >
+                  Upload File
+                </Button>
+              </span>
+            </Tooltip>
             {showUpload && (
               <Upload
                 isOverlay={true}
                 parentId={parentId}
                 parentKey={parentId ? files[parentId]?.key : null}
+                linkId={linkId}
                 onUpload={async (file) => {
                   file.uploaderId = (await localforage.getItem("userId")) || "";
                   file.ownerId =

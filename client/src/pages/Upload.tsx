@@ -18,6 +18,7 @@ interface Props {
   onUpload?: (file: FileMetadata) => void;
   isOverlay?: boolean;
   onClose?: () => void;
+  linkId?: string | null;
 }
 
 export default function Upload({
@@ -26,6 +27,7 @@ export default function Upload({
   onUpload,
   isOverlay = false,
   onClose,
+  linkId,
 }: Props) {
   interface FileMetadata {
     name: string;
@@ -149,19 +151,17 @@ export default function Upload({
       return;
     }
 
-    // Ensure public key is loaded before proceeding
-    if (!userPublicKey) {
-      setUploadStatus("");
-      showError("Could not upload file. User public key not loaded.");
-      return;
-    }
-
-    console.log("File ready to upload:", files);
     let key: CryptoKey;
     let algorithm: AesGcmParams | RsaOaepParams;
     if (parentId && parentKey) {
       key = parentKey;
     } else {
+      // Ensure public key is loaded before proceeding
+      if (!userPublicKey) {
+        setUploadStatus("");
+        showError("Could not upload file. User public key not loaded.");
+        return;
+      }
       key = userPublicKey;
     }
 
@@ -200,8 +200,9 @@ export default function Upload({
       try {
         const response = await API.api.uploadFile({
           metadata,
-          //@ts-ignore
+          //@ts-expect-error swagger api is dumb
           file: encryptedFile,
+          linkId: linkId || "",
         });
 
         if (response.status === 402) {
