@@ -4,7 +4,8 @@ import { UploadResponse } from "../myApi";
 import {
   encryptAESKeyWithParentKey,
   encryptText,
-  generateKeyAndNonce,
+  generateKey,
+  generateNonce,
 } from "../cryptoFunctions";
 import { useErrorToast } from "../components/ErrorToastProvider";
 import React, { useState, useEffect, useRef } from "react";
@@ -168,16 +169,25 @@ export default function Upload({
     // Create a metadata object
     for (const [ind, file] of files.entries()) {
       // Generate an AES key for encrypting the file and metadata
-      const [aesKey, nonce] = await generateKeyAndNonce();
+      const aesKey = await generateKey();
+      const fileNonce = generateNonce();
+      const nameNonce = generateNonce();
+      const mimeTypeNonce = generateNonce();
       // Encrypt the file content using AES
-      const encryptedFile = await encryptFileWithAES(aesKey, file, nonce);
+      const encryptedFile = await encryptFileWithAES(aesKey, file, fileNonce);
 
       // Encrypt the file metadata (name and mime type) using AES
-      const encryptedFileName = await encryptText(aesKey, file.name, nonce);
-      const encryptedMimeType = await encryptText(aesKey, file.type, nonce);
+      const encryptedFileName = await encryptText(aesKey, file.name, nameNonce);
+      const encryptedMimeType = await encryptText(
+        aesKey,
+        file.type,
+        mimeTypeNonce,
+      );
 
+      let keyNonce;
       if (parentId) {
-        algorithm = { name: "AES-GCM", iv: nonce };
+        keyNonce = generateNonce();
+        algorithm = { name: "AES-GCM", iv: keyNonce };
       } else {
         algorithm = { name: "RSA-OAEP" };
       }
@@ -193,7 +203,10 @@ export default function Upload({
         encryptedKey: btoa(String.fromCharCode(...encryptedAESKey)),
         encryptedMimeType: btoa(String.fromCharCode(...encryptedMimeType)),
         isDirectory: fileMeta[ind].isDirectory || false,
-        nonce: btoa(String.fromCharCode(...nonce)),
+        fileNonce: btoa(String.fromCharCode(...fileNonce)),
+        nameNonce: btoa(String.fromCharCode(...nameNonce)),
+        mimeTypeNonce: btoa(String.fromCharCode(...mimeTypeNonce)),
+        keyNonce: keyNonce ? btoa(String.fromCharCode(...keyNonce)) : undefined,
         parentId,
       };
 

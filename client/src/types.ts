@@ -39,7 +39,10 @@ export interface FileMetadata {
   mimeType?: string;
   encryptedKey: string;
   isDirectory: boolean;
-  nonce: string;
+  fileNonce?: string | null;
+  keyNonce?: string | null;
+  mimeTypeNonce?: string | null;
+  nameNonce: string;
   parentId?: string | null;
   key?: CryptoKey;
   name?: string;

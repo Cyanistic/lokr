@@ -6,7 +6,7 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
 use serde_inline_default::serde_inline_default;
 use sqlx::{Executor, Sqlite};
@@ -44,9 +44,23 @@ pub struct UploadMetadata {
     /// Should be encrypted by the user's public key
     #[schema(content_encoding = "base64")]
     pub encrypted_key: String,
-    /// The nonce for the file (not encrypted)
+    /// We need to use a diffent nonce for each
+    /// piece of data that we encrypt for security reasons
+    /// The nonce for the file (not encrypted) can be null
+    /// if the file is a directory
     #[schema(content_encoding = "base64")]
-    pub nonce: String,
+    pub file_nonce: Option<String>,
+    /// The nonce for the encryption key (not encrypted)
+    /// Not neeeded if the file is in the root directory
+    #[schema(content_encoding = "base64")]
+    pub key_nonce: Option<String>,
+    /// The nonce for the file name (not encrypted)
+    #[schema(content_encoding = "base64")]
+    pub name_nonce: String,
+    /// The nonce for the file mime type(not encrypted)
+    /// can be null if the file does not have a mime type
+    #[schema(content_encoding = "base64")]
+    pub mime_type_nonce: Option<String>,
     /// Whether the file is a directory
     #[serde(default)]
     pub is_directory: bool,
@@ -143,6 +157,20 @@ pub async fn upload_file(
         )));
     };
 
+    if metadata.mime_type_nonce.is_some() != metadata.encrypted_mime_type.is_some() {
+        return Err(AppError::UserError((
+            StatusCode::BAD_REQUEST,
+            "Only include mime type nonce if there is a mime type to encrypt".into(),
+        )));
+    }
+
+    if metadata.is_directory == metadata.file_nonce.is_some() {
+        return Err(AppError::UserError((
+            StatusCode::BAD_REQUEST,
+            "Include a file nonce only if the file is not a directory".into(),
+        )));
+    }
+
     // Begin a transaction to prevent a race condition across threads
     // that could allow a user to upload more than they are allowed to
     let mut tx = state.pool.begin().await?;
@@ -192,6 +220,12 @@ pub async fn upload_file(
                             "Parent file is not a directory".into(),
                         )));
                     }
+                    if metadata.key_nonce.is_none() {
+                        return Err(AppError::UserError((
+                            StatusCode::BAD_REQUEST,
+                            "A key nonce is required for files with a parent directory!".into(),
+                        )));
+                    }
                     parent_file.owner_id
                 }
                 None => {
@@ -233,7 +267,14 @@ pub async fn upload_file(
             )
             .fetch_one(&mut *tx)
             .await?;
-            let row_space = metadata.nonce.len()
+            let row_space = metadata.file_nonce.as_ref().map(|f| f.len()).unwrap_or(1)
+                + metadata.key_nonce.as_ref().map(|k| k.len()).unwrap_or(1)
+                + metadata.name_nonce.len()
+                + metadata
+                    .mime_type_nonce
+                    .as_ref()
+                    .map(|m| m.len())
+                    .unwrap_or(1)
                 + metadata.encrypted_key.len()
                 + metadata.encrypted_file_name.len()
                 + metadata
@@ -260,8 +301,10 @@ pub async fn upload_file(
 
     match sqlx::query!(
         r#"
-        INSERT INTO file (id, owner_id, uploader_id, parent_id, encrypted_key, encrypted_name, mime, nonce, is_directory, size)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO file (id, owner_id, uploader_id, parent_id,
+        encrypted_key, encrypted_name, mime, file_nonce,
+        key_nonce, mime_type_nonce, name_nonce, is_directory, size)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         "#,
         file_id,
         owner_id,
@@ -270,24 +313,28 @@ pub async fn upload_file(
         metadata.encrypted_key,
         metadata.encrypted_file_name,
         metadata.encrypted_mime_type,
-        metadata.nonce,
+        metadata.file_nonce,
+        metadata.key_nonce,
+        metadata.mime_type_nonce,
+        metadata.name_nonce,
         metadata.is_directory,
         file_size,
     )
     .execute(&mut *tx)
-    .await {
+    .await
+    {
         // If a FOREIGN KEY constraint is violated, it likely means that the parent id is invalid
         // this is a user error and not a server error, so report it as such.
-            Err(e)
-                if e.as_database_error()
-                    .and_then(|e| e.code())
-                    .is_some_and(|code| code == "787") =>
-            {
-                return Err(AppError::UserError((
-                    StatusCode::BAD_REQUEST,
-                    "Invalid parent id".into(),
-                )))
-            }
+        Err(e)
+            if e.as_database_error()
+                .and_then(|e| e.code())
+                .is_some_and(|code| code == "787") =>
+        {
+            return Err(AppError::UserError((
+                StatusCode::BAD_REQUEST,
+                "Invalid parent id".into(),
+            )))
+        }
         Err(e) => return Err(e.into()),
         _ => {}
     }
@@ -454,6 +501,9 @@ pub enum UpdateFile {
             content_encoding = "base64"
         )]
         encrypted_key: String,
+        /// The new nonce for the encryption key
+        #[schema(example = "nonce", content_encoding = "base64")]
+        key_nonce: Option<String>,
     },
     /// Rename the file
     #[serde(rename_all = "camelCase")]
@@ -552,7 +602,14 @@ pub async fn update_file(
         UpdateFile::Move {
             parent_id,
             encrypted_key,
+            key_nonce,
         } => {
+            if parent_id.is_some() != key_nonce.is_some() {
+                return Err(AppError::UserError((
+                    StatusCode::BAD_REQUEST,
+                    "A new nonce is only needed if the file does not have a parent id".into(),
+                )));
+            }
             // Make sure that the target parent file being has the same owner to
             // prevent tampering with the source file.
             // We also include a children query here to ensure that the
@@ -648,9 +705,10 @@ pub async fn update_file(
 
             // Update the parent id of the file
             sqlx::query!(
-                "UPDATE file SET parent_id = ?, encrypted_key = ? WHERE id = ?",
+                "UPDATE file SET parent_id = ?, encrypted_key = ?, key_nonce = ? WHERE id = ?",
                 parent_id,
                 encrypted_key,
+                key_nonce,
                 id
             )
             .execute(&state.pool)
@@ -744,21 +802,24 @@ impl FileMetadata {
         let child_uuid = Uuid::try_parse_ascii(b"21f981a7-d21f-4aa5-9f6b-09005235236a").unwrap();
         let user_id = Uuid::try_parse_ascii(b"dae2b0f0-d84b-42c8-aebd-58a71ee1fb86").unwrap();
 
-        let now = Utc::now();
+        let date = Utc.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap();
         let first = FileMetadata {
             id: parent_uuid,
             upload: UploadMetadata {
                 encrypted_file_name: "encryptedFileName".into(),
                 encrypted_mime_type: Some("encryptedMimeType".into()),
                 encrypted_key: "encryptedKey".into(),
-                nonce: "exampleNonce".into(),
+                file_nonce: Some("exampleNonce".into()),
+                key_nonce: Some("exampleNonce".into()),
+                name_nonce: "exampleNonce".into(),
+                mime_type_nonce: Some("exampleNonce".into()),
                 is_directory: true,
                 parent_id: None,
             },
             size: 0,
             edit_permission: None,
-            created_at: now,
-            modified_at: now,
+            created_at: date,
+            modified_at: date,
             owner_id: Some(user_id),
             uploader_id: Some(user_id),
             children: vec![child_uuid],
@@ -769,13 +830,16 @@ impl FileMetadata {
                 encrypted_file_name: "encryptedFileName".into(),
                 encrypted_mime_type: Some("encryptedMimeType".into()),
                 encrypted_key: "encryptedKey".into(),
-                nonce: "exampleNonce".into(),
+                file_nonce: Some("exampleNonce".into()),
+                key_nonce: Some("exampleNonce".into()),
+                name_nonce: "exampleNonce".into(),
+                mime_type_nonce: Some("exampleNonce".into()),
                 is_directory: false,
                 parent_id: Some(parent_uuid),
             },
             size: 32,
-            created_at: now,
-            modified_at: now,
+            created_at: date,
+            modified_at: date,
             owner_id: Some(user_id),
             uploader_id: Some(user_id),
             children: vec![],
@@ -840,7 +904,10 @@ pub async fn get_file_metadata(
                     encrypted_key, 
                     owner_id,
                     uploader_id,
-                    nonce, 
+                    file_nonce, 
+                    key_nonce, 
+                    name_nonce, 
+                    mime_type_nonce, 
                     is_directory, 
                     mime,
                     size,
@@ -861,7 +928,10 @@ pub async fn get_file_metadata(
                     f.encrypted_key, 
                     f.owner_id,
                     f.uploader_id,
-                    f.nonce, 
+                    f.file_nonce, 
+                    f.key_nonce, 
+                    f.name_nonce, 
+                    f.mime_type_nonce, 
                     f.is_directory, 
                     f.mime,
                     f.size,
@@ -882,7 +952,10 @@ pub async fn get_file_metadata(
                 encrypted_key, 
                 owner_id AS "owner_id: Uuid",
                 uploader_id AS "uploader_id: Uuid",
-                nonce, 
+                file_nonce AS "file_nonce?", 
+                key_nonce, 
+                name_nonce, 
+                mime_type_nonce AS "mime_type_nonce?", 
                 is_directory AS "is_directory!",
                 mime,
                 IIF(size - 16 < 0, 0, size - 16) AS "size!: i64",
@@ -914,7 +987,10 @@ pub async fn get_file_metadata(
                     encrypted_key, 
                     owner_id,
                     uploader_id,
-                    nonce, 
+                    file_nonce, 
+                    key_nonce, 
+                    name_nonce, 
+                    mime_type_nonce, 
                     is_directory, 
                     mime,
                     created_at,
@@ -934,7 +1010,10 @@ pub async fn get_file_metadata(
                     f.encrypted_key, 
                     f.owner_id,
                     f.uploader_id,
-                    f.nonce, 
+                    f.file_nonce, 
+                    f.key_nonce, 
+                    f.name_nonce, 
+                    f.mime_type_nonce, 
                     f.is_directory, 
                     f.mime,
                     f.created_at,
@@ -950,7 +1029,10 @@ pub async fn get_file_metadata(
                 encrypted_key, 
                 owner_id AS "owner_id: Uuid",
                 uploader_id AS "uploader_id: Uuid",
-                nonce, 
+                file_nonce AS "file_nonce?", 
+                key_nonce, 
+                name_nonce, 
+                mime_type_nonce AS "mime_type_nonce?", 
                 is_directory AS "is_directory!",
                 mime,
                 -- Ancestors are always directories so their size must
@@ -978,9 +1060,12 @@ pub async fn get_file_metadata(
                 encrypted_file_name: row.encrypted_name,
                 encrypted_mime_type: row.mime,
                 encrypted_key: row.encrypted_key,
-                nonce: row.nonce,
+                file_nonce: row.file_nonce,
                 is_directory: row.is_directory,
                 parent_id: row.parent_id,
+                key_nonce: row.key_nonce,
+                name_nonce: row.name_nonce,
+                mime_type_nonce: row.mime_type_nonce,
             },
             size: row.size,
             children: Vec::new(),
@@ -1004,9 +1089,12 @@ pub async fn get_file_metadata(
                 encrypted_file_name: row.encrypted_name,
                 encrypted_mime_type: row.mime,
                 encrypted_key: row.encrypted_key,
-                nonce: row.nonce,
+                file_nonce: row.file_nonce,
                 is_directory: row.is_directory,
                 parent_id: row.parent_id,
+                key_nonce: row.key_nonce,
+                name_nonce: row.name_nonce,
+                mime_type_nonce: row.mime_type_nonce,
             },
             size: row.size,
             children: Vec::new(),

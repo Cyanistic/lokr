@@ -285,18 +285,18 @@ export async function encryptAESKeyWithParentKey(
   return new Uint8Array(encryptedKey);
 }
 
+export function generateNonce(): Uint8Array {
+  return window.crypto.getRandomValues(new Uint8Array(12));
+}
+
 // Function to generate a random AES key
-export async function generateKeyAndNonce(): Promise<[CryptoKey, Uint8Array]> {
-  const nonce = window.crypto.getRandomValues(new Uint8Array(12)); // 12-byte nonce for AES-GCM
-  return [
-    await window.crypto.subtle.generateKey(
-      {
-        name: "AES-GCM",
-        length: 256,
-      },
-      true,
-      ["encrypt", "decrypt", "wrapKey", "unwrapKey"],
-    ),
-    nonce,
-  ];
+export async function generateKey(): Promise<CryptoKey> {
+  return await window.crypto.subtle.generateKey(
+    {
+      name: "AES-GCM",
+      length: 256,
+    },
+    true,
+    ["encrypt", "decrypt", "wrapKey", "unwrapKey"],
+  );
 }

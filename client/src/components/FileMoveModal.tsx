@@ -19,9 +19,9 @@ import { useMemo, useState } from "react";
 import { useErrorToast } from "./ErrorToastProvider";
 import { API } from "../utils";
 import {
-  base64ToArrayBuffer,
   bufferToBase64,
   encryptAESKeyWithParentKey,
+  generateNonce,
 } from "../cryptoFunctions";
 import { BreadcrumbsNavigation } from "./BreadcrumbsNavigation";
 import { handleNavigate } from "../pages/FileExplorer";
@@ -81,9 +81,11 @@ export default function FileMoveModal({
       const targetFolder = targetFolderId ? files[targetFolderId] : null;
       let parentKey;
       let algorithm;
+      let keyNonce;
       if (targetFolder) {
+        keyNonce = generateNonce();
         parentKey = targetFolder.key;
-        algorithm = { name: "AES-GCM", iv: base64ToArrayBuffer(file.nonce) };
+        algorithm = { name: "AES-GCM", iv: keyNonce };
       } else if (targetFolder === null) {
         parentKey = userPublicKey;
         algorithm = { name: "RSA-OAEP" };
@@ -112,6 +114,7 @@ export default function FileMoveModal({
         encryptedKey: bufferToBase64(
           await encryptAESKeyWithParentKey(parentKey, file.key, algorithm),
         ),
+        keyNonce: keyNonce ? bufferToBase64(keyNonce) : undefined,
       });
 
       if (!res.ok) throw res.error;

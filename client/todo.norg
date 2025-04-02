@@ -40,6 +40,8 @@
   --- (x) Viewing files shared directly
   - ( ) Add proper login screen for totp verification
   - ( ) Add preferences menu
+  - ( ) Add file renaming modal
+  - ( ) Add file deletion modal
   - ( ) Properly handle anonymous uploads
   -- ( ) Do not show an error on home page when the user is not logged in
   -- ( ) Provide a share link after a successful anonymous upload

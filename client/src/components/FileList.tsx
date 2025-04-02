@@ -7,7 +7,7 @@ import {
   type GridRenderCellParams,
   type GridSortModel,
 } from "@mui/x-data-grid";
-import { Avatar, Box, Typography } from "@mui/material";
+import { Avatar, Box, Tooltip, Typography } from "@mui/material";
 import { FileMetadata } from "../types";
 import { PublicUser } from "../myApi";
 import { getFileIcon } from "../pages/FileExplorer";
@@ -166,42 +166,56 @@ export default function FileList({
       field: "createdAtDate",
       headerName: "Created",
       width: 120,
-      valueFormatter: (value?: Date) => {
-        if (!value) {
-          return new Date().toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-          });
-        }
-        if (new Date().toDateString() === value.toDateString()) {
-          return value.toLocaleTimeString([], {
+      renderCell: (params: GridRenderCellParams) => {
+        const value: Date | undefined = params.value;
+        let dateString;
+        if (new Date().toDateString() === value?.toDateString()) {
+          dateString = value.toLocaleTimeString([], {
             hour: "2-digit",
             minute: "2-digit",
           });
         } else {
-          return value.toLocaleDateString();
+          dateString = value?.toLocaleDateString();
         }
+        return (
+          <Tooltip title={(value ?? new Date()).toLocaleString()}>
+            <span>
+              {dateString ??
+                new Date().toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+            </span>
+          </Tooltip>
+        );
       },
     },
     {
       field: "modifiedAtDate",
       headerName: "Modified",
       width: 120,
-      valueFormatter: (value?: Date) => {
-        if (!value) {
-          return new Date().toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-          });
-        }
-        if (new Date().toDateString() === value.toDateString()) {
-          return value.toLocaleTimeString([], {
+      renderCell: (params: GridRenderCellParams) => {
+        const value: Date | undefined = params.value;
+        let dateString;
+        if (new Date().toDateString() === value?.toDateString()) {
+          dateString = value.toLocaleTimeString([], {
             hour: "2-digit",
             minute: "2-digit",
           });
         } else {
-          return value.toLocaleDateString();
+          dateString = value?.toLocaleDateString();
         }
+        return (
+          <Tooltip title={(value ?? new Date()).toLocaleString()}>
+            <span>
+              {dateString ??
+                new Date().toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+            </span>
+          </Tooltip>
+        );
       },
     },
     {

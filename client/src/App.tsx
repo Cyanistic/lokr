@@ -9,7 +9,7 @@ import {
 } from "react-router-dom";
 import Register from "./pages/Register";
 import Login from "./pages/Login";
-import Upload from "./pages/Upload";
+import Upload from "./components/Upload";
 import TestPage from "./pages/TestPage";
 import TestPreviewPage from "./pages/TestPreviewPage";
 import NotFound from "./pages/404Page.tsx";

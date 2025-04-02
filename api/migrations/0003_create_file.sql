@@ -4,7 +4,10 @@ CREATE TABLE file (
     uploader_id BLOB,	 -- User ID of the person who uploaded the file
     parent_id BLOB,              -- UUIDv7 of the parent directory, NULL for root
     encrypted_key TEXT NOT NULL, -- Ed25519-encrypted AES key
-    nonce TEXT NOT NULL,         -- 12-byte AES-GCM nonce
+    file_nonce TEXT CHECK(file_nonce IS NULL = is_directory),         -- 12-byte AES-GCM nonce may be null if the file is a directory
+    key_nonce TEXT CHECK(key_nonce IS NOT NULL OR parent_id IS NULL), -- 12-byte AES-GCM nonce may be null it the file is in the root directory
+    name_nonce TEXT NOT NULL,         -- 12-byte AES-GCM nonce
+    mime_type_nonce TEXT CHECK((mime_type_nonce IS NULL) = (mime IS NULL)), -- 12-byte AES-GCM nonce
     encrypted_name TEXT NOT NULL,          -- Encrypted filename
     mime TEXT,                   -- Encrypted MIME type
     size INTEGER NOT NULL DEFAULT 0 CHECK(size >= 0),      -- Encrypted size, should be 0 for directories
@@ -36,7 +39,10 @@ BEGIN
     NEW.size + 
     -- NULL values consume a single byte
     COALESCE(LENGTH(NEW.encrypted_key), 1) +
-    COALESCE(LENGTH(NEW.nonce), 1) +
+    COALESCE(LENGTH(NEW.file_nonce), 1) +
+    COALESCE(LENGTH(NEW.key_nonce), 1) +
+    COALESCE(LENGTH(NEW.name_nonce), 1) +
+    COALESCE(LENGTH(NEW.mime_type_nonce), 1) +
     COALESCE(LENGTH(NEW.encrypted_name), 1) +
     COALESCE(LENGTH(NEW.mime), 1) +
     IIF(NEW.parent_id IS NULL, 1, 16) +
@@ -52,7 +58,10 @@ BEGIN
 	OLD.size + 
 	-- NULL values consume a single byte
 	COALESCE(LENGTH(OLD.encrypted_key), 1) +
-	COALESCE(LENGTH(OLD.nonce), 1) +
+	COALESCE(LENGTH(OLD.file_nonce), 1) +
+	COALESCE(LENGTH(OLD.key_nonce), 1) +
+	COALESCE(LENGTH(OLD.name_nonce), 1) +
+	COALESCE(LENGTH(OLD.mime_type_nonce), 1) +
 	COALESCE(LENGTH(OLD.encrypted_name), 1) +
 	COALESCE(LENGTH(OLD.mime), 1) +
 	IIF(OLD.parent_id IS NULL, 1, 16) +
@@ -69,7 +78,11 @@ BEGIN
 	OLD.size + 
 	-- NULL values consume a single byte
 	COALESCE(LENGTH(OLD.encrypted_key), 1) +
-	COALESCE(LENGTH(OLD.nonce), 1) +
+	COALESCE(LENGTH(OLD.file_nonce), 1) +
+	COALESCE(LENGTH(OLD.key_nonce), 1) +
+	COALESCE(LENGTH(OLD.name_nonce), 1) +
+	COALESCE(LENGTH(OLD.mime_type_nonce), 1) +
+	COALESCE(LENGTH(OLD.encrypted_name), 1) +
 	COALESCE(LENGTH(OLD.encrypted_name), 1) +
 	COALESCE(LENGTH(OLD.mime), 1) +
 	IIF(OLD.parent_id IS NULL, 1, 16) +
@@ -82,7 +95,10 @@ BEGIN
     NEW.size + 
     -- NULL values consume a single byte
     COALESCE(LENGTH(NEW.encrypted_key), 1) +
-    COALESCE(LENGTH(NEW.nonce), 1) +
+    COALESCE(LENGTH(NEW.file_nonce), 1) +
+    COALESCE(LENGTH(NEW.key_nonce), 1) +
+    COALESCE(LENGTH(NEW.name_nonce), 1) +
+    COALESCE(LENGTH(NEW.mime_type_nonce), 1) +
     COALESCE(LENGTH(NEW.encrypted_name), 1) +
     COALESCE(LENGTH(NEW.mime), 1) +
     IIF(NEW.parent_id IS NULL, 1, 16) +

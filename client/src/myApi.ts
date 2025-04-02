@@ -104,7 +104,7 @@ export type FileMetadata = UploadMetadata & {
 };
 
 export interface FileResponse {
-  /** @example {"123e4567-e89b-12d3-a456-426614174000":{"children":["21f981a7-d21f-4aa5-9f6b-09005235236a"],"createdAt":"2025-04-01T23:14:22.617886638Z","encryptedFileName":"encryptedFileName","encryptedKey":"encryptedKey","encryptedMimeType":"encryptedMimeType","id":"123e4567-e89b-12d3-a456-426614174000","isDirectory":true,"modifiedAt":"2025-04-01T23:14:22.617886638Z","nonce":"exampleNonce","ownerId":"dae2b0f0-d84b-42c8-aebd-58a71ee1fb86","size":0,"uploaderId":"dae2b0f0-d84b-42c8-aebd-58a71ee1fb86"},"21f981a7-d21f-4aa5-9f6b-09005235236a":{"createdAt":"2025-04-01T23:14:22.617886638Z","encryptedFileName":"encryptedFileName","encryptedKey":"encryptedKey","encryptedMimeType":"encryptedMimeType","id":"21f981a7-d21f-4aa5-9f6b-09005235236a","isDirectory":false,"modifiedAt":"2025-04-01T23:14:22.617886638Z","nonce":"exampleNonce","ownerId":"dae2b0f0-d84b-42c8-aebd-58a71ee1fb86","parentId":"123e4567-e89b-12d3-a456-426614174000","size":32,"uploaderId":"dae2b0f0-d84b-42c8-aebd-58a71ee1fb86"}} */
+  /** @example {"123e4567-e89b-12d3-a456-426614174000":{"children":["21f981a7-d21f-4aa5-9f6b-09005235236a"],"createdAt":"2024-01-01T00:00:00Z","encryptedFileName":"encryptedFileName","encryptedKey":"encryptedKey","encryptedMimeType":"encryptedMimeType","fileNonce":"exampleNonce","id":"123e4567-e89b-12d3-a456-426614174000","isDirectory":true,"keyNonce":"exampleNonce","mimeTypeNonce":"exampleNonce","modifiedAt":"2024-01-01T00:00:00Z","nameNonce":"exampleNonce","ownerId":"dae2b0f0-d84b-42c8-aebd-58a71ee1fb86","size":0,"uploaderId":"dae2b0f0-d84b-42c8-aebd-58a71ee1fb86"},"21f981a7-d21f-4aa5-9f6b-09005235236a":{"createdAt":"2024-01-01T00:00:00Z","encryptedFileName":"encryptedFileName","encryptedKey":"encryptedKey","encryptedMimeType":"encryptedMimeType","fileNonce":"exampleNonce","id":"21f981a7-d21f-4aa5-9f6b-09005235236a","isDirectory":false,"keyNonce":"exampleNonce","mimeTypeNonce":"exampleNonce","modifiedAt":"2024-01-01T00:00:00Z","nameNonce":"exampleNonce","ownerId":"dae2b0f0-d84b-42c8-aebd-58a71ee1fb86","parentId":"123e4567-e89b-12d3-a456-426614174000","size":32,"uploaderId":"dae2b0f0-d84b-42c8-aebd-58a71ee1fb86"}} */
   files: Record<string, FileMetadata>;
   /** @example "123e4567-e89b-12d3-a456-426614174000" */
   root: string[];
@@ -381,6 +381,11 @@ export type UpdateFile =
       /** @example "38ZP4XEKLikREzyy9ttdaKLZ8WiWCd2i8ptTCwRwMlc=" */
       encryptedKey: string;
       /**
+       * The new nonce for the encryption key
+       * @example "nonce"
+       */
+      keyNonce?: string | null;
+      /**
        * The new parent id of the file
        * @format uuid
        */
@@ -415,10 +420,27 @@ export interface UploadMetadata {
    * Optional in case the mime type is not known
    */
   encryptedMimeType?: string | null;
+  /**
+   * We need to use a diffent nonce for each
+   * piece of data that we encrypt for security reasons
+   * The nonce for the file (not encrypted) can be null
+   * if the file is a directory
+   */
+  fileNonce?: string | null;
   /** Whether the file is a directory */
   isDirectory?: boolean;
-  /** The nonce for the file (not encrypted) */
-  nonce: string;
+  /**
+   * The nonce for the encryption key (not encrypted)
+   * Not neeeded if the file is in the root directory
+   */
+  keyNonce?: string | null;
+  /**
+   * The nonce for the file mime type(not encrypted)
+   * can be null if the file does not have a mime type
+   */
+  mimeTypeNonce?: string | null;
+  /** The nonce for the file name (not encrypted) */
+  nameNonce: string;
   /**
    * The direct parent id of the file
    * Should be null if in the root directory

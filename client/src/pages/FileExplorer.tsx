@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import Upload from "./Upload";
+import Upload from "../components/Upload";
 import {
   Folder as FolderIcon,
   ViewModule as ViewModuleIcon,
@@ -25,9 +25,10 @@ import {
   decryptText,
   encryptText,
   encryptAESKeyWithParentKey,
-  generateKeyAndNonce,
+  generateKey,
   bufferToBase64,
   base64ToArrayBuffer,
+  generateNonce,
 } from "../cryptoFunctions";
 import {
   NavigateOptions,
@@ -327,8 +328,12 @@ export default function FileExplorer(
 
     // Convert response to a Blob
     const dataBuffer = await response.arrayBuffer();
+    if (!file.fileNonce){
+      showError("Unable to decrypt file for downloading. A file nonce was not found.");
+      return;
+    }
     const fileData = await crypto.subtle.decrypt(
-      { name: "AES-GCM", iv: base64ToArrayBuffer(file.nonce) },
+      { name: "AES-GCM", iv: base64ToArrayBuffer(file.fileNonce) },
       file.key,
       dataBuffer,
     );
@@ -354,6 +359,7 @@ export default function FileExplorer(
     }
     let folderQueue: Record<string, JSZip> = { [folder.id]: zipFolder };
 
+    try {
     while (fileQueue && fileQueue.length > 0) {
       let nextFiles: string[] = [];
       let nextFolders: Record<string, JSZip> = {};
@@ -378,8 +384,9 @@ export default function FileExplorer(
             const response = await API.api.getFile(f.id);
             if (!response.ok) throw response.error;
             const dataBuffer = await response.arrayBuffer();
+            if (!f.fileNonce) throw `No file nonce found for ${f.id}`;
             const fileData = await crypto.subtle.decrypt(
-              { name: "AES-GCM", iv: base64ToArrayBuffer(f.nonce) },
+              { name: "AES-GCM", iv: base64ToArrayBuffer(f.fileNonce) },
               f.key,
               dataBuffer,
             );
@@ -389,6 +396,9 @@ export default function FileExplorer(
       );
       fileQueue = nextFiles;
       folderQueue = nextFolders;
+    }
+    } catch (error){
+      showError("Unable to download folder", error);
     }
 
     const content = await zip.generateAsync({ type: "blob" });
@@ -571,7 +581,6 @@ export default function FileExplorer(
             let unwrapAlgorithm;
             let mimeType;
             let key;
-            const nonce = base64ToArrayBuffer(f.nonce);
             /// Update the permissions of the children
             /// if the current file has edit permissions
             if (f.children) {
@@ -580,8 +589,11 @@ export default function FileExplorer(
                 tempFiles[child].editPermission ||= f.editPermission;
               }
             }
-            if (f.parentId) {
-              unwrapAlgorithm = { name: "AES-GCM", iv: nonce } as AesGcmParams;
+            if (f.parentId && f.keyNonce) {
+              unwrapAlgorithm = {
+                name: "AES-GCM",
+                iv: base64ToArrayBuffer(f.keyNonce),
+              } as AesGcmParams;
               unwrapKey = tempFiles[f.parentId].key;
             } else {
               // If this is a share link and there is no parent id
@@ -590,10 +602,6 @@ export default function FileExplorer(
               // decrypting the key for this file because
               // we already have it.
               if (type === "link") {
-                unwrapAlgorithm = {
-                  name: "AES-GCM",
-                  iv: nonce,
-                } as AesGcmParams;
                 key = linkKey;
               } else {
                 unwrapAlgorithm = { name: "RSA-OAEP" } as RsaOaepParams;
@@ -619,9 +627,17 @@ export default function FileExplorer(
                 unwrapAlgorithm,
               );
             }
-            const name = await decryptText(f.encryptedFileName, key, nonce);
-            if (f.encryptedMimeType) {
-              mimeType = await decryptText(f.encryptedMimeType, key, nonce);
+            const name = await decryptText(
+              f.encryptedFileName,
+              key,
+              base64ToArrayBuffer(f.nameNonce),
+            );
+            if (f.encryptedMimeType && f.mimeTypeNonce) {
+              mimeType = await decryptText(
+                f.encryptedMimeType,
+                key,
+                base64ToArrayBuffer(f.mimeTypeNonce),
+              );
             }
             tempFiles[fId] = {
               ...f,
@@ -770,9 +786,11 @@ export default function FileExplorer(
       return;
     }
     try {
-      const [aesKey, nonce] = await generateKeyAndNonce();
+      const aesKey = await generateKey();
       let parentKey: CryptoKey;
       let algorithm: AesGcmParams | RsaOaepParams;
+      let keyNonce;
+      const nameNonce = generateNonce();
       if (parentId) {
         if (files[parentId].key) {
           parentKey = files[parentId].key;
@@ -780,7 +798,8 @@ export default function FileExplorer(
           console.error("Could not find folder parent key");
           return;
         }
-        algorithm = { name: "AES-GCM", iv: nonce };
+        keyNonce = generateNonce();
+        algorithm = { name: "AES-GCM", iv: keyNonce };
       } else {
         if (!userPublicKey) {
           showError("User public key not loaded");
@@ -789,7 +808,7 @@ export default function FileExplorer(
         parentKey = userPublicKey;
         algorithm = { name: "RSA-OAEP" };
       }
-      const encryptedName = await encryptText(aesKey, folderName, nonce);
+      const encryptedName = await encryptText(aesKey, folderName, nameNonce);
       const encryptedNameB64 = btoa(String.fromCharCode(...encryptedName));
       const encryptedKey = bufferToBase64(
         await encryptAESKeyWithParentKey(parentKey, aesKey, algorithm),
@@ -799,14 +818,15 @@ export default function FileExplorer(
         encryptedFileName: encryptedNameB64,
         encryptedKey: encryptedKey,
         isDirectory: true,
-        nonce: bufferToBase64(nonce.buffer),
+        nameNonce: bufferToBase64(nameNonce),
+        keyNonce: keyNonce ? bufferToBase64(keyNonce) : undefined,
         uploaderId: (await localforage.getItem("userId")) || undefined,
         parentId,
       };
 
       const resp = await API.api.uploadFile({
         metadata,
-        linkId: linkId || null,
+        linkId: linkId || "",
       });
       if (!resp.ok) throw resp.error;
       fetchFiles();
@@ -897,18 +917,8 @@ export default function FileExplorer(
                 parentId={parentId}
                 parentKey={parentId ? files[parentId]?.key : null}
                 linkId={linkId}
-                onUpload={async (file) => {
-                  file.uploaderId = (await localforage.getItem("userId")) || "";
-                  file.ownerId =
-                    files[parentId ?? ""]?.ownerId || file.uploaderId;
-                  const tempFiles = { ...files };
-                  tempFiles[file.id] = file;
-                  if (file.parentId) {
-                    tempFiles[file.parentId].children?.push(file.id);
-                  } else {
-                    setRoot(new Set([...root, file.id]));
-                  }
-                  setFiles(tempFiles);
+                onUpload={async () => {
+                  await fetchFiles();
                 }}
                 onClose={() => setShowUpload(false)}
               />

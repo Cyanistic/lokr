@@ -208,11 +208,17 @@ export function FileSidebar({
                 display: "flex",
                 justifyContent: "center",
                 px: 1,
-                width: "100%"
+                width: "100%",
               }}
             >
               {collapsed ? (
-                <Tooltip title={!editor && current !== "files" ? "You don't have permission to create folders here" : "New Folder"}>
+                <Tooltip
+                  title={
+                    !editor && current !== "files"
+                      ? "You don't have permission to create folders here"
+                      : "New Folder"
+                  }
+                >
                   <span>
                     <Fab
                       color="primary"
@@ -226,7 +232,13 @@ export function FileSidebar({
                   </span>
                 </Tooltip>
               ) : (
-                <Tooltip title={!editor && current !== "files" ? "You don't have permission to create folders here" : ""}>
+                <Tooltip
+                  title={
+                    !editor && current !== "files"
+                      ? "You don't have permission to create folders here"
+                      : ""
+                  }
+                >
                   <span style={{ width: "100%" }}>
                     <Button
                       variant="contained"
