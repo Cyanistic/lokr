@@ -1,0 +1,67 @@
+name: Deploy Application
+
+on:
+  workflow_dispatch:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Build Rust backend
+        working-directory: ./api
+        run: cargo b -r
+      - name: Transfer Backend
+        uses: RowenTey/cloudflared-scp-action@6704878e1b42c1d31e876f75c29d344d291168b5
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          private_key: ${{ secrets.PRIVATE_KEY }}
+          from: ./api/target/release/lokr-api
+          to: /home/${{ secrets.SSH_USERNAME }}/lokr/api
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "latest"
+
+      - name: Build Frontend
+        working-directory: ./client
+        run: |
+          npm install
+          npm run build
+
+      - name: Transfer Frontend
+        uses: RowenTey/cloudflared-scp-action@6704878e1b42c1d31e876f75c29d344d291168b5
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          private_key: ${{ secrets.PRIVATE_KEY }}
+          from: ./client/dist
+          to: /home/${{ secrets.SSH_USERNAME }}/lokr/client
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    steps:
+      - name: Restart lokr service
+        uses: and-fm/cloudflared-ssh-action@e6addaa62d2fe55c6928948e6b86e1d7d35f71aa
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          private_key_filename: key.pem
+          private_key_value: ${{ secrets.SSH_PRIVATE_KEY_VALUE }}
+          commands: sudo systemctl restart lokr

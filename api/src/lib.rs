@@ -11,8 +11,8 @@ use std::{
     time::Duration,
 };
 use tower::ServiceBuilder;
-use tower_governor::governor::GovernorConfigBuilder;
 use tower_governor::GovernorLayer;
+use tower_governor::{governor::GovernorConfigBuilder, key_extractor::SmartIpKeyExtractor};
 use tower_http::{
     cors::{AllowOrigin, CorsLayer},
     services::{ServeDir, ServeFile},
@@ -217,6 +217,7 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
     let ip_governor_config = Arc::new(unsafe {
         GovernorConfigBuilder::default()
             .const_period(Duration::from_millis(500))
+            .key_extractor(SmartIpKeyExtractor)
             .burst_size(20)
             .finish()
             .unwrap_unchecked()
