@@ -2,14 +2,13 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import App from "./App.tsx";
-import { ThemeProvider } from "@mui/material";
-import theme from "./theme.tsx";
 import { ErrorToastProvider } from "./components/ErrorToastProvider.tsx";
 import { ErrorBoundary } from "react-error-boundary";
 import Error from "./components/Error.tsx";
+import MuiThemeProviderComponent from "./components/MuiThemeProvider.tsx";
 
 createRoot(document.getElementById("root")!).render(
-  <ThemeProvider theme={theme}>
+  <MuiThemeProviderComponent>
     <StrictMode>
       <ErrorToastProvider>
         <ErrorBoundary
@@ -21,5 +20,5 @@ createRoot(document.getElementById("root")!).render(
         </ErrorBoundary>
       </ErrorToastProvider>
     </StrictMode>
-  </ThemeProvider>,
+  </MuiThemeProviderComponent>,
 );

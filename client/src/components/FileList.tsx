@@ -333,7 +333,7 @@ export default function FileList({
             borderBottom: "none",
           },
           // border: 1,
-          borderColor: "divider",
+          // borderColor: "divider",
           borderRadius: 4,
           "& .MuiDataGrid-columnHeaders": {
             backgroundColor: "background.paper",

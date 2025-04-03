@@ -3,9 +3,7 @@ import {
   BrowserRouter,
   Routes,
   Route,
-  Link,
   Navigate,
-  useNavigate,
 } from "react-router-dom";
 import Register from "./pages/Register";
 import Login from "./pages/Login";
@@ -14,21 +12,16 @@ import TestPage from "./pages/TestPage";
 import TestPreviewPage from "./pages/TestPreviewPage";
 import NotFound from "./pages/404Page.tsx";
 import About from "./pages/About.tsx"
-import { isAuthenticated, logout } from "./utils.ts";
+import { isAuthenticated } from "./utils.ts";
 import { ProtectedRoute } from "./utils/ProtectedRoute.tsx";
 import React from "react";
 import { FaLink, FaShieldAlt, FaLock } from "react-icons/fa";
 import "./SecurityFeatures.css";
 const Profile = React.lazy(() => import("./pages/Profile.tsx"));
 const FileExplorer = React.lazy(() => import("./pages/FileExplorer.tsx"));
-import "./NavBar.css";
-import { ThemeProvider, CssBaseline } from "@mui/material";
-import { createAppTheme } from "./pages/LoginTheme.tsx";
-import { useMediaQuery } from "@mui/material";
+import Navigation from "./components/Navbar.tsx"
 
 function App() {
-  const prefersDarkMode = useMediaQuery("(prefers-color-scheme: dark)");
-  const theme = createAppTheme(prefersDarkMode ? "dark" : "light");
 
   return (
     <>
@@ -48,7 +41,7 @@ function App() {
           />
           <Route path="/home" element={<Home />} />
           <Route path="/about" element={<About />} />
-          <Route path="/login" element={<ThemeProvider theme={theme}><CssBaseline /><Login /></ThemeProvider>} />
+          <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="*" element={<NotFound />} />
           <Route element={<ProtectedRoute />}>
@@ -71,59 +64,6 @@ function App() {
   );
 }
 
-//Navigation Bar
-function Navigation() {
-  const navigate = useNavigate();
-  return (
-    <nav className="navbar">
-      <div className="nav-left">
-        <Link to="/home">
-          <span role="img" aria-label="lock">
-            🔒
-          </span>
-          Lokr
-        </Link>
-        <div className="nav-links">
-          <Link to="/about">About</Link>
-          {isAuthenticated() ? (
-            <>
-              <Link to="/test">Share Files</Link>
-              <Link to="/files">Files</Link>
-            </>
-          ) : (
-            <></>
-          )}
-        </div>
-      </div>
-
-      <div className="nav-actions">
-        {isAuthenticated() ? (
-          <>
-            <Link to="/profile">Profile</Link>
-            <Link
-              to="/home"
-              onClick={async (e) => {
-                e.preventDefault();
-                if (await logout()) {
-                  navigate("/home");
-                }
-              }}
-            >
-              Logout
-            </Link>
-          </>
-        ) : (
-          <>
-            <Link to="/login">Sign in</Link>
-            <Link to="/register">
-              <button className="b1">Get Started</button>
-            </Link>
-          </>
-        )}
-      </div>
-    </nav>
-  );
-}
 
 //Home Page
 function Home() {

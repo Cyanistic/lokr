@@ -579,9 +579,8 @@ function Profile() {
     container: {
       marginTop: "30px",
       padding: "15px",
-      border: "1px solid #eee",
+      border: "1px solid",
       borderRadius: "10px",
-      backgroundColor: "#f9f9f9",
     },
     list: {
       listStyle: "none",
@@ -590,7 +589,6 @@ function Profile() {
     item: {
       marginBottom: "15px",
       padding: "10px",
-      backgroundColor: "#fff",
       borderRadius: "5px",
       boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
     },
