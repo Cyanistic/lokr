@@ -1,6 +1,5 @@
 "use client"
 
-
 import { Select, MenuItem } from "@mui/material"
 import type React from "react"
 import { useState, useEffect, useRef, useCallback } from "react"
@@ -21,6 +20,34 @@ import "react-pdf/dist/esm/Page/AnnotationLayer.css"
 import mammoth from "mammoth"
 
 pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.js"
+
+// Add this helper function before the FilePreviewModal component
+const getFileIcon = (file: { name: string; type: string; url: string } | null) => {
+  if (!file) return ""
+
+  const fileExtension = file.name.split(".").pop()?.toLowerCase()
+
+  // Return appropriate icon URL based on file type
+  if (file.type === "application/pdf" || fileExtension === "pdf") {
+    return "//ssl.gstatic.com/docs/doclist/images/mediatype/icon_3_pdf_x16.png"
+  } else if (file.type.startsWith("image/") || ["jpg", "jpeg", "png", "gif", "webp"].includes(fileExtension || "")) {
+    return "//ssl.gstatic.com/docs/doclist/images/mediatype/icon_1_image_x16.png"
+  } else if (file.type.startsWith("video/") || ["mp4", "mov", "webm"].includes(fileExtension || "")) {
+    return "//ssl.gstatic.com/docs/doclist/images/mediatype/icon_1_video_x16.png"
+  } else if (file.type.startsWith("audio/") || ["mp3", "wav", "m4a"].includes(fileExtension || "")) {
+    return "//ssl.gstatic.com/docs/doclist/images/mediatype/icon_1_audio_x16.png"
+  } else if (
+    file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+    ["doc", "docx"].includes(fileExtension || "")
+  ) {
+    return "//ssl.gstatic.com/docs/doclist/images/mediatype/icon_1_document_x16.png"
+  } else if (file.type === "text/plain" || fileExtension === "txt") {
+    return "//ssl.gstatic.com/docs/doclist/images/mediatype/icon_1_text_x16.png"
+  }
+
+  // Default icon
+  return "//ssl.gstatic.com/docs/doclist/images/mediatype/icon_1_generic_x16.png"
+}
 
 interface FilePreviewModalProps {
   isOpen: boolean
@@ -449,19 +476,18 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
     }
   }, [])
 
-
   // Replace the renderVideo function with this updated version that better matches Google Drive's player
   const renderVideo = () => {
-    console.log("🟦 renderVideo()");
-    console.log("📁 File:", file);
-    console.log("🎬 File type:", file?.type);
-    console.log("🎞️ File extension:", fileExtension);
-    console.log("🔊 Volume:", volume);
-    console.log("⏯️ Playing:", isPlaying);
-    console.log("📍 Current Time:", currentTime, "/", duration);
-    console.log("⚡ Playback Speed:", playbackSpeed);
-    console.log("🖥️ Viewport width:", window.innerWidth);
-  
+    console.log("🟦 renderVideo()")
+    console.log("📁 File:", file)
+    console.log("🎬 File type:", file?.type)
+    console.log("🎞️ File extension:", fileExtension)
+    console.log("🔊 Volume:", volume)
+    console.log("⏯️ Playing:", isPlaying)
+    console.log("📍 Current Time:", currentTime, "/", duration)
+    console.log("⚡ Playback Speed:", playbackSpeed)
+    console.log("🖥️ Viewport width:", window.innerWidth)
+
     return (
       <Box
         sx={{
@@ -475,54 +501,6 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
           py: 2,
         }}
       >
-        {/* Floating Translucent Top Bar */}
-        <Box
-          sx={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 64,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            px: 2,
-            background: "rgba(0, 0, 0, 0.5)",
-            zIndex: 10,
-            backdropFilter: "blur(8px)",
-            opacity: showControlsBar ? 1 : 0,
-            transition: "opacity 0.3s ease-in-out",
-          }}
-        >
-          <Typography
-            variant="subtitle2"
-            sx={{
-              color: "#fff",
-              fontSize: "15px",
-              fontWeight: 500,
-              overflow: "hidden",
-              whiteSpace: "nowrap",
-              textOverflow: "ellipsis",
-              maxWidth: "70%",
-            }}
-          >
-            {decodeURIComponent(file!.name)}
-          </Typography>
-          <Box>
-            <IconButton
-              href={file!.url}
-              download={file!.name}
-              size="small"
-              sx={{ color: "#fff" }}
-            >
-              <DownloadIcon />
-            </IconButton>
-            <IconButton onClick={onClose} size="small" sx={{ color: "#fff" }}>
-              <CloseIcon />
-            </IconButton>
-          </Box>
-        </Box>
-  
         {/* Video Player Container */}
         <Box
           sx={{
@@ -542,13 +520,13 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
             controls={false}
             onTimeUpdate={handleTimeUpdate}
             onLoadedMetadata={(e) => {
-              console.log("✅ Metadata loaded");
-              handleLoadedMetadata(e);
-              e.currentTarget.playbackRate = playbackSpeed;
+              console.log("✅ Metadata loaded")
+              handleLoadedMetadata(e)
+              e.currentTarget.playbackRate = playbackSpeed
             }}
             onEnded={() => {
-              console.log("🔚 Video ended");
-              setIsPlaying(false);
+              console.log("🔚 Video ended")
+              setIsPlaying(false)
             }}
             onClick={togglePlay}
             style={{
@@ -559,7 +537,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
               cursor: "pointer",
             }}
           />
-  
+
           {/* Overlay Play Button */}
           {!isPlaying && !loading && (
             <Box
@@ -584,7 +562,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
               <PlayArrowIcon sx={{ fontSize: 40, color: "white" }} />
             </Box>
           )}
-  
+
           {loading && (
             <CircularProgress
               size={48}
@@ -595,7 +573,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
             />
           )}
         </Box>
-  
+
         {/* Floating Bottom Controls Bar */}
         <Box
           sx={{
@@ -651,10 +629,10 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
               <Select
                 value={playbackSpeed}
                 onChange={(e) => {
-                  const speed = Number(e.target.value);
-                  setPlaybackSpeed(speed);
+                  const speed = Number(e.target.value)
+                  setPlaybackSpeed(speed)
                   if (videoRef.current) {
-                    videoRef.current.playbackRate = speed;
+                    videoRef.current.playbackRate = speed
                   }
                 }}
                 sx={{
@@ -700,11 +678,8 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
           </Box>
         </Box>
       </Box>
-    );
-  };
-  
-  
-  
+    )
+  }
 
   const renderImage = () => {
     return (
@@ -715,7 +690,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
           alignItems: "center",
           height: "100%",
           width: "100%",
-          backgroundColor: "#000",
+          backgroundColor: "transparent", // Changed from #000 to transparent
         }}
       >
         <img
@@ -826,11 +801,6 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
 
   if (!file) return null
 
-  const showZoomControls =
-    file.type === "application/pdf" ||
-    fileExtension === "pdf" ||
-    file.type.startsWith("image/") ||
-    ["jpg", "jpeg", "png", "gif", "bmp", "webp", "svg"].includes(fileExtension || "")
 
   // Also update the Dialog component to remove borders and make it more like Google Drive
   return (
@@ -845,41 +815,73 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
           maxWidth: "1120px",
           borderRadius: 0,
           overflow: "hidden",
-          backgroundColor: "#000",
+          backgroundColor: "rgba(0, 0, 0, 0.5)", // Much more transparent
+          backdropFilter: "blur(15px)", // Strong blur effect
         },
       }}
     >
       <Box
+        className="a-b-K a-b-K-Hyc8Sd"
+        role="toolbar"
         sx={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          px: 2,
-          py: 1,
+          px: 1.5,
+          py: 0.75,
+          backgroundColor: "rgba(48, 49, 52, 0.4)", // Much more transparent
+          backdropFilter: "blur(15px)", // Strong blur effect
+          color: "#e8eaed",
           borderBottom: "1px solid rgba(255,255,255,0.1)",
-          backgroundColor: "#000",
-          color: "white",
+          height: "64px",
         }}
       >
-        <Typography
-          variant="subtitle2"
-          sx={{
-            maxWidth: "70%",
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            color: "white",
-          }}
-        >
-          {decodeURIComponent(file.name)}
-        </Typography>
-
-        <Box>
-          <IconButton href={file.url} download={file.name} size="small" sx={{ color: "white" }}>
-            <DownloadIcon />
-          </IconButton>
-          <IconButton onClick={onClose} size="small" sx={{ color: "white" }}>
+        <Box sx={{ display: "flex", alignItems: "center", flex: 1 }}>
+          <IconButton onClick={onClose} sx={{ color: "#C4C7C5", mr: 1 }} aria-label="Close">
             <CloseIcon />
+          </IconButton>
+
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              gap: 1.5,
+            }}
+          >
+            {/* File icon based on type */}
+            <Box
+              sx={{
+                width: 20,
+                height: 20,
+                backgroundImage: `url(${getFileIcon(file)})`,
+                backgroundPosition: "left top",
+                backgroundRepeat: "no-repeat",
+                backgroundSize: "contain",
+              }}
+            />
+
+            {/* File name */}
+            <Typography
+              variant="body1"
+              sx={{
+                color: "#e8eaed",
+                fontWeight: 400,
+                fontSize: "15px",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                maxWidth: { xs: "200px", sm: "300px", md: "400px" },
+              }}
+            >
+              {file ? decodeURIComponent(file.name) : ""}
+            </Typography>
+          </Box>
+        </Box>
+
+        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+          {/* Download button */}
+          <IconButton href={file?.url} download={file?.name} sx={{ color: "#e8eaed" }} aria-label="Download">
+            <DownloadIcon />
           </IconButton>
         </Box>
       </Box>
@@ -892,7 +894,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
           position: "relative",
           display: "flex",
           flexDirection: "column",
-          bgcolor: "#000",
+          bgcolor: "transparent", // Completely transparent
           border: "none",
         }}
       >
@@ -970,38 +972,6 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
 
             <Box sx={{ mx: 1, height: "20px", borderLeft: "1px solid #666" }} />
 
-            <IconButton onClick={handleZoomOut} size="small" sx={{ color: "#fff" }}>
-              <ZoomOutIcon fontSize="small" />
-            </IconButton>
-            <IconButton onClick={handleZoomIn} size="small" sx={{ color: "#fff" }}>
-              <ZoomInIcon fontSize="small" />
-            </IconButton>
-            <IconButton onClick={handleResetZoom} size="small" sx={{ color: "#fff" }}>
-              <RestartAltIcon fontSize="small" />
-            </IconButton>
-          </Box>
-        )}
-
-        {/* Zoom Controls for Images */}
-        {showZoomControls && !numPages && (
-          <Box
-            sx={{
-              position: "absolute",
-              bottom: 16,
-              right: 16,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              borderRadius: "40px",
-              backdropFilter: "blur(8px)",
-              backgroundColor: "rgba(30, 30, 30, 0.6)",
-              color: "#fff",
-              px: 1.5,
-              py: 0.5,
-              gap: 1,
-              zIndex: 2,
-            }}
-          >
             <IconButton onClick={handleZoomOut} size="small" sx={{ color: "#fff" }}>
               <ZoomOutIcon fontSize="small" />
             </IconButton>
