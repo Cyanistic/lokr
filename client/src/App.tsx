@@ -22,8 +22,14 @@ import "./SecurityFeatures.css";
 const Profile = React.lazy(() => import("./pages/Profile.tsx"));
 const FileExplorer = React.lazy(() => import("./pages/FileExplorer.tsx"));
 import "./NavBar.css";
+import { ThemeProvider, CssBaseline } from "@mui/material";
+import { createAppTheme } from "./pages/LoginTheme.tsx";
+import { useMediaQuery } from "@mui/material";
 
 function App() {
+  const prefersDarkMode = useMediaQuery("(prefers-color-scheme: dark)");
+  const theme = createAppTheme(prefersDarkMode ? "dark" : "light");
+
   return (
     <>
       <BrowserRouter>
@@ -42,7 +48,7 @@ function App() {
           />
           <Route path="/home" element={<Home />} />
           <Route path="/about" element={<About />} />
-          <Route path="/login" element={<Login />} />
+          <Route path="/login" element={<ThemeProvider theme={theme}><CssBaseline /><Login /></ThemeProvider>} />
           <Route path="/register" element={<Register />} />
           <Route path="*" element={<NotFound />} />
           <Route element={<ProtectedRoute />}>

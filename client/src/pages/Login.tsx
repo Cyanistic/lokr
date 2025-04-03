@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import localforage from "localforage";
-import { Button, useTheme } from "@mui/material";
+import { Button, TextField, Typography, Box, Paper, IconButton } from "@mui/material";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { LoginUser, PublicUser } from "../types";
 import {
@@ -9,6 +9,8 @@ import {
   unwrapPrivateKey,
 } from "../cryptoFunctions";
 import { API } from "../utils";
+import { Visibility, VisibilityOff } from "@mui/icons-material";
+import { Lock } from "@mui/icons-material";
 
 async function getPasswordSalt(username: string): Promise<string | null> {
   const response = await API.api.searchUsers(username, { limit: 1, offset: 0 });
@@ -35,6 +37,7 @@ const Login: React.FC = () => {
   const [searchParams] = useSearchParams();
   const [showTotp, setShowTotp] = useState<boolean>(false);
   const navigate = useNavigate();
+  const [showPassword, setShowPassword] = useState(false);
 
   // Handle login submission
   const handleLogin = async (e: React.FormEvent) => {
@@ -135,78 +138,66 @@ const Login: React.FC = () => {
     }
   };
 
-  const theme = useTheme();
-
   return (
-    <div style={{ textAlign: "center", padding: "20px" }}>
-      <h2>Login</h2>
-      {errorMessage && <p style={{ color: "red" }}>{errorMessage}</p>}
-
-      <form onSubmit={handleLogin}>
-        <input
-          type="text"
-          placeholder="Username"
-          value={user.username ?? ""}
-          onChange={(e) => setUser({ ...user, username: e.target.value })}
-          required
-          style={{ padding: "8px", width: "200px" }}
-        />
-
-        <br />
-
-        <input
-          type="password"
-          placeholder="Password"
-          value={user.password ?? ""}
-          onChange={(e) => setUser({ ...user, password: e.target.value })}
-          required
-          style={{ padding: "8px", width: "200px", marginTop: "10px" }}
-        />
-
-        <br />
-
-        {/* Show TOTP field only if needed */}
-        {showTotp && (
-          <input
-            type="text"
-            placeholder="TOTP Code"
-            value={totpCode}
-            onChange={(e) => setTotpCode(e.target.value)}
+    <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh">
+      <Paper elevation={3} sx={{ p: 4, maxWidth: 400, textAlign: "center" }}>
+        <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" mb={2}>
+          <Lock sx={{ fontSize: 50, mb: 1 }} />
+          <Typography variant="h5" fontWeight="bold">
+            Sign In
+          </Typography>
+        </Box>
+        <Typography variant="body2" color="textSecondary" gutterBottom>
+          {errorMessage && <p style={{ color: "red" }}>{errorMessage}</p>}
+        </Typography>
+        <form onSubmit={handleLogin}>
+          <TextField
+            fullWidth
+            label="Username"
+            variant="outlined"
+            margin="normal"
+            value={user.username}
+            onChange={(e) => setUser({ ...user, username: e.target.value })}
             required
-            style={{ padding: "8px", width: "200px", marginTop: "10px" }}
           />
-        )}
-
-        <br />
-
-        {/*<button type="submit" style={{ marginTop: "10px", padding: "8px 20px", cursor: "pointer" }}>
-          Login
-        </button>*/}
-        <Button
-          type="submit"
-          variant="contained"
-          style={{
-            marginTop: "10px",
-            padding: "8px 20px",
-            cursor: "pointer",
-            backgroundColor:
-              theme.palette.mode === "dark" ? "#2f27ce" : "#3a31d8",
-            color: theme.palette.mode === "dark" ? "#050316" : "#eae9fc",
-          }}
-        >
-          Login
-        </Button>
-      </form>
-
-      <p>
-        Don't have an account?{" "}
-        <Link
-          to="/register" /*style={/*{ color: theme.palette.mode === 'dark' ? '#2f27ce': '#3a31d8' }*/
-        >
-          Register here
-        </Link>
-      </p>
-    </div>
+          <TextField
+            fullWidth
+            label="Password"
+            variant="outlined"
+            margin="normal"
+            type={showPassword ? "text" : "password"}
+            value={user.password}
+            onChange={(e) => setUser({ ...user, password: e.target.value })}
+            required
+            InputProps={{
+              endAdornment: (
+                <IconButton onClick={() => setShowPassword(!showPassword)}>
+                  {showPassword ? <VisibilityOff /> : <Visibility />}
+                </IconButton>
+              ),
+            }}
+          />
+          {showTotp && (
+            <TextField
+              fullWidth
+              label="TOTP Code"
+              variant="outlined"
+              margin="normal"
+              value={totpCode}
+              onChange={(e) => setTotpCode(e.target.value)}
+              required
+            />
+          )}
+          <Button fullWidth variant="contained" type="submit" sx={{ mt: 2 }}>
+            Sign in
+          </Button>
+        </form>
+        <Typography variant="body2" mt={2}>
+          Don't have an account? <Link to="/register">Create an account</Link>
+        </Typography>
+      </Paper>
+    </Box>
+    
   );
 };
 
