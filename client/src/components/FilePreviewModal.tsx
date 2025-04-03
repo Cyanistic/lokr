@@ -476,27 +476,39 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
               justifyContent: "space-between",
             }}
           >
-            <Box sx={{ display: "flex", alignItems: "center" }}>
-              <IconButton onClick={toggleMute} sx={{ color: "white" }}>
-                {isMuted ? <VolumeOffIcon /> : <VolumeUpIcon />}
-              </IconButton>
-              <Slider
-                value={volume}
-                min={0}
-                max={1}
-                step={0.01}
-                onChange={handleVolumeChange}
-                aria-label="Volume"
-                sx={{ color: "white", width: 100 }}
-              />
-            </Box>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <IconButton
+              onClick={toggleMute}
+              sx={{
+                color: "white",
+                padding: "6px", // tighter padding so it doesn't overlap with the slider
+                zIndex: 2, // make sure it's clickable above the slider
+              }}
+            >
+              {isMuted ? <VolumeOffIcon /> : <VolumeUpIcon />}
+            </IconButton>
+
+            <Slider
+              value={volume}
+              min={0}
+              max={1}
+              step={0.01}
+              onChange={handleVolumeChange}
+              aria-label="Volume"
+              sx={{
+                color: "white",
+                width: 100,
+                ml: 0.5,
+              }}
+            />
+          </Box>
 
             <IconButton
               onClick={togglePlay}
               sx={{
-                backgroundColor: "white",
-                color: "#333",
-                "&:hover": { backgroundColor: "#eee" },
+                backgroundColor: "#1976d2",
+                color: "white",
+                "&:hover": { backgroundColor: "#1565c0" },
               }}
             >
               {isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
@@ -540,7 +552,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
     console.log("📍 Current Time:", currentTime, "/", duration)
     console.log("⚡ Playback Speed:", playbackSpeed)
     console.log("🖥️ Viewport width:", window.innerWidth)
-
+  
     return (
       <Box
         sx={{
@@ -590,7 +602,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
               cursor: "pointer",
             }}
           />
-
+  
           {/* Overlay Play Button */}
           {!isPlaying && !loading && (
             <Box
@@ -600,7 +612,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
                 width: "68px",
                 height: "68px",
                 borderRadius: "50%",
-                backgroundColor: "rgba(0,0,0,0.6)",
+                backgroundColor: "#1976d2",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -608,14 +620,14 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
                 transition: "transform 0.2s",
                 "&:hover": {
                   transform: "scale(1.1)",
-                  backgroundColor: "rgba(0,0,0,0.7)",
+                  backgroundColor: "#1976d2",
                 },
               }}
             >
               <PlayArrowIcon sx={{ fontSize: 40, color: "white" }} />
             </Box>
           )}
-
+  
           {loading && (
             <CircularProgress
               size={48}
@@ -626,7 +638,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
             />
           )}
         </Box>
-
+  
         {/* Floating Bottom Controls Bar */}
         <Box
           sx={{
@@ -648,7 +660,6 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
             onChange={handleSeek}
             aria-label="Time"
             sx={{
-
               height: 4,
               "& .MuiSlider-thumb": {
                 width: 12,
@@ -671,13 +682,22 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
             }}
           >
             <Box sx={{ display: "flex", alignItems: "center" }}>
-              <IconButton onClick={togglePlay} sx={{ color: "white" }}>
-                {isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
-              </IconButton>
+            <IconButton
+              onClick={togglePlay}
+              sx={{
+                backgroundColor: "#1976d2", // blue background
+                color: "white",             // white icon
+                "&:hover": { backgroundColor: "#1565c0" }, // darker on hover
+              }}
+            >
+              {isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
+            </IconButton>
+
               <Typography variant="caption" sx={{ color: "white", ml: 1 }}>
                 {formatTime(currentTime)} / {formatTime(duration)}
               </Typography>
             </Box>
+  
             <Box sx={{ display: "flex", alignItems: "center" }}>
               <Select
                 value={playbackSpeed}
@@ -712,27 +732,41 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
                   </MenuItem>
                 ))}
               </Select>
-              <IconButton onClick={toggleMute} sx={{ color: "white" }}>
-                {isMuted ? <VolumeOffIcon /> : <VolumeUpIcon />}
-              </IconButton>
-              <Slider
-                value={volume}
-                min={0}
-                max={1}
-                step={0.01}
-                onChange={handleVolumeChange}
-                aria-label="Volume"
-                sx={{
-                  color: "white",
-                  width: 80,
-                }}
-              />
+  
+              {/* Volume Control Group (fixed layout) */}
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <IconButton
+                  onClick={toggleMute}
+                  sx={{
+                    color: "white",
+                    padding: "6px",
+                    zIndex: 2,
+                  }}
+                >
+                  {isMuted ? <VolumeOffIcon /> : <VolumeUpIcon />}
+                </IconButton>
+  
+                <Slider
+                  value={volume}
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  onChange={handleVolumeChange}
+                  aria-label="Volume"
+                  sx={{
+                    color: "white",
+                    width: 80,
+                    ml: 0.5,
+                  }}
+                />
+              </Box>
             </Box>
           </Box>
         </Box>
       </Box>
     )
   }
+  
 
   const renderImage = () => {
     return (
