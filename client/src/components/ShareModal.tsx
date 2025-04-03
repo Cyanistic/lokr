@@ -472,9 +472,8 @@ const ShareModal: React.FC<ShareModalProps> = ({
             <Box
               mt={3}
               p={2}
-              border="1px solid #ddd"
+              border="1px solid"
               borderRadius="8px"
-              bgcolor="#fafafa"
             >
               <Typography variant="subtitle1">People with access</Typography>
               <Box
@@ -582,9 +581,8 @@ const ShareModal: React.FC<ShareModalProps> = ({
             <Box
               mt={3}
               p={2}
-              border="1px solid #ddd"
+              border="1px solid"
               borderRadius="8px"
-              bgcolor="#fafafa"
             >
               <Typography variant="subtitle1">General access</Typography>
               <Box
@@ -666,9 +664,8 @@ const ShareModal: React.FC<ShareModalProps> = ({
             <Box
               mt={3}
               p={2}
-              border="1px solid #ddd"
+              border="1px solid"
               borderRadius="8px"
-              bgcolor="#fafafa"
             >
               <Typography variant="subtitle1">Active Links</Typography>
               <Box
