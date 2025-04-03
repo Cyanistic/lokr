@@ -15,6 +15,18 @@ import PlayArrowIcon from "@mui/icons-material/PlayArrow"
 import PauseIcon from "@mui/icons-material/Pause"
 import VolumeUpIcon from "@mui/icons-material/VolumeUp"
 import VolumeOffIcon from "@mui/icons-material/VolumeOff"
+import DescriptionIcon from "@mui/icons-material/Description"
+import ImageIcon from "@mui/icons-material/Image"
+import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf"
+import InsertDriveFileIcon from "@mui/icons-material/InsertDriveFile"
+import TableChartIcon from "@mui/icons-material/TableChart"
+import SlideshowIcon from "@mui/icons-material/Slideshow"
+import ArchiveIcon from "@mui/icons-material/Archive"
+import CodeIcon from "@mui/icons-material/Code"
+import MusicNoteIcon from "@mui/icons-material/MusicNote"
+import MovieIcon from "@mui/icons-material/Movie"
+import FolderIcon from "@mui/icons-material/Folder"
+
 import { Document, Page, pdfjs } from "react-pdf"
 import "react-pdf/dist/esm/Page/AnnotationLayer.css"
 import mammoth from "mammoth"
@@ -22,32 +34,44 @@ import mammoth from "mammoth"
 pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.js"
 
 // Add this helper function before the FilePreviewModal component
-const getFileIcon = (file: { name: string; type: string; url: string } | null) => {
-  if (!file) return ""
-
-  const fileExtension = file.name.split(".").pop()?.toLowerCase()
-
-  // Return appropriate icon URL based on file type
-  if (file.type === "application/pdf" || fileExtension === "pdf") {
-    return "//ssl.gstatic.com/docs/doclist/images/mediatype/icon_3_pdf_x16.png"
-  } else if (file.type.startsWith("image/") || ["jpg", "jpeg", "png", "gif", "webp"].includes(fileExtension || "")) {
-    return "//ssl.gstatic.com/docs/doclist/images/mediatype/icon_1_image_x16.png"
-  } else if (file.type.startsWith("video/") || ["mp4", "mov", "webm"].includes(fileExtension || "")) {
-    return "//ssl.gstatic.com/docs/doclist/images/mediatype/icon_1_video_x16.png"
-  } else if (file.type.startsWith("audio/") || ["mp3", "wav", "m4a"].includes(fileExtension || "")) {
-    return "//ssl.gstatic.com/docs/doclist/images/mediatype/icon_1_audio_x16.png"
-  } else if (
-    file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
-    ["doc", "docx"].includes(fileExtension || "")
-  ) {
-    return "//ssl.gstatic.com/docs/doclist/images/mediatype/icon_1_document_x16.png"
-  } else if (file.type === "text/plain" || fileExtension === "txt") {
-    return "//ssl.gstatic.com/docs/doclist/images/mediatype/icon_1_text_x16.png"
+export function getFileIcon(mimeType: string | undefined): JSX.Element {
+  const icons: Record<string, JSX.Element> = {
+    "text/plain": <DescriptionIcon />,
+    "image/png": <ImageIcon style={{ color: "#D41632" }} />,
+    "image/jpeg": <ImageIcon style={{ color: "#D41632" }} />,
+    "application/pdf": <PictureAsPdfIcon style={{ color: "#D41632" }} />,
+    "application/msword": <InsertDriveFileIcon style={{ color: "blue" }} />,
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": <InsertDriveFileIcon />,
+    "application/vnd.ms-excel": <TableChartIcon style={{ color: "green" }} />,
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": <TableChartIcon style={{ color: "green" }} />,
+    "application/vnd.ms-powerpoint": <SlideshowIcon style={{ color: "orange" }} />,
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation": <SlideshowIcon style={{ color: "orange" }} />,
+    "application/zip": <ArchiveIcon />,
+    "application/x-rar-compressed": <ArchiveIcon />,
+    "text/html": <CodeIcon style={{ color: "red" }} />,
+    "text/css": <CodeIcon style={{ color: "blue" }} />,
+    "application/javascript": <CodeIcon style={{ color: "yellow" }} />,
+    "application/typescript": <CodeIcon style={{ color: "blue" }} />,
+    "audio/mpeg": <MusicNoteIcon style={{ color: "#FF4081" }} />,
+    "audio/wav": <MusicNoteIcon style={{ color: "#FF4081" }} />,
+    "video/mp4": <MovieIcon style={{ color: "#3F51B5" }} />,
+    "video/x-msvideo": <MovieIcon style={{ color: "#3F51B5" }} />,
+    "application/json": <CodeIcon style={{ color: "#4CAF50" }} />,
+    "application/xml": <CodeIcon style={{ color: "#4CAF50" }} />,
+    "application/vnd.oasis.opendocument.text": <InsertDriveFileIcon style={{ color: "#FF5722" }} />,
+    "application/vnd.oasis.opendocument.spreadsheet": <TableChartIcon style={{ color: "#FF5722" }} />,
+    "application/vnd.oasis.opendocument.presentation": <SlideshowIcon style={{ color: "#FF5722" }} />,
+    "application/x-7z-compressed": <ArchiveIcon style={{ color: "#795548" }} />,
+    "application/x-tar": <ArchiveIcon style={{ color: "#795548" }} />,
   }
 
-  // Default icon
-  return "//ssl.gstatic.com/docs/doclist/images/mediatype/icon_1_generic_x16.png"
+  if (mimeType) {
+    return icons[mimeType] || <DescriptionIcon />
+  } else {
+    return <FolderIcon style={{ cursor: "pointer", color: "blue" }} />
+  }
 }
+
 
 interface FilePreviewModalProps {
   isOpen: boolean
@@ -247,23 +271,52 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
   const handleVolumeChange = (_: Event, value: number | number[]) => {
     const newVolume = typeof value === "number" ? value : value[0]
     setVolume(newVolume)
+    setIsMuted(newVolume === 0)
+  
     if (audioRef.current) {
       audioRef.current.volume = newVolume
-      setIsMuted(newVolume === 0)
+      audioRef.current.muted = newVolume === 0
     } else if (videoRef.current) {
       videoRef.current.volume = newVolume
-      setIsMuted(newVolume === 0)
+      videoRef.current.muted = newVolume === 0
+    }
+  
+    // update previous volume if volume isn't 0
+    if (newVolume > 0) {
+      setPreviousVolume(newVolume)
     }
   }
+  
 
+  
+  const [previousVolume, setPreviousVolume] = useState(1)
   const toggleMute = () => {
-    if (audioRef.current) {
-      audioRef.current.muted = !isMuted
-    } else if (videoRef.current) {
-      videoRef.current.muted = !isMuted
+    if (isMuted) {
+      // Unmuting: restore previous volume
+      const restoredVolume = previousVolume || 1
+      setVolume(restoredVolume)
+      if (audioRef.current) {
+        audioRef.current.volume = restoredVolume
+        audioRef.current.muted = false
+      } else if (videoRef.current) {
+        videoRef.current.volume = restoredVolume
+        videoRef.current.muted = false
+      }
+    } else {
+      // Muting: save current volume and set to 0
+      setPreviousVolume(volume)
+      setVolume(0)
+      if (audioRef.current) {
+        audioRef.current.volume = 0
+        audioRef.current.muted = true
+      } else if (videoRef.current) {
+        videoRef.current.volume = 0
+        videoRef.current.muted = true
+      }
     }
     setIsMuted(!isMuted)
   }
+  
 
   const formatTime = (seconds: number) => {
     const hours = Math.floor(seconds / 3600)
@@ -595,7 +648,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
             onChange={handleSeek}
             aria-label="Time"
             sx={{
-              color: "#DB4437",
+
               height: 4,
               "& .MuiSlider-thumb": {
                 width: 12,
@@ -849,16 +902,10 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
             }}
           >
             {/* File icon based on type */}
-            <Box
-              sx={{
-                width: 20,
-                height: 20,
-                backgroundImage: `url(${getFileIcon(file)})`,
-                backgroundPosition: "left top",
-                backgroundRepeat: "no-repeat",
-                backgroundSize: "contain",
-              }}
-            />
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", width: 24, height: 24 }}>
+              {getFileIcon(file?.type)}
+            </Box>
+
 
             {/* File name */}
             <Typography
