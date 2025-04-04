@@ -22,6 +22,7 @@ export interface FileContextMenuProps {
   onAction: (action: string, fileId: string) => void;
   owner: boolean;
   editor: boolean;
+  onClose?: () => void;
 }
 
 export function FileContextMenu({
@@ -30,6 +31,7 @@ export function FileContextMenu({
   onAction,
   owner,
   editor,
+  onClose,
 }: FileContextMenuProps) {
   // Determine which type of menu positioning to use
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
@@ -41,7 +43,7 @@ export function FileContextMenu({
     : {
         anchorEl,
       };
-  const open = Boolean(anchorEl);
+  const open = Boolean(anchorEl || anchorPosition);
 
   const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
@@ -54,6 +56,9 @@ export function FileContextMenu({
       event.preventDefault();
     }
     setAnchorEl(null);
+    if (onClose) {
+      onClose();
+    }
   };
 
   // Handle menu actions
@@ -72,7 +77,7 @@ export function FileContextMenu({
         aria-haspopup="true"
         onClick={handleClick}
         size="small"
-        sx={{ zIndex: 3 }}
+        sx={{ zIndex: 3, display: anchorPosition ? "none" : "inline-block" }}
       >
         <MoreVertIcon />
       </IconButton>

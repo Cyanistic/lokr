@@ -12,7 +12,7 @@ import { Visibility } from "@mui/icons-material";
 import { FileContextMenu } from "./FileMenu";
 import { getFileIcon, SortByTypes } from "../pages/FileExplorer";
 import { useTheme } from "@emotion/react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { PublicUser } from "../myApi";
 
 interface FileGridViewProps {
@@ -36,6 +36,28 @@ export function FileGridView({
   users,
   loading = false,
 }: FileGridViewProps) {
+  const [contextMenu, setContextMenu] = useState<{
+    mouseX: number;
+    mouseY: number;
+    fileId: string;
+    editor: boolean;
+  } | null>(null);
+
+  const handleContextMenu = (event: React.MouseEvent, file: FileMetadata) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setContextMenu({
+      mouseX: event.clientX,
+      mouseY: event.clientY,
+      fileId: file.id,
+      editor: file.editPermission === true,
+    });
+  };
+
+  const handleCloseContextMenu = () => {
+    setContextMenu(null);
+  };
+
   const sortedFiles = useMemo(() => {
     if (!sortOrder || !sortBy || loading) {
       return [...files];
@@ -166,17 +188,39 @@ export function FileGridView({
                   "100%": { opacity: 1, transform: "translateY(0)" },
                 },
               }}
+              onContextMenu={(event) => handleContextMenu(event, file)}
             >
               <FileGridItem
                 file={file}
                 onNavigate={onNavigate}
                 onAction={onAction}
                 owner={owner}
+                onContextMenu={(event) => handleContextMenu(event, file)}
               />
             </Box>
           </Grid>
         ))}
       </Grid>
+
+      {/* Right-click context menu */}
+
+      {contextMenu && (
+        <FileContextMenu
+          fileId={contextMenu.fileId}
+          onAction={async (action, fileId) => {
+            handleCloseContextMenu();
+            await onAction(action, fileId);
+          }}
+          owner={owner}
+          editor={contextMenu.editor}
+          onClose={handleCloseContextMenu}
+          anchorPosition={
+            contextMenu !== null
+              ? { top: contextMenu.mouseY, left: contextMenu.mouseX }
+              : undefined
+          }
+        />
+      )}
     </Box>
   );
 }
@@ -186,6 +230,7 @@ interface FileGridItemProps {
   onNavigate: (fileId: string) => void;
   onAction: (action: string, fileId: string) => void;
   owner: boolean;
+  onContextMenu: (event: React.MouseEvent) => void;
 }
 
 function FileGridItem({
@@ -193,6 +238,7 @@ function FileGridItem({
   onNavigate,
   onAction,
   owner,
+  onContextMenu,
 }: FileGridItemProps) {
   const theme = useTheme();
 
@@ -239,6 +285,7 @@ function FileGridItem({
         },
       }}
       onClick={handleItemClick}
+      onContextMenu={onContextMenu}
     >
       {/* File preview */}
       <Box

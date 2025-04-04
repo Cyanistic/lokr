@@ -68,6 +68,14 @@ export default function FileList({
       actions: true,
     });
 
+  // Context menu state
+  const [contextMenu, setContextMenu] = useState<{
+    mouseX: number;
+    mouseY: number;
+    fileId: string;
+    editor: boolean;
+  } | null>(null);
+
   // Get window size for responsive design
   const { width } = useWindowSize();
 
@@ -286,6 +294,26 @@ export default function FileList({
     },
   ];
 
+  // Handle right-click on row
+  const handleContextMenu = (
+    event: React.MouseEvent,
+    fileId: string,
+    editor: boolean,
+  ) => {
+    event.preventDefault();
+    setContextMenu({
+      mouseX: event.clientX,
+      mouseY: event.clientY,
+      fileId,
+      editor,
+    });
+  };
+
+  // Handle closing the context menu
+  const handleCloseContextMenu = () => {
+    setContextMenu(null);
+  };
+
   return (
     <Box
       sx={{
@@ -315,6 +343,15 @@ export default function FileList({
           loadingOverlay: {
             variant: "skeleton",
             noRowsVariant: "skeleton",
+          },
+          row: {
+            onContextMenu: (event: React.MouseEvent) => {
+              const rowId = event.currentTarget.getAttribute("data-id");
+              const rowData = files.find((file) => file.id === rowId);
+              if (rowId && rowData) {
+                handleContextMenu(event, rowId, !!rowData.editPermission);
+              }
+            },
           },
         }}
         columnVisibilityModel={columnVisibility}
@@ -354,6 +391,26 @@ export default function FileList({
         }}
         loading={loading}
       />
+
+      {/* Right-click context menu */}
+
+      {contextMenu && (
+        <FileContextMenu
+          fileId={contextMenu.fileId}
+          onClose={handleCloseContextMenu} // Close the context menu when an action is taken
+          onAction={async (action, fileId) => {
+            handleCloseContextMenu();
+            await onAction(action, fileId);
+          }}
+          owner={owner}
+          editor={contextMenu.editor}
+          anchorPosition={
+            contextMenu !== null
+              ? { top: contextMenu.mouseY, left: contextMenu.mouseX }
+              : undefined
+          }
+        />
+      )}
     </Box>
   );
 }
