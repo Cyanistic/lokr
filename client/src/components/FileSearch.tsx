@@ -5,16 +5,12 @@ import {
   Autocomplete,
   InputAdornment,
   Typography,
-  IconButton,
   Button,
-  Menu,
-  MenuItem,
   Paper,
   SvgIcon,
 } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
 import FolderIcon from "@mui/icons-material/Folder";
-import MoreVertIcon from "@mui/icons-material/MoreVert";
 import { FileMetadata } from "../types";
 import { getFileIcon } from "../pages/FileExplorer";
 import Fuse from "fuse.js";
@@ -37,8 +33,6 @@ export default function FileSearch({
   const [filteredFiles, setFilteredFiles] = useState<FileMetadata[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [open, setOpen] = useState(false);
-  const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
-  const [_selectedFileId, setSelectedFileId] = useState<string | null>(null);
 
   useEffect(() => {
     fuse.current = new Fuse(Object.values(files), {
@@ -66,24 +60,11 @@ export default function FileSearch({
     }
   }, [open]);
 
-  const handleMenuOpen = (
-    event: React.MouseEvent<HTMLElement>,
-    fileId: string,
-  ) => {
-    event.stopPropagation(); // Prevent the autocomplete item from being selected
-    setMenuAnchorEl(event.currentTarget);
-    setSelectedFileId(fileId);
-  };
-
-  const handleMenuClose = () => {
-    setMenuAnchorEl(null);
-    setSelectedFileId(null);
-  };
-
   const handleJumpToFolder = (
     event: React.MouseEvent<HTMLElement>,
     path?: string | null,
   ) => {
+    console.log("newValue");
     event.stopPropagation(); // Prevent the autocomplete item from being selected
     onNavigateToPath(path);
     setOpen(false);
@@ -131,11 +112,7 @@ export default function FileSearch({
           />
         )}
         renderOption={({ key, ...props }, option) => (
-          <li
-            {...props}
-            key={`${option.id}-autocomplete`}
-            style={{ padding: 0 }}
-          >
+          <li {...props} key={`${key}-autocomplete`} style={{ padding: 0 }}>
             <Box
               sx={{
                 width: "100%",
@@ -174,13 +151,6 @@ export default function FileSearch({
                 >
                   Jump to Folder
                 </Button>
-                <IconButton
-                  size="small"
-                  onClick={(e) => handleMenuOpen(e, option.id)}
-                  aria-label="more options"
-                >
-                  <MoreVertIcon fontSize="small" />
-                </IconButton>
               </Box>
             </Box>
           </li>
@@ -201,18 +171,6 @@ export default function FileSearch({
           ),
         }}
       />
-
-      <Menu
-        anchorEl={menuAnchorEl}
-        open={Boolean(menuAnchorEl)}
-        onClose={handleMenuClose}
-      >
-        <MenuItem onClick={handleMenuClose}>Open</MenuItem>
-        <MenuItem onClick={handleMenuClose}>Download</MenuItem>
-        <MenuItem onClick={handleMenuClose}>Share</MenuItem>
-        <MenuItem onClick={handleMenuClose}>Rename</MenuItem>
-        <MenuItem onClick={handleMenuClose}>Delete</MenuItem>
-      </Menu>
     </Box>
   );
 }

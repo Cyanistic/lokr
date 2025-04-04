@@ -113,7 +113,10 @@ export default function Register() {
       return;
     }
     if (check) {
+      setError({...error, [event.target.name]: `Checking if ${event.target.name} already exists`})
       check(event.target.value);
+    } else {
+      setError({...error, [event.target.name]: null})
     }
   }
 
