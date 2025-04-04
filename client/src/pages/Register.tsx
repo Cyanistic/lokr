@@ -202,7 +202,7 @@ export default function Register() {
       // generating the RSA key pair, and hashing the password
       const masterKeyPromise = deriveKeyFromPassword(user.password!, salt);
       const keyPairPromise = generateRSAKeyPair();
-      const hashedPasswordPromise = hashPassword(user.password!, null, true);
+      const hashedPasswordPromise = hashPassword(user.password!);
 
       // Run all promises in parallel to speed up registration
       const [masterKey, { publicKey, privateKey }, hashedPassword] =

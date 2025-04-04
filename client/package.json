@@ -16,6 +16,7 @@
     "@mui/material": "^6.4.7",
     "@mui/x-data-grid": "^7.28.1",
     "@types/js-cookie": "^3.0.6",
+    "@types/node": "^22.14.0",
     "argon2-browser": "^1.18.0",
     "framer-motion": "^12.6.3",
     "fuse.js": "^7.1.0",

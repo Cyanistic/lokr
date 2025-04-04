@@ -1,3 +1,14 @@
+.feature-link {
+  display: inline-block;
+  margin-top: 8px;
+  color: #81E6D9;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.feature-link:hover {
+  text-decoration: underline;
+}
 :root {
     --bg-color: #f8fafc;
     --text-color: #1e293b;
@@ -42,6 +53,8 @@
     justify-content: center;
     gap: 20px;
     flex-wrap: wrap;
+    max-width: 1200px;
+    margin: 0 auto;
 }
   
 .security-card {

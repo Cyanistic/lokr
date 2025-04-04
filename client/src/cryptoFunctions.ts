@@ -186,9 +186,8 @@ export function bufferToBase64(buffer: ArrayBuffer): string {
 export async function hashPassword(
   password: string,
   salt: Uint8Array | null = null,
-  generate: boolean = false,
 ): Promise<string> {
-  if (generate) {
+  if (!salt) {
     salt = new Uint8Array(16);
     crypto.getRandomValues(salt);
   }

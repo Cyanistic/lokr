@@ -1,10 +1,16 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import wasm from "vite-plugin-wasm";
+import * as child from "child_process";
+
+const commitHash = child.execSync("git rev-parse HEAD").toString();
 
 export default defineConfig({
   plugins: [react(), wasm()],
   assetsInclude: ["**/*.wasm"], // ✅ Ensure Vite recognizes .wasm files
+  define: {
+    __COMMIT_HASH__: JSON.stringify(commitHash.trim()), // Expose commit hash to the application
+  },
   build: {
     rollupOptions: {
       output: {
