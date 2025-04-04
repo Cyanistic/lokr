@@ -139,7 +139,7 @@ const Login: React.FC = () => {
   };
 
   return (
-    <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh">
+    <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
       <Paper elevation={3} sx={{ p: 4, maxWidth: 400, textAlign: "center" }}>
         <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" mb={2}>
           <Lock sx={{ fontSize: 50, mb: 1 }} />

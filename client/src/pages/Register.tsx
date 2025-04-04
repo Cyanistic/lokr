@@ -6,7 +6,21 @@ import {
   generateRSAKeyPair,
   hashPassword,
 } from "../cryptoFunctions";
-import { Button, useTheme } from "@mui/material";
+import {
+  TextField,
+  Button,
+  Card,
+  CardContent,
+  Typography,
+  Box,
+  InputAdornment,
+  IconButton,
+} from "@mui/material";
+import {
+  Lock as LockIcon,
+  Visibility,
+  VisibilityOff,
+} from "@mui/icons-material";
 import { LoginUser } from "../types";
 import { DebouncedState, useDebouncedCallback } from "use-debounce";
 import { API, validateEmail } from "../utils";
@@ -29,6 +43,8 @@ export default function Register() {
   });
 
   const [message, setMessage] = useState("");
+
+  const [showPassword, setShowPassword] = useState(false);
 
   // Only debounce server side checks
   // Use a different callback function for each input field so that they fire independently
@@ -212,68 +228,132 @@ export default function Register() {
       }
     }
   }
-  const theme = useTheme();
 
   return (
-    <div style={{ textAlign: "center", padding: "20px" }}>
-      <h1>Register</h1>
-      <p>{message}</p>
-      {Object.entries(error)
-        .filter(([_, value]) => Boolean(value))
-        .map(([k, value]) => {
-          return (
-            <p key={`error.${k}`}>
-              <b>{k}:</b> {value}
-            </p>
-          );
-        })}
-      <form onSubmit={handleRegister}>
-        <div style={{ position: "relative", display: "inline-block" }}>
-          <input
-            type="text"
-            name="username"
-            placeholder="Username"
-            value={user.username ?? ""}
-            onChange={handleChange}
-            required
-            style={{ padding: "8px", width: "200px" }}
-          />
-          <br />
-          <input
-            type="email"
-            name="email"
-            placeholder="Email"
-            value={user.email ?? ""}
-            onChange={handleChange}
-            style={{ padding: "8px", width: "200px", marginTop: "10px" }}
-          />
-          <br />
-          <input
-            type="password"
-            name="password"
-            placeholder="Password"
-            value={user.password ?? ""}
-            onChange={handleChange}
-            required
-            style={{ padding: "8px", width: "200px", marginTop: "10px" }}
-          />
-          <br />
-          <br />
-          {/*<button type="submit">Register</button>*/}
-          <Button
-            type="submit"
-            variant="contained"
-            style={{
-              textTransform: "none",
-              backgroundColor:
-                theme.palette.mode === "dark" ? "#2f27ce" : "#3a31d8",
-              color: theme.palette.mode === "dark" ? "#050316" : "#eae9fc",
-            }}
-          >
-            Register
-          </Button>
-        </div>
-      </form>
-    </div>
+
+    <Box
+      display="flex"
+      justifyContent="center"
+      alignItems="center"
+      height="80vh"
+    >
+      <Card sx={{ width: 400, p: 3, borderRadius: 3, boxShadow: 5 }}>
+        <CardContent>
+          <Box textAlign="center" mb={3}>
+            <LockIcon fontSize="large" color="primary" />
+            <Typography variant="h5" fontWeight="bold" mt={1}>
+              Create an account
+            </Typography>
+            <Typography variant="body2" color="textSecondary">
+              Enter your details to create your account
+            </Typography>
+            <Typography color="error" textAlign="center">{message}</Typography>
+            {Object.entries(error)
+              .filter(([_, value]) => Boolean(value))
+              .map(([k, value]) => (
+                <Typography key={`error.${k}`} color="error" textAlign="center">
+                  <b>{k}:</b> {value}
+                </Typography>
+              ))
+            }
+          </Box>
+
+          <form onSubmit={handleRegister}>
+            <TextField
+              fullWidth
+              label="Username"
+              name="username"
+              value={user.username}
+              onChange={handleChange}
+              margin="normal"
+            />
+
+            <TextField
+              fullWidth
+              label="Email"
+              name="email"
+              type="email"
+              value={user.email}
+              onChange={handleChange}
+              margin="normal"
+            />
+
+            <TextField
+              fullWidth
+              label="Password"
+              name="password"
+              type={showPassword ? "text" : "password"}
+              value={user.password}
+              onChange={handleChange}
+              margin="normal"
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton onClick={() => setShowPassword(!showPassword)}>
+                      {showPassword ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
+            />
+
+            {/*<TextField
+              fullWidth
+              label="Confirm Password"
+              name="confirmPassword"
+              type={showConfirmPassword ? "text" : "password"}
+              onChange={handleChange}
+              margin="normal"
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      onClick={() =>
+                        setShowConfirmPassword(!showConfirmPassword)
+                      }
+                    >
+                      {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
+            />*/}
+
+            <Button
+              type="submit"
+              fullWidth
+              variant="contained"
+              sx={{
+                mt: 3,
+                py: 1.5,
+                fontWeight: "bold",
+                textTransform: "none",
+              }}
+            >
+              Create account
+            </Button>
+          </form>
+
+          <Box textAlign="center" mt={2}>
+            <Typography
+              component="a"
+              href="/login"
+              sx={{
+                color: "text.secondary",
+                textDecoration: "none",
+                cursor: "pointer",
+                "&:hover": { textDecoration: "underline" },
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+              }}
+            >
+              ← Back to login
+            </Typography>
+          </Box>
+        </CardContent>
+      </Card>
+    </Box>
+    
   );
 }
