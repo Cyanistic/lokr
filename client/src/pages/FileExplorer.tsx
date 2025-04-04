@@ -66,6 +66,7 @@ import FileMoveModal from "../components/FileMoveModal";
 import { BreadcrumbsNavigation } from "../components/BreadcrumbsNavigation";
 import "./FileExplorer.css";
 import { FileGridView } from "../components/FileGrid";
+import { PasswordModal } from "../components/PasswordModal";
 
 /** Return an icon based on file extension. */
 export function getFileIcon(
@@ -203,8 +204,10 @@ export default function FileExplorer(
 
   const [shareOpen, setShareOpen] = useState<boolean>(false);
   const [infoOpen, setInfoOpen] = useState<boolean>(false);
+  const [passwordOpen, setPasswordOpen] = useState<boolean>(false);
   const selectedFile = useRef<FileMetadata>();
-  const [linkPassword, _setLinkPasword] = useState<string | null>(null);
+  const [linkPassword, setLinkPasword] = useState<string | null>(null);
+  const [linkError, setLinkError] = useState<string | undefined>(undefined);
   const [linkKey, setLinkKey] = useState<CryptoKey | null>(null);
 
   useEffect(() => {
@@ -257,7 +260,7 @@ export default function FileExplorer(
       return;
     }
     fetchFiles();
-  }, [parentId, privateKey, linkKey]);
+  }, [parentId, privateKey, linkKey, linkPassword]);
 
   const currentDir = useMemo(() => {
     if (loading) {
@@ -562,6 +565,15 @@ export default function FileExplorer(
             body,
             linkPassword || "",
           );
+          if (resp.status === 401) {
+            if (linkPassword) {
+              setLinkError("Invalid password!");
+            }
+            setPasswordOpen(true);
+            return;
+          }
+          setLinkError(undefined);
+          setPasswordOpen(false);
           break;
       }
       if (!resp.ok) {
@@ -585,7 +597,6 @@ export default function FileExplorer(
       } else if (fileId) {
         queue = [fileId];
       } else {
-        setLoading(false);
         return;
       }
 
@@ -689,9 +700,10 @@ export default function FileExplorer(
         params.delete("parentId");
         return params;
       });
-    }
-    if (updateLoading) {
-      setLoading(false);
+    } finally {
+      if (updateLoading) {
+        setLoading(false);
+      }
     }
   }
 
@@ -1125,6 +1137,16 @@ export default function FileExplorer(
         users={users}
         path={dirStack}
       />
+
+      {/* File sharing password modal */}
+      <PasswordModal
+        open={passwordOpen}
+        loading={loading}
+        onSubmit={(password) => setLinkPasword(password)}
+        customText="This link requires a password to access:"
+        error={linkError}
+      />
+
       {/* File move dialog */}
       {moveOpen && (
         <FileMoveModal

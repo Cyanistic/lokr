@@ -659,9 +659,9 @@ pub async fn get_link_shared_file(
         // the user has already provided the correct password in the past.
         // If neither, then reject the request.
         let password = match (link_request, cookie.get(&link_id.to_string())) {
-            (Some(password), _) => password,
+            (Some(password), _) if !password.is_empty() => password,
             (_, Some(password)) => urlencoding::decode(password)?.to_string(),
-            (None, None) => return Err(AppError::UserError((
+            (_, _) => return Err(AppError::UserError((
                 StatusCode::UNAUTHORIZED,
                 "This link requires a password. Please provide a password inside the request body"
                     .into(),
