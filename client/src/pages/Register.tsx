@@ -24,6 +24,8 @@ import {
 import { LoginUser } from "../types";
 import { DebouncedState, useDebouncedCallback } from "use-debounce";
 import { API, validateEmail } from "../utils";
+import { useErrorToast } from "../components/ErrorToastProvider";
+import { useNavigate } from "react-router-dom";
 
 // Helper function to convert Uint8Array to Base64 safely
 function toBase64(bytes: Uint8Array): string {
@@ -35,16 +37,21 @@ export default function Register() {
     username: "",
     email: "",
     password: "",
+    confirmPassword: "",
   });
   const [error, setError] = useState<LoginUser>({
     username: "",
     email: "",
     password: "",
+    confirmPassword: "",
   });
 
   const [message, setMessage] = useState("");
 
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const nagivate = useNavigate();
+  const { showError } = useErrorToast();
 
   // Only debounce server side checks
   // Use a different callback function for each input field so that they fire independently
@@ -66,6 +73,10 @@ export default function Register() {
     }, 700),
     password: null,
     email: useDebouncedCallback(async (value: string) => {
+      if (!value) {
+        setError({ ...error, email: null });
+        return;
+      }
       const emailRes = await API.api.checkUsage({
         email: value,
       });
@@ -116,37 +127,61 @@ export default function Register() {
           return false;
         }
         setError({ ...error, password: null });
+        break;
+      case "confirmPassword":
+        if (value !== user.password) {
+          setError({ ...error, confirmPassword: "Passwords do not match" });
+          return false;
+        }
+        setError({ ...error, confirmPassword: "" });
+        break;
     }
     return true;
   }
   async function handleChange(event: React.ChangeEvent<HTMLInputElement>) {
-    setUser({ ...user, [event.target.name]: event.target.value || null });
+    setUser({ ...user, [event.target.name]: event.target.value });
 
-    const check: DebouncedState<(value: string) => Promise<void>> | null =
-      debounceCheck[event.target.name as keyof LoginUser];
+    const check:
+      | DebouncedState<(value: string) => Promise<void>>
+      | null
+      | undefined = debounceCheck[event.target.name as keyof LoginUser];
     if (!localCheck(event.target.name, event.target.value)) {
       check?.cancel();
       return;
     }
     if (check) {
-      setError({...error, [event.target.name]: `Checking if ${event.target.name} already exists`})
+      setError({
+        ...error,
+        [event.target.name]: `Checking if ${event.target.name} already exists`,
+      });
       check(event.target.value);
     } else {
-      setError({...error, [event.target.name]: null})
+      setError({ ...error, [event.target.name]: null });
     }
   }
 
   async function handleRegister(event?: React.FormEvent<HTMLFormElement>) {
     if (event) event.preventDefault(); // Prevent page reload
     try {
-      setMessage("");
+      const errors = { ...error };
+      let isError = false;
       if (!user.username) {
-        setError({ ...error, username: "Username is required" });
-        return;
+        isError ||= true;
+        errors.username = "Username is required";
       }
 
       if (!user.password) {
-        setError({ ...error, password: "Password is required" });
+        isError ||= true;
+        errors.password = "Password is required";
+      }
+
+      if (user.password !== user.confirmPassword) {
+        isError ||= true;
+        errors.confirmPassword = "Passwords do not match";
+      }
+
+      if (isError) {
+        setError(errors);
         return;
       }
 
@@ -165,9 +200,9 @@ export default function Register() {
 
       // Step 2: Generate promises for deriving the master key,
       // generating the RSA key pair, and hashing the password
-      const masterKeyPromise = deriveKeyFromPassword(user.password, salt);
+      const masterKeyPromise = deriveKeyFromPassword(user.password!, salt);
       const keyPairPromise = generateRSAKeyPair();
-      const hashedPasswordPromise = hashPassword(user.password, null, true);
+      const hashedPasswordPromise = hashPassword(user.password!, null, true);
 
       // Run all promises in parallel to speed up registration
       const [masterKey, { publicKey, privateKey }, hashedPassword] =
@@ -190,12 +225,9 @@ export default function Register() {
       );
       const publicKeyBase64 = bufferToBase64(exportedPublicKey);
 
-      // 🔍 Log the encrypted private key after encryption
-      console.log("Encrypted Private Key (Base64):", encryptedPrivateKeyBase64);
-
       // Prepare Request Data
       const body = {
-        username: user.username,
+        username: user.username!,
         email: user.email || null,
         password: hashedPassword,
         salt: saltBase64,
@@ -203,34 +235,18 @@ export default function Register() {
         iv: ivBase64, // IV for decryption
         publicKey: publicKeyBase64, // Public key (plaintext)
       };
-      console.log(body);
-
-      console.log("Sending payload:", body);
 
       // Send request to backend
       const response = await API.api.createUser(body);
 
-      const responseText = await response.text();
-      console.log("Server Response:", responseText);
-
-      if (!response.ok) {
-        throw new Error(`Server Error: ${responseText}`);
-      }
-
+      if (!response.ok) throw response.error;
       setMessage("Registration successful!");
-    } catch (error: unknown) {
-      console.error("Registration error:", error);
-
-      if (error instanceof Error) {
-        setMessage(`Registration failed: ${error.message}`);
-      } else {
-        setMessage("Registration failed due to an unknown error.");
-      }
+    } catch (error) {
+      showError("Error during registration.", error);
     }
   }
 
   return (
-
     <Box
       display="flex"
       justifyContent="center"
@@ -247,84 +263,103 @@ export default function Register() {
             <Typography variant="body2" color="textSecondary">
               Enter your details to create your account
             </Typography>
-            <Typography color="error" textAlign="center">{message}</Typography>
-            {Object.entries(error)
-              .filter(([_, value]) => Boolean(value))
-              .map(([k, value]) => (
-                <Typography key={`error.${k}`} color="error" textAlign="center">
-                  <b>{k}:</b> {value}
-                </Typography>
-              ))
-            }
+            <Typography color="error" textAlign="center">
+              {message}
+            </Typography>
           </Box>
 
           <form onSubmit={handleRegister}>
-            <TextField
-              fullWidth
-              label="Username"
-              name="username"
-              value={user.username}
-              onChange={handleChange}
-              margin="normal"
-            />
+            <Box
+              sx={{ display: "flex", flexDirection: "column", gap: 1, pb: 1 }}
+            >
+              <TextField
+                fullWidth
+                label="Username"
+                name="username"
+                value={user.username}
+                onChange={handleChange}
+                error={Boolean(error.username)}
+                helperText={error.username || " "}
+                margin="none"
+                required
+              />
 
-            <TextField
-              fullWidth
-              label="Email"
-              name="email"
-              type="email"
-              value={user.email}
-              onChange={handleChange}
-              margin="normal"
-            />
+              <TextField
+                fullWidth
+                label="Email"
+                name="email"
+                type="email"
+                value={user.email}
+                onChange={handleChange}
+                error={Boolean(error.email)}
+                helperText={error.email || " "}
+                margin="none"
+              />
 
-            <TextField
-              fullWidth
-              label="Password"
-              name="password"
-              type={showPassword ? "text" : "password"}
-              value={user.password}
-              onChange={handleChange}
-              margin="normal"
-              InputProps={{
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <IconButton onClick={() => setShowPassword(!showPassword)}>
-                      {showPassword ? <VisibilityOff /> : <Visibility />}
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              }}
-            />
+              <TextField
+                fullWidth
+                label="Password"
+                name="password"
+                type={showPassword ? "text" : "password"}
+                value={user.password}
+                onChange={handleChange}
+                margin="none"
+                error={Boolean(error.password)}
+                helperText={error.password || " "}
+                required
+                slotProps={{
+                  input: {
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton
+                          onClick={() => setShowPassword(!showPassword)}
+                        >
+                          {showPassword ? <VisibilityOff /> : <Visibility />}
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  },
+                }}
+              />
 
-            {/*<TextField
-              fullWidth
-              label="Confirm Password"
-              name="confirmPassword"
-              type={showConfirmPassword ? "text" : "password"}
-              onChange={handleChange}
-              margin="normal"
-              InputProps={{
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <IconButton
-                      onClick={() =>
-                        setShowConfirmPassword(!showConfirmPassword)
-                      }
-                    >
-                      {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              }}
-            />*/}
+              <TextField
+                fullWidth
+                label="Confirm Password"
+                name="confirmPassword"
+                type={showConfirmPassword ? "text" : "password"}
+                error={Boolean(error.confirmPassword)}
+                helperText={error.confirmPassword || " "}
+                value={user.confirmPassword}
+                onChange={handleChange}
+                margin="none"
+                required
+                slotProps={{
+                  input: {
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton
+                          onClick={() =>
+                            setShowConfirmPassword(!showConfirmPassword)
+                          }
+                        >
+                          {showConfirmPassword ? (
+                            <VisibilityOff />
+                          ) : (
+                            <Visibility />
+                          )}
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  },
+                }}
+              />
+            </Box>
 
             <Button
               type="submit"
               fullWidth
               variant="contained"
               sx={{
-                mt: 3,
                 py: 1.5,
                 fontWeight: "bold",
                 textTransform: "none",
@@ -334,10 +369,8 @@ export default function Register() {
             </Button>
           </form>
 
-          <Box textAlign="center" mt={2}>
+          <Box textAlign="center" mt={2} onClick={() => nagivate("/login")}>
             <Typography
-              component="a"
-              href="/login"
               sx={{
                 color: "text.secondary",
                 textDecoration: "none",
@@ -354,6 +387,5 @@ export default function Register() {
         </CardContent>
       </Card>
     </Box>
-    
   );
 }
