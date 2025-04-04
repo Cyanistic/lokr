@@ -14,6 +14,7 @@ import {
   Code as CodeIcon,
   MusicNote as MusicNoteIcon,
   Movie as MovieIcon,
+  ArrowUpward as ArrowUpwardIcon,
 } from "@mui/icons-material";
 import { API } from "../utils";
 import localforage from "localforage";
@@ -43,7 +44,20 @@ import { useThrottledCallback } from "use-debounce";
 import FileList from "../components/FileList";
 import { PublicUser, SessionUser } from "../myApi";
 import { FileSidebar } from "../components/FileSidebar";
-import { Box, Button, IconButton, Tooltip, Typography } from "@mui/material";
+import {
+  Box,
+  Button,
+  Collapse,
+  FormControl,
+  IconButton,
+  InputLabel,
+  MenuItem,
+  Select,
+  ToggleButton,
+  ToggleButtonGroup,
+  Tooltip,
+  Typography,
+} from "@mui/material";
 import { useWindowSize } from "../components/hooks/useWindowSize";
 import { GridMenuIcon } from "@mui/x-data-grid";
 import ShareModal from "../components/ShareModal";
@@ -51,55 +65,86 @@ import FileInfoModal from "../components/FileInfoModal";
 import FileMoveModal from "../components/FileMoveModal";
 import { BreadcrumbsNavigation } from "../components/BreadcrumbsNavigation";
 import "./FileExplorer.css";
+import { FileGridView } from "../components/FileGrid";
 
 /** Return an icon based on file extension. */
-export function getFileIcon(mimeType: string | undefined) {
+export function getFileIcon(
+  mimeType: string | undefined,
+  width?: number,
+  height?: number,
+) {
   const icons: Record<string, JSX.Element> = {
-    "text/plain": <DescriptionIcon />,
-    "image/png": <ImageIcon style={{ color: "#D41632" }} />,
-    "image/jpeg": <ImageIcon style={{ color: "#D41632" }} />,
-    "application/pdf": <PictureAsPdfIcon style={{ color: "#D41632" }} />,
-    "application/msword": <InsertDriveFileIcon style={{ color: "blue" }} />,
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": (
-      <InsertDriveFileIcon />
+    "text/plain": <DescriptionIcon style={{ width, height }} />,
+    "image/png": <ImageIcon style={{ color: "#D41632", width, height }} />,
+    "image/jpeg": <ImageIcon style={{ color: "#D41632", width, height }} />,
+    "application/pdf": (
+      <PictureAsPdfIcon style={{ color: "#D41632", width, height }} />
     ),
-    "application/vnd.ms-excel": <TableChartIcon style={{ color: "green" }} />,
+    "application/msword": (
+      <InsertDriveFileIcon style={{ color: "blue", width, height }} />
+    ),
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": (
+      <InsertDriveFileIcon style={{ width, height }} />
+    ),
+    "application/vnd.ms-excel": (
+      <TableChartIcon style={{ color: "green", width, height }} />
+    ),
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": (
-      <TableChartIcon style={{ color: "green" }} />
+      <TableChartIcon style={{ color: "green", width, height }} />
     ),
     "application/vnd.ms-powerpoint": (
-      <SlideshowIcon style={{ color: "orange" }} />
+      <SlideshowIcon style={{ color: "orange", width, height }} />
     ),
     "application/vnd.openxmlformats-officedocument.presentationml.presentation":
-      <SlideshowIcon style={{ color: "orange" }} />,
-    "application/zip": <ArchiveIcon />,
-    "application/x-rar-compressed": <ArchiveIcon />,
-    "text/html": <CodeIcon style={{ color: "red" }} />,
-    "text/css": <CodeIcon style={{ color: "blue" }} />,
-    "application/javascript": <CodeIcon style={{ color: "yellow" }} />,
-    "application/typescript": <CodeIcon style={{ color: "blue" }} />,
-    "audio/mpeg": <MusicNoteIcon style={{ color: "#FF4081" }} />,
-    "audio/wav": <MusicNoteIcon style={{ color: "#FF4081" }} />,
-    "video/mp4": <MovieIcon style={{ color: "#3F51B5" }} />,
-    "video/x-msvideo": <MovieIcon style={{ color: "#3F51B5" }} />,
-    "application/json": <CodeIcon style={{ color: "#4CAF50" }} />,
-    "application/xml": <CodeIcon style={{ color: "#4CAF50" }} />,
+      <SlideshowIcon style={{ color: "orange", width, height }} />,
+    "application/zip": <ArchiveIcon style={{ width, height }} />,
+    "application/x-rar-compressed": <ArchiveIcon style={{ width, height }} />,
+    "text/html": <CodeIcon style={{ color: "red", width, height }} />,
+    "text/css": <CodeIcon style={{ color: "blue", width, height }} />,
+    "application/javascript": (
+      <CodeIcon style={{ color: "yellow", width, height }} />
+    ),
+    "application/typescript": (
+      <CodeIcon style={{ color: "blue", width, height }} />
+    ),
+    "audio/mpeg": <MusicNoteIcon style={{ color: "#FF4081", width, height }} />,
+    "audio/wav": <MusicNoteIcon style={{ color: "#FF4081", width, height }} />,
+    "video/mp4": <MovieIcon style={{ color: "#3F51B5", width, height }} />,
+    "video/x-msvideo": (
+      <MovieIcon style={{ color: "#3F51B5", width, height }} />
+    ),
+    "application/json": (
+      <CodeIcon style={{ color: "#4CAF50", width, height }} />
+    ),
+    "application/xml": <CodeIcon style={{ color: "#4CAF50", width, height }} />,
     "application/vnd.oasis.opendocument.text": (
-      <InsertDriveFileIcon style={{ color: "#FF5722" }} />
+      <InsertDriveFileIcon style={{ color: "#FF5722", width, height }} />
     ),
     "application/vnd.oasis.opendocument.spreadsheet": (
-      <TableChartIcon style={{ color: "#FF5722" }} />
+      <TableChartIcon style={{ color: "#FF5722", width, height }} />
     ),
     "application/vnd.oasis.opendocument.presentation": (
-      <SlideshowIcon style={{ color: "#FF5722" }} />
+      <SlideshowIcon style={{ color: "#FF5722", width, height }} />
     ),
-    "application/x-7z-compressed": <ArchiveIcon style={{ color: "#795548" }} />,
-    "application/x-tar": <ArchiveIcon style={{ color: "#795548" }} />,
+    "application/x-7z-compressed": (
+      <ArchiveIcon style={{ color: "#795548", width, height }} />
+    ),
+    "application/x-tar": (
+      <ArchiveIcon style={{ color: "#795548", width, height }} />
+    ),
   };
   if (mimeType) {
-    return icons[mimeType ?? "text/plain"] || <DescriptionIcon />;
+    return (
+      icons[mimeType ?? "text/plain"] || (
+        <DescriptionIcon style={{ width, height }} />
+      )
+    );
   } else {
-    return <FolderIcon style={{ cursor: "pointer", color: "blue" }} />;
+    return (
+      <FolderIcon
+        style={{ cursor: "pointer", color: "#81E6D9", width, height }}
+      />
+    );
   }
 }
 
@@ -111,45 +156,6 @@ export function handleNavigate(
   tempStack.splice(index);
   return tempStack;
 }
-
-/** Renders a file or folder item in grid view. */
-const FileGridItem = ({
-  file,
-  onOpenFolder,
-  onMove,
-  onDelete,
-  onDownload,
-}: {
-  file: FileMetadata;
-  onOpenFolder: (file: FileMetadata) => void;
-  onMove: (file: FileMetadata) => void;
-  onDelete: (file: FileMetadata) => void;
-  onDownload: (file: FileMetadata) => void;
-}) => (
-  <div className="gridItem">
-    <h3>
-      {file.isDirectory ? (
-        <span
-          onClick={() => onOpenFolder(file)}
-          style={{ cursor: "pointer", color: "blue" }}
-        >
-          <FolderIcon /> {file.name}
-        </span>
-      ) : (
-        <>
-          {getFileIcon(file.mimeType)} {file.name}
-        </>
-      )}
-    </h3>
-    <p>Created: {new Date(file.createdAt).toLocaleDateString()}</p>
-    <p>Modified: {new Date(file.modifiedAt).toLocaleDateString()}</p>
-    <p>Type: {file.isDirectory ? "Directory" : file.mimeType}</p>
-    <button onClick={() => onMove(file)}>Move</button>
-    <button onClick={() => onDownload(file)}>Download</button>
-    <button onClick={() => onDelete(file)}>Delete</button>
-  </div>
-);
-
 /** Main FileExplorer Component. */
 interface FileExplorerProps {
   type: "files" | "shared" | "link";
@@ -328,8 +334,10 @@ export default function FileExplorer(
 
     // Convert response to a Blob
     const dataBuffer = await response.arrayBuffer();
-    if (!file.fileNonce){
-      showError("Unable to decrypt file for downloading. A file nonce was not found.");
+    if (!file.fileNonce) {
+      showError(
+        "Unable to decrypt file for downloading. A file nonce was not found.",
+      );
       return;
     }
     const fileData = await crypto.subtle.decrypt(
@@ -360,44 +368,44 @@ export default function FileExplorer(
     let folderQueue: Record<string, JSZip> = { [folder.id]: zipFolder };
 
     try {
-    while (fileQueue && fileQueue.length > 0) {
-      let nextFiles: string[] = [];
-      let nextFolders: Record<string, JSZip> = {};
+      while (fileQueue && fileQueue.length > 0) {
+        let nextFiles: string[] = [];
+        let nextFolders: Record<string, JSZip> = {};
 
-      await Promise.all(
-        fileQueue.map(async (fileId) => {
-          const f = files[fileId];
-          if (!f) return;
+        await Promise.all(
+          fileQueue.map(async (fileId) => {
+            const f = files[fileId];
+            if (!f) return;
 
-          if (f.isDirectory) {
-            nextFolders[f.id] = folderQueue[f.parentId!].folder(
-              f.name ?? "folder",
-            )!;
-            if (f.children) {
-              nextFiles.push(...f.children);
+            if (f.isDirectory) {
+              nextFolders[f.id] = folderQueue[f.parentId!].folder(
+                f.name ?? "folder",
+              )!;
+              if (f.children) {
+                nextFiles.push(...f.children);
+              }
+            } else {
+              if (!f?.key) {
+                showError(`Failed to find encryption key for ${f.id}`);
+                return;
+              }
+              const response = await API.api.getFile(f.id);
+              if (!response.ok) throw response.error;
+              const dataBuffer = await response.arrayBuffer();
+              if (!f.fileNonce) throw `No file nonce found for ${f.id}`;
+              const fileData = await crypto.subtle.decrypt(
+                { name: "AES-GCM", iv: base64ToArrayBuffer(f.fileNonce) },
+                f.key,
+                dataBuffer,
+              );
+              folderQueue[f.parentId!].file(f.name || "file", fileData);
             }
-          } else {
-            if (!f?.key) {
-              showError(`Failed to find encryption key for ${f.id}`);
-              return;
-            }
-            const response = await API.api.getFile(f.id);
-            if (!response.ok) throw response.error;
-            const dataBuffer = await response.arrayBuffer();
-            if (!f.fileNonce) throw `No file nonce found for ${f.id}`;
-            const fileData = await crypto.subtle.decrypt(
-              { name: "AES-GCM", iv: base64ToArrayBuffer(f.fileNonce) },
-              f.key,
-              dataBuffer,
-            );
-            folderQueue[f.parentId!].file(f.name || "file", fileData);
-          }
-        }),
-      );
-      fileQueue = nextFiles;
-      folderQueue = nextFolders;
-    }
-    } catch (error){
+          }),
+        );
+        fileQueue = nextFiles;
+        folderQueue = nextFolders;
+      }
+    } catch (error) {
       showError("Unable to download folder", error);
     }
 
@@ -686,23 +694,6 @@ export default function FileExplorer(
     }
   }, [files, downloadTarget, loading]);
 
-  /** Sorting + searching. */
-  const sortedFiles = currentDir?.slice().sort((a, b) => {
-    let comparison = 0;
-    if (sortBy === "name") {
-      comparison = (a.name ?? "encryptedFile").localeCompare(
-        b.name ?? "encryptedFile",
-      );
-    } else if (sortBy === "createdAt") {
-      comparison =
-        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-    } else if (sortBy === "modifiedAt") {
-      comparison =
-        new Date(a.modifiedAt).getTime() - new Date(b.modifiedAt).getTime();
-    }
-    return sortOrder === "asc" ? comparison : -comparison;
-  });
-
   // @ts-ignore
   const handleSort = (column: "name" | "createdAt" | "modifiedAt") => {
     if (sortBy === column) {
@@ -923,44 +914,125 @@ export default function FileExplorer(
                 onClose={() => setShowUpload(false)}
               />
             )}
-            <FileSearch
-              loading={loading}
-              files={files}
-              onOpen={throttledFetchFiles}
-              onFileSelected={(file) => {
-                if (file.isDirectory) {
+            <Box sx={{ flex: 1, mr: 1 }}>
+              <FileSearch
+                loading={loading}
+                files={files}
+                onOpen={throttledFetchFiles}
+                onFileSelected={(file) => {
+                  if (file.isDirectory) {
+                    setParams((params) => {
+                      params.set("parentId", file.id);
+                      return params;
+                    });
+                  } else {
+                    // TODO: Handle showing file previews here
+                  }
+                }}
+                onNavigateToPath={(path) => {
                   setParams((params) => {
-                    params.set("parentId", file.id);
+                    if (path) {
+                      params.set("parentId", path);
+                    } else {
+                      params.delete("parentId");
+                    }
                     return params;
                   });
-                } else {
-                  // TODO: Handle showing file previews here
-                }
-              }}
-              onNavigateToPath={(path) => {
-                setParams((params) => {
-                  if (path) {
-                    params.set("parentId", path);
-                  } else {
-                    params.delete("parentId");
+                }}
+              />
+            </Box>
+
+
+            <Box>
+              <ToggleButtonGroup
+                value={view}
+                exclusive
+                onChange={(_, newView) => {
+                  if (newView !== null) {
+                    setParams((params) => {
+                      params.set("view", newView);
+                      return params;
+                    });
                   }
-                  return params;
-                });
-              }}
-            />
-            <button
-              onClick={() =>
-                setParams((params) => {
-                  params.set("view", view === "list" ? "grid" : "list");
-                  return params;
-                })
-              }
-              style={styles.toggleButton}
-            >
-              {view === "list" ? <ViewModuleIcon /> : <ViewListIcon />} Toggle
-              View
-            </button>
+                }}
+                size="small"
+                aria-label="view mode"
+              >
+                <ToggleButton value="list" aria-label="list view">
+                  <ViewListIcon />
+                </ToggleButton>
+                <ToggleButton value="grid" aria-label="grid view">
+                  <ViewModuleIcon />
+                </ToggleButton>
+              </ToggleButtonGroup>
+            </Box>
           </div>
+          
+          {/* Sort controls row - responsive design */}
+          <Box 
+            sx={{ 
+              display: 'flex', 
+              alignItems: 'center',
+              mb: 2,
+              mt: { xs: -1, md: -2 }
+            }}
+          >
+            <Collapse 
+              in={view === "grid"} 
+              timeout={300}
+            >
+              <Box 
+                sx={{ 
+                  display: 'flex',
+                  alignItems: 'center',
+                  py: 1
+                }}
+              >
+                <FormControl size="small" sx={{ minWidth: 120, mr: 1 }}>
+                  <InputLabel id="sort-by-label">Sort By</InputLabel>
+                  <Select
+                    labelId="sort-by-label"
+                    value={sortBy}
+                    label="Sort By"
+                    onChange={(e) =>
+                      setSortBy(
+                        e.target.value as "name" | "createdAt" | "modifiedAt",
+                      )
+                    }
+                  >
+                    <MenuItem value="name">Name</MenuItem>
+                    <MenuItem value="size">Size</MenuItem>
+                    <MenuItem value="createdAt">Creation Date</MenuItem>
+                    <MenuItem value="modifiedAt">Modification Date</MenuItem>
+                    <MenuItem value="owner">Owner</MenuItem>
+                    <MenuItem value="uploader">Uploader</MenuItem>
+                  </Select>
+                </FormControl>
+                <Tooltip
+                  title={`Sort ${sortOrder === "asc" ? "Descending" : "Ascending"}`}
+                >
+                  <IconButton
+                    onClick={() =>
+                      setSortOrder(sortOrder === "asc" ? "desc" : "asc")
+                    }
+                    size="small"
+                  >
+                    <Box
+                      sx={{
+                        transform: sortOrder === "asc" ? "rotate(0deg)" : "rotate(180deg)",
+                        transition: "transform 0.3s ease-in-out",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <ArrowUpwardIcon />
+                    </Box>
+                  </IconButton>
+                </Tooltip>
+              </Box>
+            </Collapse>
+          </Box>
 
           <BreadcrumbsNavigation
             path={dirStack.map((f) => f.name ?? "Encrypted directory")}
@@ -984,22 +1056,18 @@ export default function FileExplorer(
             />
           ) : (
             <>
-              {loading ? (
-                <p>Loading files</p>
-              ) : (
-                <div style={styles.gridContainer}>
-                  {sortedFiles?.map((file) => (
-                    <FileGridItem
-                      key={file.id}
-                      file={file}
-                      onOpenFolder={handleOpenFolder}
-                      onMove={(file) => handleFileAction("move", file.id)}
-                      onDelete={handleDelete}
-                      onDownload={handleDownload}
-                    />
-                  ))}
-                </div>
-              )}
+              {
+                <FileGridView
+                  files={currentDir ?? []}
+                  onNavigate={(fileId) => {
+                    const file = files[fileId]!;
+                    handleOpenFolder(file);
+                  }}
+                  onAction={handleFileAction}
+                  loading={loading}
+                  owner={type === "files"}
+                />
+              }
             </>
           )}
         </Box>
@@ -1056,134 +1124,11 @@ export default function FileExplorer(
 
 /** Styles. */
 const styles = {
-  container: {
-    display: "flex",
-    height: "95%",
-    backgroundColor: "#f8f9fa",
-  },
-  sidebar: {
-    width: "250px",
-    padding: "20px",
-    backgroundColor: "#fff",
-    boxShadow: "2px 0px 5px rgba(0,0,0,0.1)",
-  },
-  navList: {
-    listStyle: "none",
-    padding: 0,
-    margin: 0,
-  },
-  navItem: {
-    padding: "10px",
-    display: "flex",
-    alignItems: "center",
-    gap: "10px",
-    cursor: "pointer",
-  },
-  newNavItem: {
-    padding: "10px 20px",
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-    cursor: "pointer",
-    backgroundColor: "#1a73e8",
-    color: "white",
-    borderRadius: "4px",
-    fontWeight: "bold" as const,
-    marginBottom: "10px",
-    fontSize: "1rem",
-  },
-  mainContent: {
-    flex: 1,
-    padding: "20px",
-  },
-  title: {
-    color: "black",
-    fontSize: "2rem",
-    fontWeight: "bold",
-    marginBottom: "10px",
-  },
   controls: {
     display: "flex",
     alignItems: "center",
     gap: "10px",
     marginBottom: "20px",
     flex: 1,
-  },
-  searchBar: {
-    flex: 1,
-    padding: "8px",
-    borderRadius: "4px",
-    border: "1px solid #ccc",
-  },
-  toggleButton: {
-    padding: "5px 10px",
-    cursor: "pointer",
-    borderRadius: "4px",
-    border: "none",
-    backgroundColor: "#007bff",
-    color: "white",
-  },
-  newFolderButton: {
-    padding: "5px 10px",
-    cursor: "pointer",
-    borderRadius: "4px",
-    border: "1px solid #007bff",
-    backgroundColor: "white",
-    color: "#007bff",
-    marginRight: "10px",
-  },
-  table: {
-    width: "100%",
-    marginTop: "20px",
-  },
-  tableHeader: {
-    backgroundColor: "#f1f1f1",
-  },
-  tableHeaderCell: {
-    padding: "10px",
-    textAlign: "left" as const,
-  },
-  tableCell: {
-    padding: "10px",
-    textAlign: "left" as const,
-  },
-  tableRow: {
-    borderBottom: "1px solid #ddd",
-    height: "40px",
-  },
-  sortButton: {
-    background: "none",
-    border: "none",
-    cursor: "pointer",
-    marginLeft: "5px",
-  },
-  gridContainer: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))",
-    gap: "10px",
-    marginTop: "20px",
-  },
-  gridItem: {
-    padding: "10px",
-    border: "1px solid #ccc",
-    borderRadius: "4px",
-    backgroundColor: "#fff",
-    textAlign: "center" as const,
-    color: "black",
-  },
-  newMenu: {
-    position: "absolute" as const,
-    backgroundColor: "#fff",
-    border: "1px solid #ccc",
-    borderRadius: "4px",
-    boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
-    marginTop: "5px",
-    zIndex: 1000,
-  },
-  newMenuItem: {
-    padding: "8px 16px",
-    cursor: "pointer",
-    whiteSpace: "nowrap" as const,
-    display: "block",
   },
 };

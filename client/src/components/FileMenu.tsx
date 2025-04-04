@@ -48,7 +48,11 @@ export function FileContextMenu({
     event.preventDefault();
     setAnchorEl(event.currentTarget);
   };
-  const handleClose = () => {
+  const handleClose = (event?: React.MouseEvent) => {
+    if (event) {
+      event.stopPropagation();
+      event.preventDefault();
+    }
     setAnchorEl(null);
   };
 
@@ -74,7 +78,8 @@ export function FileContextMenu({
       </IconButton>
       <Menu
         open={open}
-        onClose={handleClose}
+        onClose={(event) => handleClose(event as React.MouseEvent)}
+        onClick={(e) => e.stopPropagation()}
         {...menuProps}
         slotProps={{
           paper: {
