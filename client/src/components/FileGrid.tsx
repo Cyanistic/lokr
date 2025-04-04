@@ -10,16 +10,20 @@ import {
 import { FileMetadata } from "../types";
 import { Visibility } from "@mui/icons-material";
 import { FileContextMenu } from "./FileMenu";
-import { getFileIcon } from "../pages/FileExplorer";
+import { getFileIcon, SortByTypes } from "../pages/FileExplorer";
 import { useTheme } from "@emotion/react";
 import { useMemo } from "react";
+import { PublicUser } from "../myApi";
 
 interface FileGridViewProps {
   files: FileMetadata[];
+  users: Record<string, PublicUser>;
   onNavigate: (fileId: string) => void;
   onAction: (action: string, fileId: string) => void;
   loading?: boolean;
   owner: boolean;
+  sortBy: SortByTypes;
+  sortOrder?: "asc" | "desc"; // Optional, for sorting
 }
 
 export function FileGridView({
@@ -27,15 +31,72 @@ export function FileGridView({
   onNavigate,
   onAction,
   owner,
+  sortBy,
+  sortOrder,
+  users,
   loading = false,
 }: FileGridViewProps) {
   const sortedFiles = useMemo(() => {
-    return [...files].sort((a, b) =>
-      (a.name ?? a.encryptedFileName).localeCompare(
-        b.name ?? b.encryptedFileName,
-      ),
-    );
-  }, [files]);
+    if (!sortOrder || !sortBy || loading) {
+      return [...files];
+    }
+
+    const direction = sortOrder === "asc" ? 1 : -1;
+
+    return [...files].sort((a, b) => {
+      switch (sortBy) {
+        case "name":
+          return (
+            direction *
+            (a.name ?? a.encryptedFileName).localeCompare(
+              b.name ?? b.encryptedFileName,
+            )
+          );
+
+        case "createdAt": {
+          const aCreated = a.createdAtDate!.getTime();
+          const bCreated = b.createdAtDate!.getTime();
+          return direction * (aCreated - bCreated);
+        }
+
+        case "modifiedAt": {
+          const aModified = a.modifiedAtDate!.getTime();
+          const bModified = b.modifiedAtDate!.getTime();
+          return direction * (aModified - bModified);
+        }
+
+        case "size":
+          return direction * ((a.size || 0) - (b.size || 0));
+
+        case "owner":
+          return (
+            direction *
+            (a.ownerId ? users[a.ownerId].username : "Anonymous").localeCompare(
+              b.ownerId ? users[b.ownerId].username : "Anonymous",
+            )
+          );
+
+        case "uploader":
+          return (
+            direction *
+            (a.uploaderId
+              ? users[a.uploaderId].username
+              : "Anonymous"
+            ).localeCompare(
+              b.uploaderId ? users[b.uploaderId].username : "Anonymous",
+            )
+          );
+
+        default:
+          return (
+            direction *
+            (a.name ?? a.encryptedFileName).localeCompare(
+              b.name ?? b.encryptedFileName,
+            )
+          );
+      }
+    });
+  }, [loading, files, sortBy, sortOrder, users]);
 
   // If loading, render skeleton grid
   if (loading) {
@@ -89,16 +150,30 @@ export function FileGridView({
   }
 
   return (
-    <Box sx={{ height: "calc(100vh - 180px)", overflowY: "auto", mt: 2 }}>
+    <Box
+      sx={{ height: "calc(100vh - 180px)", overflowY: "auto", mt: 2, pt: 1 }}
+    >
       <Grid container spacing={2}>
-        {sortedFiles.map((file) => (
+        {sortedFiles.map((file, index) => (
           <Grid item xs={6} sm={4} md={3} lg={2} key={file.id}>
-            <FileGridItem
-              file={file}
-              onNavigate={onNavigate}
-              onAction={onAction}
-              owner={owner}
-            />
+            <Box
+              sx={{
+                opacity: 0,
+                animation: `fadeIn 0.6s ease-in-out forwards`,
+                animationDelay: `${index * 0.05}s`,
+                "@keyframes fadeIn": {
+                  "0%": { opacity: 0, transform: "translateY(10px)" },
+                  "100%": { opacity: 1, transform: "translateY(0)" },
+                },
+              }}
+            >
+              <FileGridItem
+                file={file}
+                onNavigate={onNavigate}
+                onAction={onAction}
+                owner={owner}
+              />
+            </Box>
           </Grid>
         ))}
       </Grid>

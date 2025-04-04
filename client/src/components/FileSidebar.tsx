@@ -61,7 +61,7 @@ export function FileSidebar({
 
   // Used for keeping query params across page navigations
   const searchParams = new URLSearchParams(location.search);
-  const viewParam = searchParams.get("view");
+  searchParams.delete("parentId");
 
   // New folder dialog state
   const [newFolderDialogOpen, setNewFolderDialogOpen] = useState(false);
@@ -261,7 +261,7 @@ export function FileSidebar({
             {navItems.map((item, index) => (
               <Link
                 key={index}
-                to={`${item.link}${viewParam ? `?view=${viewParam}` : ""}`}
+                to={`${item.link}?${searchParams.toString()}`}
               >
                 <ListItem disablePadding sx={{ mb: 0.5 }}>
                   <ListItemButton

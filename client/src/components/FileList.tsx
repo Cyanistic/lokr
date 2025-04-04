@@ -10,7 +10,7 @@ import {
 import { Avatar, Box, Tooltip, Typography } from "@mui/material";
 import { FileMetadata } from "../types";
 import { PublicUser } from "../myApi";
-import { getFileIcon } from "../pages/FileExplorer";
+import { getFileIcon, SortByTypes } from "../pages/FileExplorer";
 import { BASE_URL, formatBytes } from "../utils";
 import FolderOffIcon from "@mui/icons-material/FolderOff";
 import { useWindowSize } from "./hooks/useWindowSize";
@@ -41,6 +41,9 @@ interface FileListProps {
   onRowClick: (fileId: string) => void;
   onAction: (action: string, fileId: string) => Promise<void>;
   owner: boolean;
+  onSortModelChange: (model: GridSortModel) => void;
+  sortBy: SortByTypes;
+  sortOrder: "asc" | "desc";
 }
 
 export default function FileList({
@@ -49,15 +52,11 @@ export default function FileList({
   loading,
   onRowClick,
   onAction,
+  onSortModelChange,
+  sortBy,
+  sortOrder,
   owner,
 }: FileListProps) {
-  const [sortModel, setSortModel] = useState<GridSortModel>([
-    {
-      field: "name",
-      sort: "asc",
-    },
-  ]);
-
   const [columnVisibility, setColumnVisibility] =
     useState<GridColumnVisibilityModel>({
       name: true,
@@ -306,8 +305,8 @@ export default function FileList({
           },
         }}
         pageSizeOptions={[5, 10, 25]}
-        sortModel={sortModel}
-        onSortModelChange={setSortModel}
+        sortModel={[{ field: sortBy, sort: sortOrder }]}
+        onSortModelChange={onSortModelChange}
         disableRowSelectionOnClick
         slots={{
           noRowsOverlay: NoFilesFound,

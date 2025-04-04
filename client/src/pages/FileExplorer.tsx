@@ -161,19 +161,28 @@ interface FileExplorerProps {
   type: "files" | "shared" | "link";
 }
 
+export type SortByTypes =
+  | "name"
+  | "size"
+  | "createdAt"
+  | "modifiedAt"
+  | "owner"
+  | "uploader";
+
 export default function FileExplorer(
   { type }: FileExplorerProps = { type: "files" },
 ) {
-  const [sortBy, setSortBy] = useState<"name" | "createdAt" | "modifiedAt">(
-    "name",
-  );
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [params, updateParams] = useSearchParams();
   const [currentUser, setCurrentUser] = useState<SessionUser>();
   const preferredView = useRef<"list" | "grid">("list");
+  const preferredSortBy = useRef<SortByTypes>("name");
   const parentId = params.get("parentId");
   const view = params.get("view") || preferredView.current;
   const linkId = params.get("linkId");
+  const sortBy: SortByTypes =
+    (params.get("sortBy") as SortByTypes) || preferredSortBy.current;
+  const sortOrder: "asc" | "desc" =
+    (params.get("sortOrder") as "asc" | "desc") || "asc";
   // const fileId = params.get("fileId");
 
   // The list of items in the current directory
@@ -440,8 +449,12 @@ export default function FileExplorer(
         id,
         email,
         username,
+        sortOrder,
       } = data;
       preferredView.current = gridView ? "grid" : "list";
+      // Sort order is actually sortBy because I forgot
+      // actually to rename it in the backend when I added sorting
+      preferredSortBy.current = sortOrder as typeof sortBy;
 
       await localforage.setItem("userId", id);
       // 1) Import the user's public key
@@ -694,16 +707,6 @@ export default function FileExplorer(
     }
   }, [files, downloadTarget, loading]);
 
-  // @ts-ignore
-  const handleSort = (column: "name" | "createdAt" | "modifiedAt") => {
-    if (sortBy === column) {
-      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
-    } else {
-      setSortBy(column);
-      setSortOrder("asc");
-    }
-  };
-
   /** Directory navigation. */
   const handleOpenFolder = (folder: FileMetadata) => {
     if (folder.isDirectory) {
@@ -942,7 +945,6 @@ export default function FileExplorer(
               />
             </Box>
 
-
             <Box>
               <ToggleButtonGroup
                 value={view}
@@ -967,25 +969,22 @@ export default function FileExplorer(
               </ToggleButtonGroup>
             </Box>
           </div>
-          
+
           {/* Sort controls row - responsive design */}
-          <Box 
-            sx={{ 
-              display: 'flex', 
-              alignItems: 'center',
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
               mb: 2,
-              mt: { xs: -1, md: -2 }
+              mt: { xs: -1, md: -2 },
             }}
           >
-            <Collapse 
-              in={view === "grid"} 
-              timeout={300}
-            >
-              <Box 
-                sx={{ 
-                  display: 'flex',
-                  alignItems: 'center',
-                  py: 1
+            <Collapse in={view === "grid"} timeout={300}>
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  py: 1,
                 }}
               >
                 <FormControl size="small" sx={{ minWidth: 120, mr: 1 }}>
@@ -995,9 +994,19 @@ export default function FileExplorer(
                     value={sortBy}
                     label="Sort By"
                     onChange={(e) =>
-                      setSortBy(
-                        e.target.value as "name" | "createdAt" | "modifiedAt",
-                      )
+                      setParams((params) => {
+                        params.set(
+                          "sortBy",
+                          e.target.value as
+                            | "name"
+                            | "size"
+                            | "createdAt"
+                            | "modifiedAt"
+                            | "owner"
+                            | "uploader",
+                        );
+                        return params;
+                      })
                     }
                   >
                     <MenuItem value="name">Name</MenuItem>
@@ -1012,14 +1021,21 @@ export default function FileExplorer(
                   title={`Sort ${sortOrder === "asc" ? "Descending" : "Ascending"}`}
                 >
                   <IconButton
-                    onClick={() =>
-                      setSortOrder(sortOrder === "asc" ? "desc" : "asc")
-                    }
+                    onClick={() => {
+                      const value = sortOrder === "asc" ? "desc" : "asc";
+                      setParams((params) => {
+                        params.set("sortOrder", value);
+                        return params;
+                      });
+                    }}
                     size="small"
                   >
                     <Box
                       sx={{
-                        transform: sortOrder === "asc" ? "rotate(0deg)" : "rotate(180deg)",
+                        transform:
+                          sortOrder === "asc"
+                            ? "rotate(0deg)"
+                            : "rotate(180deg)",
                         transition: "transform 0.3s ease-in-out",
                         display: "flex",
                         alignItems: "center",
@@ -1048,9 +1064,27 @@ export default function FileExplorer(
                 const file = files[fileId]!;
                 handleOpenFolder(file);
               }}
+              onSortModelChange={(model) => {
+                const value = model[0];
+                if (!value) {
+                  setParams((params) => {
+                    params.delete("sortBy");
+                    params.delete("sortOrder");
+                    return params;
+                  });
+                } else {
+                  setParams((params) => {
+                    params.set("sortBy", value.field);
+                    params.set("sortOrder", value.sort || "desc");
+                    return params;
+                  });
+                }
+              }}
               onAction={handleFileAction}
               files={currentDir ?? []}
               loading={loading}
+              sortBy={sortBy}
+              sortOrder={sortOrder}
               users={users}
               owner={type === "files"}
             />
@@ -1059,12 +1093,15 @@ export default function FileExplorer(
               {
                 <FileGridView
                   files={currentDir ?? []}
+                  users={users}
                   onNavigate={(fileId) => {
                     const file = files[fileId]!;
                     handleOpenFolder(file);
                   }}
                   onAction={handleFileAction}
                   loading={loading}
+                  sortBy={sortBy}
+                  sortOrder={sortOrder}
                   owner={type === "files"}
                 />
               }
