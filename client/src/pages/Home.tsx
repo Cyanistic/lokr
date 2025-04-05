@@ -59,22 +59,29 @@ export function Home() {
     },
   ];
 
-  const footerSections = [
+  // Technologies used in the project
+  const technologies = [
     {
-      title: "Product",
-      links: ["Features", "Security", "Pricing"],
+      name: "React",
+      icon: "/react.svg",
     },
     {
-      title: "Company",
-      links: ["About", "Blog", "Careers"],
+      name: "TypeScript",
+      icon: "/typescript.svg",
     },
     {
-      title: "Support",
-      links: ["Help Center", "Contact", "Status"],
+      name: "Rust",
+      icon: "/rust.svg",
     },
+    { name: "Material UI", icon: "/mui.png" },
+  ];
+
+  // Social links
+  const socialLinks = [
     {
-      title: "Legal",
-      links: ["Privacy", "Terms", "Cookie Policy"],
+      name: "GitHub",
+      icon: <GitHubIcon />,
+      url: "https://github.com/Cyanistic/lokr",
     },
   ];
 
@@ -155,45 +162,159 @@ export function Home() {
       <Box sx={{ bgcolor: "gray.900", py: 6 }}>
         <Container maxWidth="lg">
           <Grid container spacing={4}>
-            {footerSections.map((section, index) => (
-              <Grid item xs={6} md={3} key={index}>
-                <Typography
-                  variant="subtitle1"
-                  fontWeight="semibold"
-                  gutterBottom
-                >
-                  {section.title}
-                </Typography>
-                <Stack spacing={2}>
-                  {section.links.map((link, linkIndex) => (
-                    <Typography
-                      key={linkIndex}
+            {/* About Project Section */}
+            <Grid item xs={12} md={4}>
+              <Typography
+                variant="subtitle1"
+                fontWeight="semibold"
+                gutterBottom
+              >
+                About Lokr
+              </Typography>
+              <Typography variant="body2" sx={{ color: "#a0aec0", mb: 2 }}>
+                Lokr is an open-source secure file sharing platform focused on
+                privacy and end-to-end encryption. Share files with confidence
+                using military-grade encryption and zero-knowledge architecture.
+              </Typography>
+              <Stack
+                direction="row"
+                spacing={2}
+                sx={{ mt: 2, justifyContent: "center" }}
+              >
+                {socialLinks.map((link, i) => (
+                  <Button
+                    key={i}
+                    href={link.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    variant="outlined"
+                    size="small"
+                    sx={{
+                      color: "#a0aec0",
+                      borderColor: "#2d3748",
+                      minWidth: "auto",
+                      "&:hover": {
+                        borderColor: "primary.main",
+                        color: "white",
+                      },
+                    }}
+                  >
+                    {link.icon}
+                  </Button>
+                ))}
+              </Stack>
+            </Grid>
+
+            {/* Built With Section */}
+            <Grid item xs={12} md={4}>
+              <Typography
+                variant="subtitle1"
+                fontWeight="semibold"
+                gutterBottom
+              >
+                Built With
+              </Typography>
+              <Box
+                sx={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  justifyContent: "center",
+                  gap: 2,
+                  mt: 1,
+                }}
+              >
+                {technologies.map((tech, index) => (
+                  <Box
+                    key={index}
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      color: "#a0aec0",
+                      mr: 2,
+                      mb: 1,
+                    }}
+                  >
+                    <Box
+                      component="img"
+                      src={tech.icon}
+                      alt={tech.name}
                       sx={{
-                        color: "#a0aec0",
-                        cursor: "pointer",
-                        "&:hover": { color: "white" },
+                        height: 32,
+                        width: 32,
+                        mr: 1,
                       }}
-                    >
-                      {link}
+                    />
+                    <Typography variant="body2">{tech.name}</Typography>
+                  </Box>
+                ))}
+              </Box>
+            </Grid>
+
+            {/* Security Commitment Section */}
+            <Grid item xs={12} md={4}>
+              <Typography
+                variant="subtitle1"
+                fontWeight="semibold"
+                gutterBottom
+              >
+                Our Security Commitment
+              </Typography>
+              <Typography variant="body2" sx={{ color: "#a0aec0", mb: 2 }}>
+                Your privacy is our priority. We're committed to:
+              </Typography>
+              <Stack spacing={1.5}>
+                {[
+                  "End-to-end encryption for all files",
+                  "Zero-knowledge architecture",
+                  "Open-source transparency",
+                ].map((item, index) => (
+                  <Box
+                    key={index}
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 1.5,
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: "50%",
+                        bgcolor: "primary.main",
+                        flexShrink: 0,
+                      }}
+                    />
+                    <Typography variant="body2" sx={{ color: "#a0aec0" }}>
+                      {item}
                     </Typography>
-                  ))}
-                </Stack>
-              </Grid>
-            ))}
+                  </Box>
+                ))}
+              </Stack>
+            </Grid>
           </Grid>
 
-          <Divider sx={{ my: 4, borderColor: "gray.800" }} />
+          <Divider sx={{ my: 4, borderColor: "#2d3748" }} />
 
-          <Typography variant="subtitle1" className="security-subtitle" mt={2}>
-            Version - {__COMMIT_HASH__}
-          </Typography>
           <Stack
-            direction="row"
+            direction={{ xs: "column", sm: "row" }}
             justifyContent="space-between"
-            alignItems="center"
+            alignItems={{ xs: "flex-start", sm: "center" }}
+            spacing={2}
           >
-            <Typography variant="body2" sx={{ color: "#a0aec0" }}>
-              © 2025 Lokr. All rights reserved.
+            <Box>
+              <Typography variant="body2" sx={{ color: "#a0aec0" }}>
+                © 2025 Lokr. All rights reserved.
+              </Typography>
+              <Typography
+                variant="caption"
+                sx={{ color: "#4a5568", display: "block" }}
+              >
+                Version - {__COMMIT_HASH__}
+              </Typography>
+            </Box>
+            <Typography variant="body2" sx={{ color: "#4a5568" }}>
+              Made with ❤️ for the open-source community
             </Typography>
           </Stack>
         </Container>
