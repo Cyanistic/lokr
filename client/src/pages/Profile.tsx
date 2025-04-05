@@ -13,6 +13,7 @@ import { useSearchParams } from "react-router-dom";
 import { UserUpdate } from "../myApi";
 import { useErrorToast } from "../components/ErrorToastProvider";
 import "./Profile.css";
+import { useProfile } from "../components/ProfileProvider";
 
 // Valid profile sections
 const Sections = ["profile", "security", "notifications"] as const;
@@ -32,16 +33,10 @@ function Profile() {
     userAgent?: string | null;
   };
 
-  const [user, setUser] = useState<{
-    username: string;
-    email: string | null;
-    id: string;
-    avatarExtension: string | null;
-  } | null>(null);
+  const { profile, loading: loadingProfile, refreshProfile } = useProfile();
   const [editingField, setEditingField] = useState<string | null>(null);
   const [updatedValue, setUpdatedValue] = useState<string>("");
   const [qrCode, setQrCode] = useState<string | null>(null);
-  const [totpStatus, setTotpStatus] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true); // Loading state for fetching user data
   const [params, setParams] = useSearchParams();
   const [avatarUrl, setAvatarUrl] = useState<string>(DefaultProfile);
@@ -57,22 +52,25 @@ function Profile() {
   //Fetch User data
   useEffect(() => {
     const getData = async () => {
-      try {
-        const response = await API.api.getLoggedInUser();
-        if (!response.ok) throw response.error;
-        const data = await response.json();
-        setUser(data);
-        setAvatarUrl(getAvatarUrl(data));
-        if (data.totpEnabled !== undefined) {
-          setTotpStatus(data.totpEnabled); //Store TOTP status
-        }
-      } catch (err: any) {
-        showError("Failed to fetch user data. Please try again.", err);
+      if (!profile) return;
+      if (profile.avatarExtension) {
+        setAvatarUrl(
+          `${getAvatarUrl({
+            id: profile.id,
+            avatarExtension: profile?.avatarExtension,
+          })}/?q=${Math.random()}`,
+        );
       }
-      setLoading(false);
     };
-    getData();
-  }, []);
+    setLoading(true);
+    try {
+      getData();
+    } finally {
+      if (profile) {
+        setLoading(false);
+      }
+    }
+  }, [loadingProfile, profile]);
 
   //Fetch Sessions
   useEffect(() => {
@@ -169,30 +167,6 @@ function Profile() {
     }
   };
 
-  /*old Verify TOTP
-  const handleVerifyTOTP = async () => {
-    try {
-      const code = prompt("Enter the 6-digit TOTP code:");
-      if (!code) {
-        showError("TOTP code is required!");
-        return;
-      }
-
-      const requestBody: VerifyTOTPRequest = { type: "verify", code };
-      console.log("Verifying TOTP:", JSON.stringify(requestBody, null, 2));
-
-      const response = await API.api.updateTotp(requestBody);
-
-      console.log("Response status:", response.status);
-      if (!response.ok) throw response.error;
-
-      showError("TOTP verified successfully! You can now enable TOTP.");
-    } catch (err) {
-      showError("Failed to verify TOTP. Please check the code and try again.", err);
-    }
-  };
-  */
-
   //Enable/Disable TOTP
   const handleEnableTOTP = async () => {
     try {
@@ -209,7 +183,7 @@ function Profile() {
       }
 
       const hashedPassword = await hashPassword(password, passwordSalt);
-      const enable = !totpStatus;
+      const enable = !profile?.totpEnabled;
       const requestBody: EnableTOTPRequest = {
         type: "enable",
         enable,
@@ -233,7 +207,7 @@ function Profile() {
       }
 
       showError(`TOTP ${enable ? "enabled" : "disabled"} successfully!`);
-      setTotpStatus(enable); //Updates status UI
+      await refreshProfile();
     } catch (err) {
       console.error("Error toggling TOTP:", err);
       showError("Failed to update TOTP settings.");
@@ -257,16 +231,12 @@ function Profile() {
         const errorText = await response.text();
         throw new Error(errorText);
       }
-
-      alert("Session deleted");
-
       //Remove deleted session from the state
       setSessions((prev) =>
         prev.filter((session) => session.number !== sessionNumber),
       );
     } catch (err) {
       console.error("Error deleting session:", err);
-      alert("Failed to delete session.");
     }
   };
 
@@ -312,8 +282,11 @@ function Profile() {
           throw new Error("Could not find iv");
         }
         const masterKey = await deriveKeyFromPassword(updatedValue, salt);
-        const { iv: _, encrypted: encryptedPrivateKey } =
-          await encryptPrivateKey(privateKey, masterKey, iv);
+        const { encrypted: encryptedPrivateKey } = await encryptPrivateKey(
+          privateKey,
+          masterKey,
+          iv,
+        );
         requestBody.encryptedPrivateKey = bufferToBase64(encryptedPrivateKey);
         // Hash the new password for the backend
         requestBody.newValue = await hashPassword(
@@ -342,7 +315,7 @@ function Profile() {
         );
       }
 
-      setUser({ ...user!, [field]: updatedValue });
+      refreshProfile();
       setEditingField(null);
     } catch (err) {
       showError(
@@ -364,31 +337,23 @@ function Profile() {
             </div>
           );
         }
-        // if (error) {
-        //   <div className="profileInfo">
-        //     <h3>Security and Privacy Section</h3>
-        //     <p style={{ color: "red" }}>Error: {error}</p>
-        //   </div>
-        // }
         return (
           <div className="profileInfo">
             <h3>Profile Information Section</h3>
             <div>
               <div className="userInfo">
                 <p>
-                  <strong>Username:</strong> {user!.username}{" "}
+                  <strong>Username:</strong> {profile!.username}{" "}
                 </p>
                 <p>
-                  <strong>Email:</strong> {user!.email || "No email provided"}
+                  <strong>Email:</strong>{" "}
+                  {profile!.email || "No email provided"}
                 </p>
                 <h3>Upload your avatar</h3>
                 <AvatarUpload
                   avatarUrl={avatarUrl}
-                  onAvatarChange={(newExt: string) => {
-                    setUser({ ...user!, avatarExtension: newExt });
-                    setAvatarUrl(
-                      `${getAvatarUrl({ id: user!.id, avatarExtension: newExt })}?v=${Math.random()}`,
-                    );
+                  onAvatarChange={() => {
+                    refreshProfile();
                   }}
                 />
               </div>
@@ -410,10 +375,10 @@ function Profile() {
                   </>
                 ) : (
                   <>
-                    {user!.username}{" "}
+                    {profile!.username}{" "}
                     <button
                       className="b1"
-                      onClick={() => handleEdit("username", user!.username)}
+                      onClick={() => handleEdit("username", profile!.username)}
                     >
                       Edit
                     </button>
@@ -473,7 +438,7 @@ function Profile() {
             {/* Display TOTP Status */}
             <p>
               TOTP is currently:{" "}
-              <strong>{totpStatus ? "Enabled" : "Disabled"}</strong>
+              <strong>{profile?.totpEnabled ? "Enabled" : "Disabled"}</strong>
             </p>
 
             <button className="b1" onClick={handleRegenerateTOTP}>
@@ -511,7 +476,7 @@ function Profile() {
 
             {totpVerified && (
               <button onClick={handleEnableTOTP}>
-                {totpStatus ? "Disable TOTP" : "Enable TOTP"}
+                {profile?.totpEnabled ? "Disable TOTP" : "Enable TOTP"}
               </button>
             )}
 

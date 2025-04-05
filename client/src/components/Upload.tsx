@@ -12,6 +12,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useDropzone } from "react-dropzone";
 import "./Upload.css";
 import { GrUploadOption } from "react-icons/gr";
+import { useProfile } from "./ProfileProvider";
 
 interface Props {
   parentId?: string | null;
@@ -38,54 +39,10 @@ export default function Upload({
   const [files, setFile] = useState<File[]>([]);
   const [fileMeta, setFileMeta] = useState<FileMetadata[]>([]);
   const [uploadStatus, setUploadStatus] = useState<string>("");
-  const [userPublicKey, setUserPublicKey] = useState<CryptoKey | null>(null);
   const { showError } = useErrorToast();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const overlayRef = useRef<HTMLDivElement | null>(null);
-
-  // Function to fetch the user's profile (including the public key) from the server
-  const fetchUserProfile = async () => {
-    try {
-      const response = await API.api.getLoggedInUser();
-
-      if (!response.ok) throw response.error;
-      const data = await response.json();
-      const publicKeyPem = data.publicKey; // Assuming the public key is in the profile data
-
-      const cryptoKey = await importPublicKey(publicKeyPem);
-      setUserPublicKey(cryptoKey); // Store the user's public key
-    } catch (error) {
-      showError("Error fetching user profile.", error);
-    }
-  };
-
-  // Function to import the PEM-formatted public key into a CryptoKey object
-  const importPublicKey = async (pem: string): Promise<CryptoKey> => {
-    const binaryDer = str2ab(pem); // Convert PEM to ArrayBuffer
-    return await window.crypto.subtle.importKey(
-      "spki",
-      binaryDer,
-      { name: "RSA-OAEP", hash: { name: "SHA-256" } },
-      false,
-      ["encrypt", "wrapKey"],
-    );
-  };
-
-  // Convert PEM string to ArrayBuffer
-  function str2ab(str: string): ArrayBuffer {
-    const binaryString = window.atob(str.replace(/-----.*-----/g, ""));
-    const len = binaryString.length;
-    const bytes = new Uint8Array(len);
-    for (let i = 0; i < len; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
-    return bytes.buffer;
-  }
-
-  // Fetch the user's public key when the component mounts
-  useEffect(() => {
-    fetchUserProfile();
-  }, []);
+  const { profile, loading, refreshProfile } = useProfile();
 
   // Function to encrypt the file content using AES and return the encrypted file
   const encryptFileWithAES = async (
@@ -110,17 +67,11 @@ export default function Upload({
   };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    //const uploadedFiles = e.target.files; //? e.target.files[0] : null;
     const uploadedFiles = event.target.files
       ? Array.from(event.target.files)
       : [];
     if (uploadedFiles && uploadedFiles.length > 0) {
-      setFile(
-        (prevFiles) => [
-          ...prevFiles,
-          ...uploadedFiles,
-        ] /*Array.from(uploadedFiles)*/,
-      );
+      setFile((prevFiles) => [...prevFiles, ...uploadedFiles]);
 
       const metadata: FileMetadata[] = Array.from(uploadedFiles).map(
         (uploadedFile) => {
@@ -142,6 +93,10 @@ export default function Upload({
   };
 
   const handleSubmit = async () => {
+    if (loading) {
+      showError("Please wait for your profile to load before uploading files.");
+      return;
+    }
     // Here you can handle file upload logic (e.g., sending to server)
 
     setUploadStatus("Uploading...");
@@ -157,13 +112,12 @@ export default function Upload({
     if (parentId && parentKey) {
       key = parentKey;
     } else {
-      // Ensure public key is loaded before proceeding
-      if (!userPublicKey) {
-        setUploadStatus("");
-        showError("Could not upload file. User public key not loaded.");
-        return;
+      if (profile?.importedPublicKey) {
+        key = profile?.importedPublicKey;
+      } else {
+        // This is an anonymous user so we can use any key for encryption
+        key = await generateKey();
       }
-      key = userPublicKey;
     }
 
     // Create a metadata object
@@ -185,7 +139,7 @@ export default function Upload({
       );
 
       let keyNonce;
-      if (parentId) {
+      if (parentId || !profile?.importedPublicKey) {
         keyNonce = generateNonce();
         algorithm = { name: "AES-GCM", iv: keyNonce };
       } else {
@@ -248,6 +202,7 @@ export default function Upload({
             size: data.size,
           });
         }
+        refreshProfile();
       } catch (error) {
         showError("Error during file upload.", error);
       }

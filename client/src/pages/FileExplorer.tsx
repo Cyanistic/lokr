@@ -16,12 +16,9 @@ import {
   Movie as MovieIcon,
   ArrowUpward as ArrowUpwardIcon,
 } from "@mui/icons-material";
-import { API } from "../utils";
+import { API, logout } from "../utils";
 import localforage from "localforage";
 import {
-  importPublicKey,
-  deriveKeyFromPassword,
-  unwrapPrivateKey,
   unwrapAESKey,
   decryptText,
   encryptText,
@@ -34,6 +31,7 @@ import {
 import {
   NavigateOptions,
   URLSearchParamsInit,
+  useNavigate,
   useSearchParams,
 } from "react-router-dom";
 import { FileMetadata, FileResponse } from "../types";
@@ -42,7 +40,7 @@ import FileSearch from "../components/FileSearch";
 import JSZip from "jszip";
 import { useThrottledCallback } from "use-debounce";
 import FileList from "../components/FileList";
-import { PublicUser, SessionUser } from "../myApi";
+import { PublicUser } from "../myApi";
 import { FileSidebar } from "../components/FileSidebar";
 import {
   Box,
@@ -68,6 +66,7 @@ import "./FileExplorer.css";
 import { FileGridView } from "../components/FileGrid";
 import { PasswordModal } from "../components/PasswordModal";
 import { DeleteModal } from "../components/DeleteModal";
+import { useProfile } from "../components/ProfileProvider";
 
 /** Return an icon based on file extension. */
 export function getFileIcon(
@@ -175,7 +174,7 @@ export default function FileExplorer(
   { type }: FileExplorerProps = { type: "files" },
 ) {
   const [params, updateParams] = useSearchParams();
-  const [currentUser, setCurrentUser] = useState<SessionUser>();
+  const { profile, loading: loadingProfile, refreshProfile } = useProfile();
   const preferredView = useRef<"list" | "grid">("list");
   const preferredSortBy = useRef<SortByTypes>("name");
   const parentId = params.get("parentId");
@@ -193,10 +192,10 @@ export default function FileExplorer(
   const [root, setRoot] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const { showError } = useErrorToast();
+  const navigate = useNavigate();
 
   // The user's decrypted private key and public key
   const [privateKey, setPrivateKey] = useState<CryptoKey | null>(null);
-  const [userPublicKey, setUserPublicKey] = useState<CryptoKey | null>(null);
 
   const [collapsed, setCollapsed] = useState<boolean>(false);
   // Get window size for responsive design
@@ -383,8 +382,8 @@ export default function FileExplorer(
 
     try {
       while (fileQueue && fileQueue.length > 0) {
-        let nextFiles: string[] = [];
-        let nextFolders: Record<string, JSZip> = {};
+        const nextFiles: string[] = [];
+        const nextFolders: Record<string, JSZip> = {};
 
         await Promise.all(
           fileQueue.map(async (fileId) => {
@@ -436,39 +435,16 @@ export default function FileExplorer(
     window.URL.revokeObjectURL(url);
   }
 
-  async function fetchUserProfileAndDecryptKey() {
+  async function decryptPrivateKey() {
     try {
-      const resp = await API.api.getLoggedInUser();
-      if (!resp.ok) {
-        console.error("Failed to fetch user profile");
+      if (!profile) {
         return;
       }
-      const data = resp.data;
-      setCurrentUser(data);
-      const {
-        publicKey,
-        encryptedPrivateKey,
-        iv,
-        salt,
-        gridView,
-        id,
-        email,
-        username,
-        sortOrder,
-      } = data;
+      const { publicKey, gridView, id, email, username, sortOrder } = profile;
       preferredView.current = gridView ? "grid" : "list";
       // Sort order is actually sortBy because I forgot
       // actually to rename it in the backend when I added sorting
       preferredSortBy.current = sortOrder as typeof sortBy;
-
-      await localforage.setItem("userId", id);
-      // 1) Import the user's public key
-      if (!publicKey) {
-        console.error("No public key found in profile");
-        return;
-      }
-      const pubKey = await importPublicKey(publicKey);
-      setUserPublicKey(pubKey);
       setUsers({ ...users, [id]: { publicKey, email, id, username } });
 
       // 2) If we have an encrypted private key, prompt for password
@@ -477,32 +453,8 @@ export default function FileExplorer(
       if (storedPrivateKey != null) {
         setPrivateKey(storedPrivateKey);
       } else {
-        if (encryptedPrivateKey && iv && salt) {
-          const pwd = prompt(
-            "Enter your password to decrypt your private key:",
-          );
-          if (!pwd) {
-            console.error("No password provided; cannot decrypt private key");
-            return;
-          }
-          // 3) Derive an AES key from password + salt
-          const aesKey = await deriveKeyFromPassword(pwd, salt);
-          // 4) Unwrap the private key
-          const unwrapped = await unwrapPrivateKey(
-            encryptedPrivateKey,
-            aesKey,
-            iv,
-          );
-          if (!unwrapped) {
-            console.error("Failed to unwrap private key");
-            return;
-          }
-          setPrivateKey(unwrapped);
-        } else {
-          console.error(
-            "Missing fields (encryptedPrivateKey, iv, salt) to decrypt private key",
-          );
-        }
+        await logout();
+        navigate("/login");
       }
     } catch (err) {
       console.error("Error fetching profile or decrypting key:", err);
@@ -510,8 +462,8 @@ export default function FileExplorer(
   }
 
   useEffect(() => {
-    fetchUserProfileAndDecryptKey();
-  }, []);
+    decryptPrivateKey();
+  }, [loadingProfile]);
 
   async function fetchFiles(
     {
@@ -603,7 +555,6 @@ export default function FileExplorer(
       }
 
       // BFS traversal to decrypt files
-      let times = 0;
       let found = false;
       while (queue.length > 0) {
         const next: string[] = [];
@@ -686,7 +637,6 @@ export default function FileExplorer(
         if (includeAncestors && !found && parentId) {
           stack.push(tempFiles[queue[0]]);
         }
-        times += 1;
         queue = next;
       }
       if (parentId) {
@@ -764,21 +714,9 @@ export default function FileExplorer(
   const handleDelete = async (file: FileMetadata) => {
     try {
       const resp = await API.api.deleteFile(file.id);
-      if (resp.ok) {
-        const newFiles = { ...files };
-        delete newFiles[file.id];
-        if (file.parentId) {
-          newFiles[file.parentId].children = newFiles[
-            file.parentId
-          ].children?.filter((id) => id != file.id);
-        } else {
-          root.delete(file.id);
-          setRoot(root);
-        }
-        setFiles(newFiles);
-      } else {
-        showError("Error deleting file");
-      }
+      if (!resp.ok) throw resp.error;
+      refreshProfile();
+      fetchFiles();
     } catch (err) {
       console.error("Error deleting file:", err);
       showError("Error deleting file");
@@ -807,11 +745,11 @@ export default function FileExplorer(
         keyNonce = generateNonce();
         algorithm = { name: "AES-GCM", iv: keyNonce };
       } else {
-        if (!userPublicKey) {
+        if (!profile?.importedPublicKey) {
           showError("User public key not loaded");
           return;
         }
-        parentKey = userPublicKey;
+        parentKey = profile?.importedPublicKey;
         algorithm = { name: "RSA-OAEP" };
       }
       const encryptedName = await encryptText(aesKey, folderName, nameNonce);
@@ -835,6 +773,7 @@ export default function FileExplorer(
         linkId: linkId || "",
       });
       if (!resp.ok) throw resp.error;
+      refreshProfile();
       fetchFiles();
     } catch (err) {
       console.error("Error creating folder:", err);
@@ -854,7 +793,7 @@ export default function FileExplorer(
           current={type}
           collapsed={collapsed}
           setCollapsed={setCollapsed}
-          user={currentUser}
+          user={profile ?? undefined}
           onCreateFolder={handleCreateFolder}
           editor={parentId ? Boolean(files[parentId]?.editPermission) : false}
         />
@@ -1123,7 +1062,7 @@ export default function FileExplorer(
       </Box>
       {/* File sharing dialog holder */}
       <ShareModal
-        currentUser={currentUser}
+        currentUser={profile ?? undefined}
         open={shareOpen}
         file={selectedFile.current}
         onClose={() => setShareOpen(false)}
@@ -1177,7 +1116,7 @@ export default function FileExplorer(
               includeAncestors: false,
             })
           }
-          userPublicKey={userPublicKey}
+          userPublicKey={profile?.importedPublicKey ?? null}
           // Handle updating the file tree visually
           onMove={async () => {
             setMoveOpen(false);

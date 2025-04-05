@@ -20,8 +20,10 @@ import MenuIcon from "@mui/icons-material/Menu";
 import LockIcon from "@mui/icons-material/Lock";
 
 // Assuming these functions are imported from elsewhere
-import { isAuthenticated, logout } from "../utils"; // Import your auth functions
+import { BASE_URL, isAuthenticated, logout } from "../utils"; // Import your auth functions
 import { Close } from "@mui/icons-material";
+import { useProfile } from "./ProfileProvider";
+import DefaultProfile from "/default-profile.webp";
 
 export default function Navigation() {
   const navigate = useNavigate();
@@ -29,6 +31,7 @@ export default function Navigation() {
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const { profile } = useProfile();
 
   // Handle scroll effect for navbar
   useEffect(() => {
@@ -265,13 +268,6 @@ export default function Navigation() {
         </Box>
       </Box>
       <Box sx={{ display: "flex", alignItems: "center" }}>
-        {
-          //
-          //          <IconButton onClick={toggleTheme} color="inherit" sx={{ mr: 1 }}>
-          //            {darkMode ? <LightModeIcon /> : <DarkModeIcon />}
-          //          </IconButton>
-        }
-
         {authLinks.map((link) =>
           link.isButton ? (
             <Button
@@ -309,24 +305,27 @@ export default function Navigation() {
           ),
         )}
 
-        {isAuthenticated() && (
-          <Avatar
-            sx={{
-              ml: 2,
-              width: 36,
-              height: 36,
-              bgcolor: theme.palette.primary.main,
-              cursor: "pointer",
-              transition: "transform 0.2s",
-              "&:hover": {
-                transform: "scale(1.1)",
-              },
-            }}
-            component={Link}
-            to="/profile"
-          >
-            U
-          </Avatar>
+        {isAuthenticated() && profile && (
+          <Link to={"/profile"}>
+            <Avatar
+              sx={{
+                ml: 2,
+                width: 36,
+                height: 36,
+                bgcolor: theme.palette.primary.main,
+                cursor: "pointer",
+                transition: "transform 0.2s",
+                "&:hover": {
+                  transform: "scale(1.1)",
+                },
+              }}
+              src={
+                profile.avatarExtension
+                  ? `${BASE_URL}/api/avatars/${profile.id}.${profile.avatarExtension}/?q=${Math.random()}`
+                  : DefaultProfile
+              }
+            />
+          </Link>
         )}
       </Box>
     </>

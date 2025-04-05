@@ -49,7 +49,7 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({
 
       const data: { extension: string } = await response.json();
       onAvatarChange(data.extension);
-    } catch (err: any) {
+    } catch (err) {
       showError("Failed to upload the image. Please try again.", err);
     }
   };

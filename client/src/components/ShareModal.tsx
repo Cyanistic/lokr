@@ -40,7 +40,7 @@ import {
   VisibilityOff,
 } from "@mui/icons-material";
 import { FileMetadata, PublicUser, ShareLink } from "../types";
-import { PublicUser as ApiPublicUser, SessionUser } from "../myApi";
+import { PublicUser as ApiPublicUser } from "../myApi";
 import {
   bufferToBase64,
   importPublicKey,
@@ -50,6 +50,7 @@ import DefaultProfile from "/default-profile.webp";
 import { API, BASE_URL } from "../utils";
 import { useErrorToast } from "./ErrorToastProvider";
 import { ShareResponse } from "../myApi";
+import { SessionUser } from "./ProfileProvider";
 
 interface ShareModalProps {
   open: boolean;
