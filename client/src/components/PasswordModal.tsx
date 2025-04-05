@@ -9,7 +9,10 @@ import {
   Typography,
   CircularProgress,
   Box,
+  InputAdornment,
+  IconButton,
 } from "@mui/material";
+import { Visibility, VisibilityOff } from "@mui/icons-material";
 
 interface PasswordModalProps {
   open: boolean;
@@ -29,6 +32,7 @@ export function PasswordModal({
   loading,
 }: PasswordModalProps) {
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState<boolean>(false);
 
   const handlePasswordChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setPassword(event.target.value);
@@ -65,7 +69,7 @@ export function PasswordModal({
           margin="none"
           id="password"
           label="Password"
-          type="password"
+          type={showPassword ? "text" : "password"}
           fullWidth
           variant="outlined"
           value={password}
@@ -77,6 +81,17 @@ export function PasswordModal({
             if (event.key === "Enter" && password.trim()) {
               handleSubmit();
             }
+          }}
+          slotProps={{
+            input: {
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton onClick={() => setShowPassword(!showPassword)}>
+                    {showPassword ? <VisibilityOff /> : <Visibility />}
+                  </IconButton>
+                </InputAdornment>
+              ),
+            },
           }}
         />
       </DialogContent>
@@ -95,7 +110,7 @@ export function PasswordModal({
                 display: "flex",
                 justifyContent: "center",
                 alignItems: "center",
-                height: 36, // Approximately the height of the button
+                height: 36,
               }}
             >
               <CircularProgress size={24} />

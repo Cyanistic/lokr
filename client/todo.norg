@@ -41,13 +41,13 @@
   - ( ) Add proper login screen for totp verification
   - ( ) Add preferences menu
   - ( ) Add file renaming modal
-  - ( ) Add file deletion modal
+  - (x) Add file deletion modal
   - ( ) Properly handle anonymous uploads
   -- ( ) Do not show an error on home page when the user is not logged in
   -- ( ) Provide a share link after a successful anonymous upload
-  - ( ) Show file context menu upon right clicking on a file
+  - (x) Show file context menu upon right clicking on a file
   - ( ) Grid view
-  -- ( ) Add context menu to grid view
+  -- (x) Add context menu to grid view
   -- ( ) Add file previews to grid view
   - ( ) Support for persistent settings
   -- (x) Dark/Light theme customization

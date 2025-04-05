@@ -74,7 +74,6 @@ function FileInfoModal({
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          bgcolor: "background.paper",
           borderBottom: "1px solid",
           borderColor: "divider",
           p: 2,
@@ -106,7 +105,6 @@ function FileInfoModal({
         {/* File Preview Section */}
         <Box
           sx={{
-            bgcolor: "background.default",
             p: 3,
             display: "flex",
             flexDirection: "column",

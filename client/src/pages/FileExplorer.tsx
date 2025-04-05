@@ -67,6 +67,7 @@ import { BreadcrumbsNavigation } from "../components/BreadcrumbsNavigation";
 import "./FileExplorer.css";
 import { FileGridView } from "../components/FileGrid";
 import { PasswordModal } from "../components/PasswordModal";
+import { DeleteModal } from "../components/DeleteModal";
 
 /** Return an icon based on file extension. */
 export function getFileIcon(
@@ -205,6 +206,7 @@ export default function FileExplorer(
   const [shareOpen, setShareOpen] = useState<boolean>(false);
   const [infoOpen, setInfoOpen] = useState<boolean>(false);
   const [passwordOpen, setPasswordOpen] = useState<boolean>(false);
+  const [deleteOpen, setDeleteOpen] = useState<boolean>(false);
   const selectedFile = useRef<FileMetadata>();
   const [linkPassword, setLinkPasword] = useState<string | null>(null);
   const [linkError, setLinkError] = useState<string | undefined>(undefined);
@@ -737,7 +739,7 @@ export default function FileExplorer(
     }
     switch (action) {
       case "delete":
-        await handleDelete(selectedFile.current);
+        setDeleteOpen(true);
         break;
       case "info":
         setInfoOpen(true);
@@ -760,28 +762,26 @@ export default function FileExplorer(
 
   /** Delete a file/folder. */
   const handleDelete = async (file: FileMetadata) => {
-    if (window.confirm(`Are you sure you want to delete "${file.name}"?`)) {
-      try {
-        const resp = await API.api.deleteFile(file.id);
-        if (resp.ok) {
-          const newFiles = { ...files };
-          delete newFiles[file.id];
-          if (file.parentId) {
-            newFiles[file.parentId].children = newFiles[
-              file.parentId
-            ].children?.filter((id) => id != file.id);
-          } else {
-            root.delete(file.id);
-            setRoot(root);
-          }
-          setFiles(newFiles);
+    try {
+      const resp = await API.api.deleteFile(file.id);
+      if (resp.ok) {
+        const newFiles = { ...files };
+        delete newFiles[file.id];
+        if (file.parentId) {
+          newFiles[file.parentId].children = newFiles[
+            file.parentId
+          ].children?.filter((id) => id != file.id);
         } else {
-          showError("Error deleting file");
+          root.delete(file.id);
+          setRoot(root);
         }
-      } catch (err) {
-        console.error("Error deleting file:", err);
+        setFiles(newFiles);
+      } else {
         showError("Error deleting file");
       }
+    } catch (err) {
+      console.error("Error deleting file:", err);
+      showError("Error deleting file");
     }
   };
 
@@ -1145,6 +1145,14 @@ export default function FileExplorer(
         onSubmit={(password) => setLinkPasword(password)}
         customText="This link requires a password to access:"
         error={linkError}
+      />
+
+      {/* File deletion confirmation modal */}
+      <DeleteModal
+        file={selectedFile.current}
+        open={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        onConfirm={async () => await handleDelete(selectedFile.current!)}
       />
 
       {/* File move dialog */}
