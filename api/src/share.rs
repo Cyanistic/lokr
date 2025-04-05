@@ -658,27 +658,40 @@ pub async fn get_link_shared_file(
         // If the password is not provided, then check the cookie to see if
         // the user has already provided the correct password in the past.
         // If neither, then reject the request.
-        let password = match (link_request, cookie.get(&link_id.to_string())) {
-            (Some(password), _) if !password.is_empty() => password,
-            (_, Some(password)) => urlencoding::decode(password)?.to_string(),
+        match (link_request, cookie.get(&link_id.to_string())) {
+            (Some(password), _) if !password.is_empty() => {
+                tokio::task::block_in_place(|| {
+                    state
+                        .argon2
+                        .verify_password(
+                            password.as_bytes(),
+                            &PasswordHash::new(&stored_hash)
+                                .expect("Password hash should be valid"),
+                        )
+                        .map_err(|_| {
+                            AppError::UserError((
+                                StatusCode::UNAUTHORIZED,
+                                "Invalid password".into(),
+                            ))
+                        })
+                })?;
+            }
+            (_, Some(password_hash)) => {
+                let password_hash = urlencoding::decode(password_hash)?.to_string();
+                if password_hash != stored_hash {
+                    return Err(AppError::UserError((
+                        StatusCode::UNAUTHORIZED,
+                        "Invalid password".into(),
+                    )));
+                }
+            }
             (_, _) => return Err(AppError::UserError((
                 StatusCode::UNAUTHORIZED,
                 "This link requires a password. Please provide a password inside the request body"
                     .into(),
             ))),
         };
-        tokio::task::block_in_place(|| {
-            state
-                .argon2
-                .verify_password(
-                    password.as_bytes(),
-                    &PasswordHash::new(&stored_hash).expect("Password hash should be valid"),
-                )
-                .map_err(|_| {
-                    AppError::UserError((StatusCode::UNAUTHORIZED, "Invalid password".into()))
-                })
-        })?;
-        Some(password)
+        Some(stored_hash)
     } else {
         None
     };

@@ -833,16 +833,27 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
       }),
 
     /**
-     * @description Get the raw contents of a file
+     * @description Get the raw contents of a file. Requires the password hash of a link in the cookies of the request if the link is password protected.
      *
      * @tags upload
      * @name GetFile
      * @request GET:/api/file/data/{id}
      */
-    getFile: (id: string, params: RequestParams = {}) =>
+    getFile: (
+      id: string,
+      query?: {
+        /**
+         * The share link id to use for accessing the file if applicable
+         * @format uuid
+         */
+        linkId?: string;
+      },
+      params: RequestParams = {},
+    ) =>
       this.request<void, void>({
         path: `/api/file/data/${id}`,
         method: "GET",
+        query: query,
         ...params,
       }),
 

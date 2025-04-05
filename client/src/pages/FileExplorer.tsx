@@ -31,6 +31,7 @@ import {
 import {
   NavigateOptions,
   URLSearchParamsInit,
+  useLocation,
   useNavigate,
   useSearchParams,
 } from "react-router-dom";
@@ -210,15 +211,19 @@ export default function FileExplorer(
   const [linkPassword, setLinkPasword] = useState<string | null>(null);
   const [linkError, setLinkError] = useState<string | undefined>(undefined);
   const [linkKey, setLinkKey] = useState<CryptoKey | null>(null);
+  const location = useLocation();
 
   useEffect(() => {
     async function importLinkKey() {
       const hash = window.location.hash.slice(1);
       if (!hash) return;
+      const bufferHash = base64ToArrayBuffer(hash);
+      if (!bufferHash || bufferHash.byteLength != 32) return;
+
       setLinkKey(
         await crypto.subtle.importKey(
           "raw",
-          base64ToArrayBuffer(hash),
+          bufferHash,
           {
             name: "AES-GCM",
           },
@@ -228,7 +233,7 @@ export default function FileExplorer(
       );
     }
     importLinkKey();
-  }, []);
+  }, [location.hash]);
 
   // ***** New State for Move Functionality *****
   const [moveOpen, setMoveOpen] = useState(false);
@@ -342,7 +347,9 @@ export default function FileExplorer(
     if (!file.key) {
       throw new Error("File encryption key not found");
     }
-    const response = await API.api.getFile(file.id);
+    const response = await API.api.getFile(file.id, {
+      linkId: linkId ?? undefined,
+    });
     if (!response.ok) throw response.error;
 
     // Convert response to a Blob
@@ -402,7 +409,9 @@ export default function FileExplorer(
                 showError(`Failed to find encryption key for ${f.id}`);
                 return;
               }
-              const response = await API.api.getFile(f.id);
+              const response = await API.api.getFile(f.id, {
+                linkId: linkId ?? undefined,
+              });
               if (!response.ok) throw response.error;
               const dataBuffer = await response.arrayBuffer();
               if (!f.fileNonce) throw `No file nonce found for ${f.id}`;
@@ -530,11 +539,12 @@ export default function FileExplorer(
           setPasswordOpen(false);
           break;
       }
-      if (!resp.ok) {
-        console.error("Error fetching file metadata:", resp.statusText);
-        setLoading(false);
+      // Too many reuests in a short time frame, rate limit exceeded
+      if (resp.status === 429) {
+        showError("You are sending too many requests. Please slow down.");
         return;
       }
+      if (!resp.ok) throw resp.error;
       const data: FileResponse = await resp.json();
       if (includeAncestors || !fileId) {
         setRoot(new Set(data.root));
@@ -647,7 +657,7 @@ export default function FileExplorer(
       }
       setFiles(tempFiles);
     } catch (err) {
-      console.error("Error fetching files:", err);
+      showError("Error fetching files.", err);
       setParams((params) => {
         params.delete("parentId");
         return params;

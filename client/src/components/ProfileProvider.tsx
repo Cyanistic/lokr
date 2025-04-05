@@ -9,6 +9,7 @@ import { useLocation } from "react-router-dom";
 import { API } from "../utils";
 import { SessionUser as ApiSessionUser } from "../myApi";
 import { importPublicKey } from "../cryptoFunctions";
+import { useErrorToast } from "./ErrorToastProvider";
 
 export type SessionUser = ApiSessionUser & { importedPublicKey?: CryptoKey };
 
@@ -36,16 +37,18 @@ export const ProfileProvider: React.FC<ProfileProviderProps> = ({
 }) => {
   const [profile, setProfile] = useState<SessionUser | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+  const {showError} = useErrorToast();
 
   // Function to fetch user profile
   const fetchProfile = async () => {
     setLoading(true);
-    setError(null);
 
     try {
       const response = await API.api.getLoggedInUser();
-      if (!response.ok) {
+      // Too many requests (429) is a special case where we should not set the profile to null
+      if (response.status === 429) {
+        showError("You are sending too many requests. Please slow down.");
+      } else if (!response.ok) {
         setProfile(null);
         return null;
       }
@@ -78,7 +81,6 @@ export const ProfileProvider: React.FC<ProfileProviderProps> = ({
   const value = {
     profile,
     loading,
-    error,
     refreshProfile,
   };
 

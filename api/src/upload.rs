@@ -1,11 +1,13 @@
 use std::{collections::HashMap, io::ErrorKind, path::PathBuf};
 
 use axum::{
-    extract::{Multipart, Path, Query, State},
-    http::StatusCode,
+    extract::{Multipart, Path, Query, Request, State},
+    http::{StatusCode, Uri},
+    middleware::Next,
     response::{IntoResponse, Response},
     Json,
 };
+use axum_extra::{headers::Cookie, TypedHeader};
 use chrono::{DateTime, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
 use serde_inline_default::serde_inline_default;
@@ -1122,9 +1124,10 @@ pub async fn get_file_metadata(
 #[utoipa::path(
     get,
     path = "/api/file/data/{id}",
-    description = "Get the raw contents of a file",
+    description = "Get the raw contents of a file. Requires the password hash of a link in the cookies of the request if the link is password protected.",
     params(
             ("id" = Uuid, Path, description = "The id of the file to get"),
+            ("linkId" = Option<Uuid>, Query, description = "The share link id to use for accessing the file if applicable")
         ),
     responses(
         (status = OK, description = "The file was retrieved successfully", content_type = "application/octet-stream"),
@@ -1134,3 +1137,76 @@ pub async fn get_file_metadata(
 // Dummy function to avoid generate documentation for this path
 #[allow(unused)]
 async fn get_file() {}
+
+#[instrument(err, skip(state))]
+pub async fn serve_auth(
+    State(state): State<AppState>,
+    auth: Option<SessionAuth>,
+    TypedHeader(cookies): TypedHeader<Cookie>,
+    uri: Uri,
+    Query(params): Query<LinkParams>,
+    request: Request,
+    next: Next,
+) -> Result<Response, AppError> {
+    if auth.is_none() && params.link_id.is_none() {
+        return Err(AppError::UserError((
+            StatusCode::UNAUTHORIZED,
+            "No link or authorization provided".into(),
+        )));
+    }
+    // I tried using the Path extractor to only get the file id out but
+    // that didn't work because ServeDir doesn't use path params
+    // so I just had to use this hack instead
+    let path = uri.path();
+    let last_segment = path.split('/').last().unwrap_or_default();
+    let Ok(id) = Uuid::try_parse(last_segment) else {
+        return Err(AppError::UserError((
+            StatusCode::BAD_REQUEST,
+            "Invalid file id".into(),
+        )));
+    };
+    let uuid = auth.map(|user| user.0.id);
+    let link_password = params
+        .link_id
+        .and_then(|l_id| cookies.get(&l_id.to_string()))
+        .and_then(|password_hash| urlencoding::decode(password_hash).ok());
+    let query = sqlx::query!(r#"
+        WITH RECURSIVE ancestors AS (
+            SELECT
+                id,
+                parent_id
+            FROM file
+            WHERE id = ?  -- the file we're checking
+            UNION ALL
+            SELECT
+                f.id,
+                f.parent_id
+            FROM file f
+            JOIN ancestors a ON f.id = a.parent_id
+        )
+        SELECT owner_id AS "owner_id: Uuid",
+        is_directory AS "is_directory!"
+        FROM file 
+        LEFT JOIN share_user AS su
+        ON su.file_id = file.id AND su.user_id = ?
+        LEFT JOIN share_link AS sl
+        ON sl.file_id = file.id AND sl.id = ? AND (expires_at IS NULL OR DATETIME(expires_at) >= CURRENT_TIMESTAMP)
+        AND (sl.password_hash = ?)
+        WHERE file.id IN (SELECT id FROM ancestors)
+        LIMIT 1
+        "#,
+        id,
+        uuid,
+        params.link_id,
+        link_password,
+    ).fetch_optional(&state.pool).await?;
+
+    if query.is_none() {
+        return Err(AppError::UserError((
+            StatusCode::NOT_FOUND,
+            "File not found".into(),
+        )));
+    }
+    let response = next.run(request).await;
+    Ok(response)
+}

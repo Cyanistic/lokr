@@ -21,6 +21,7 @@ use tower_http::{
     LatencyUnit, ServiceBuilderExt,
 };
 use tracing::{error, info, warn, Level};
+use upload::serve_auth;
 use url::Url;
 use utoipa::{
     openapi::security::{ApiKey, ApiKeyValue, SecurityScheme},
@@ -209,16 +210,16 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
     let sensitive_headers: Arc<[_]> = [AUTHORIZATION, COOKIE].into();
 
     // Rate limit the number of requests a given IP can make within a time period
-    // In this case, the time period is 500ms and the burst size is 20 requests.
-    // This means that a given IP can make up to 20 requests at once before
-    // needing to wait for 500ms before sending another request. They can make
-    // and extra request for every 500ms they go without sending a request
-    // until a maximum of 20 requests are reached.
+    // In this case, the time period is 200ms and the burst size is 30 requests.
+    // This means that a given IP can make up to 30 requests at once before
+    // needing to wait for 200ms before sending another request. They can make
+    // and extra request for every 300ms they go without sending a request
+    // until a maximum of 30 requests are reached.
     let ip_governor_config = Arc::new(unsafe {
         GovernorConfigBuilder::default()
-            .const_period(Duration::from_millis(500))
+            .const_period(Duration::from_millis(200))
             .key_extractor(SmartIpKeyExtractor)
-            .burst_size(20)
+            .burst_size(30)
             .finish()
             .unwrap_unchecked()
     });
@@ -263,20 +264,36 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
         .layer(TimeoutLayer::new(Duration::from_secs(15)))
         // Compress responses
         .compression()
-        .layer(GovernorLayer {
-            config: ip_governor_config,
-        })
         // Set a `Content-Type` if there isn't one already.
         .insert_response_header_if_not_present(
             CONTENT_TYPE,
             HeaderValue::from_static("application/octet-stream"),
         );
 
+    let state = AppState::new(pool.clone());
+    // Make a separate upload router for handling auth using middleware
+    let upload_router = OpenApiRouter::new()
+        .nest_service("/api/file/data/", ServeDir::new(&*UPLOAD_DIR))
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            serve_auth,
+        ));
     // Setup the router along with the OpenApi documentation router
     // for easy docs generation.
     let (api_router, open_api): (Router, _) = OpenApiRouter::with_openapi(ApiDoc::openapi())
         .routes(routes!(upload::upload_file))
         .route_layer(DefaultBodyLimit::max(1_000_000_000))
+        .routes(routes!(users::search_users))
+        .routes(routes!(upload::get_file_metadata))
+        .routes(routes!(share::get_user_shared_file))
+        .routes(routes!(share::get_link_shared_file))
+        .routes(routes!(users::upload_avatar))
+        .routes(routes!(upload::delete_file))
+        .routes(routes!(upload::update_file))
+        .route_layer(GovernorLayer {
+            config: ip_governor_config,
+        })
+        // Routes above this line are rate limited by the `GovernorLayer`
         .routes(routes!(users::create_user))
         .routes(routes!(users::authenticate_user))
         .routes(routes!(users::logout))
@@ -284,16 +301,9 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
         .routes(routes!(users::get_logged_in_user))
         .routes(routes!(users::update_user))
         .routes(routes!(users::update_totp))
-        .routes(routes!(users::search_users))
         .routes(routes!(users::get_user))
-        .routes(routes!(users::upload_avatar))
         .routes(routes!(users::update_preferences))
-        .routes(routes!(upload::delete_file))
-        .routes(routes!(upload::update_file))
-        .routes(routes!(upload::get_file_metadata))
         .routes(routes!(share::share_file))
-        .routes(routes!(share::get_user_shared_file))
-        .routes(routes!(share::get_link_shared_file))
         .routes(routes!(share::get_shared_links))
         .routes(routes!(share::get_shared_users))
         .routes(routes!(share::delete_share_permission))
@@ -302,12 +312,12 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
         .routes(routes!(session::get_sessions))
         .routes(routes!(session::delete_session))
         // Serve uploaded files from the uploads directory
-        // These files are encrypted so they can't be accessed directly,
+        // These files are eincrypted so they can't be accessed directly,
         // but they can be downloaded by the user who uploaded them.
-        .nest_service("/api/file/data/", ServeDir::new(&*UPLOAD_DIR))
         .nest_service("/api/avatars/", ServeDir::new(&*AVATAR_DIR))
+        .merge(upload_router)
         .layer(cors)
-        .with_state(AppState::new(pool.clone()))
+        .with_state(state)
         .split_for_parts();
 
     let app = Router::new()

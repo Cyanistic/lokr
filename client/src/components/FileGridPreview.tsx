@@ -1,18 +1,17 @@
-"use client"
-
-import { useState, useEffect, useRef } from "react"
-import { Box, CircularProgress } from "@mui/material"
-import { API } from "../utils"
-import { base64ToArrayBuffer } from "../cryptoFunctions"
-import type { FileMetadata } from "../types"
-import { getFileIcon } from "../pages/FileExplorer"
+import { useState, useEffect, useRef } from "react";
+import { Box, CircularProgress } from "@mui/material";
+import { API } from "../utils";
+import { base64ToArrayBuffer } from "../cryptoFunctions";
+import type { FileMetadata } from "../types";
+import { getFileIcon } from "../pages/FileExplorer";
+import { useSearchParams } from "react-router-dom";
 
 interface FileGridPreviewAttachmentProps {
-  file: FileMetadata
-  width?: number| string;
-  height?: number| string;
-  onLoad?: () => void
-  onError?: (error: Error) => void
+  file: FileMetadata;
+  width?: number | string;
+  height?: number | string;
+  onLoad?: () => void;
+  onError?: (error: Error) => void;
 }
 
 /**
@@ -26,101 +25,116 @@ export default function FileGridPreviewAttachment({
   onLoad,
   onError,
 }: FileGridPreviewAttachmentProps) {
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
-  const [loading, setLoading] = useState<boolean>(false)
-  const [error, setError] = useState<boolean>(false)
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<boolean>(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [params] = useSearchParams();
 
-  const isImage = file.mimeType?.startsWith("image/")
-  const isVideo = file.mimeType?.startsWith("video/")
-  const isPreviewable = isImage || isVideo
+  const isImage = file.mimeType?.startsWith("image/");
+  const isVideo = file.mimeType?.startsWith("video/");
+  const isPreviewable = isImage || isVideo;
+  const linkId = params.get("linkId");
 
   // Clean up preview URL when component unmounts or file changes
   useEffect(() => {
     return () => {
       if (previewUrl) {
-        URL.revokeObjectURL(previewUrl)
+        URL.revokeObjectURL(previewUrl);
       }
-    }
-  }, [previewUrl])
+    };
+  }, [previewUrl]);
 
   // Fetch and decrypt file when component mounts or file changes
   useEffect(() => {
     // Make sure we have all required properties before proceeding
     if (!file.id || !file.key || !file.fileNonce || !isPreviewable) {
-      return
+      return;
     }
 
     const fetchAndDecryptFile = async () => {
-      setLoading(true)
-      setError(false)
+      setLoading(true);
+      setError(false);
 
       try {
         // Fetch the encrypted file
-        const response = await API.api.getFile(file.id)
-        if (!response.ok) throw response.error
+        const response = await API.api.getFile(file.id, { linkId: linkId ?? undefined });
+        if (!response.ok) throw response.error;
 
         // Convert response to ArrayBuffer
-        const dataBuffer = await response.arrayBuffer()
+        const dataBuffer = await response.arrayBuffer();
 
         // Ensure we have the key and nonce before decrypting
         if (!file.key) {
-          throw new Error("File encryption key not found")
+          throw new Error("File encryption key not found");
         }
 
         if (!file.fileNonce) {
-          throw new Error("File nonce not found")
+          throw new Error("File nonce not found");
         }
 
         // TypeScript needs this additional check even though we checked above
-        const key = file.key as CryptoKey
-        const fileNonceBuffer = base64ToArrayBuffer(file.fileNonce)
+        const key = file.key as CryptoKey;
+        const fileNonceBuffer = base64ToArrayBuffer(file.fileNonce);
 
-        const fileData = await crypto.subtle.decrypt({ name: "AES-GCM", iv: fileNonceBuffer }, key, dataBuffer)
+        const fileData = await crypto.subtle.decrypt(
+          { name: "AES-GCM", iv: fileNonceBuffer },
+          key,
+          dataBuffer,
+        );
 
         // Create a blob URL for the decrypted data
-        const blob = new Blob([fileData], { type: file.mimeType })
-        const url = URL.createObjectURL(blob)
+        const blob = new Blob([fileData], { type: file.mimeType });
+        const url = URL.createObjectURL(blob);
 
-        setPreviewUrl(url)
-        onLoad?.()
+        setPreviewUrl(url);
+        onLoad?.();
       } catch (err) {
-        console.error("Error decrypting file:", err)
-        setError(true)
-        onError?.(err instanceof Error ? err : new Error("Unknown error"))
+        console.error("Error decrypting file:", err);
+        setError(true);
+        onError?.(err instanceof Error ? err : new Error("Unknown error"));
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
-    }
+    };
 
-    fetchAndDecryptFile()
-  }, [file.id, file.key, file.fileNonce, file.mimeType, isPreviewable, onLoad, onError])
+    fetchAndDecryptFile();
+  }, [
+    file.id,
+    file.key,
+    file.fileNonce,
+    file.mimeType,
+    isPreviewable,
+    onLoad,
+    onError,
+    linkId,
+  ]);
 
   // For video files, generate a thumbnail from the first frame
   useEffect(() => {
     if (isVideo && previewUrl && videoRef.current && canvasRef.current) {
-      const video = videoRef.current
-      const canvas = canvasRef.current
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
 
       video.onloadeddata = () => {
         // Set canvas dimensions
-        canvas.width = video.videoWidth
-        canvas.height = video.videoHeight
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
 
         // Seek to the first frame
-        video.currentTime = 0.1
-      }
+        video.currentTime = 0.1;
+      };
 
       video.onseeked = () => {
-        const ctx = canvas.getContext("2d")
+        const ctx = canvas.getContext("2d");
         if (ctx) {
           // Draw the video frame on the canvas
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         }
-      }
+      };
     }
-  }, [isVideo, previewUrl])
+  }, [isVideo, previewUrl]);
 
   // If loading, show a loading spinner
   if (loading) {
@@ -137,7 +151,7 @@ export default function FileGridPreviewAttachment({
       >
         <CircularProgress size={24} />
       </Box>
-    )
+    );
   }
 
   // If error or not a previewable file type, show the file icon
@@ -171,7 +185,7 @@ export default function FileGridPreviewAttachment({
           {getFileIcon(file.mimeType)}
         </Box>
       </Box>
-    )
+    );
   }
 
   // For image files, show the image preview
@@ -189,7 +203,7 @@ export default function FileGridPreviewAttachment({
         }}
         onError={() => setError(true)}
       />
-    )
+    );
   }
 
   // For video files, show the video thumbnail
@@ -197,7 +211,12 @@ export default function FileGridPreviewAttachment({
     return (
       <Box sx={{ position: "relative", width, height }}>
         {/* Hidden video element for generating thumbnail */}
-        <video ref={videoRef} src={previewUrl} style={{ display: "none" }} crossOrigin="anonymous" />
+        <video
+          ref={videoRef}
+          src={previewUrl}
+          style={{ display: "none" }}
+          crossOrigin="anonymous"
+        />
 
         {/* Canvas to display the video thumbnail */}
         <canvas
@@ -210,7 +229,7 @@ export default function FileGridPreviewAttachment({
           }}
         />
       </Box>
-    )
+    );
   }
 
   // Fallback (should never reach here due to earlier conditions)
@@ -242,6 +261,5 @@ export default function FileGridPreviewAttachment({
         {getFileIcon(file.mimeType)}
       </Box>
     </Box>
-  )
+  );
 }
-
