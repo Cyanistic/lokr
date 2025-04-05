@@ -14,6 +14,7 @@ import { getFileIcon, SortByTypes } from "../pages/FileExplorer";
 import { useTheme } from "@emotion/react";
 import { useMemo, useState } from "react";
 import { PublicUser } from "../myApi";
+import FileGridPreviewAttachment from "./FileGridPreview";
 
 interface FileGridViewProps {
   files: FileMetadata[];
@@ -248,6 +249,10 @@ function FileGridItem({
 
   // Function to render the appropriate file preview
   const renderFilePreview = () => {
+    const isImage = file.mimeType?.startsWith("image/");
+    const isVideo = file.mimeType?.startsWith("video/");
+    const isPreviewable = isImage || isVideo;
+  
     return (
       <Box
         sx={{
@@ -257,7 +262,11 @@ function FileGridItem({
           height: "100%",
         }}
       >
-        {getFileIcon(file.mimeType, 64, 64)}
+        {isPreviewable ? (
+          <FileGridPreviewAttachment file={file} width={"100%"} height={"100%"} />
+        ) : (
+          getFileIcon(file.mimeType, 64, 64)
+        )}
       </Box>
     );
   };
