@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import localforage from "localforage";
-import { Button, TextField, Typography, Box, Paper, IconButton } from "@mui/material";
+import { Button, TextField, Typography, Box, IconButton, Card, CardContent } from "@mui/material";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { LoginUser, PublicUser } from "../types";
 import {
@@ -140,62 +140,64 @@ const Login: React.FC = () => {
 
   return (
     <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
-      <Paper elevation={3} sx={{ p: 4, maxWidth: 400, textAlign: "center" }}>
-        <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" mb={2}>
-          <Lock sx={{ fontSize: 50, mb: 1 }} />
-          <Typography variant="h5" fontWeight="bold">
-            Sign In
+      <Card elevation={3} sx={{ width: 400, p: 3, borderRadius: 3, boxShadow: 5 }}>
+        <CardContent>
+          <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" mb={2}>
+            <Lock sx={{ fontSize: 50, mb: 1 }} />
+            <Typography variant="h5" fontWeight="bold">
+              Sign In
+            </Typography>
+          </Box>
+          <Typography variant="body2" color="textSecondary" gutterBottom>
+            {errorMessage && <p style={{ color: "red" }}>{errorMessage}</p>}
           </Typography>
-        </Box>
-        <Typography variant="body2" color="textSecondary" gutterBottom>
-          {errorMessage && <p style={{ color: "red" }}>{errorMessage}</p>}
-        </Typography>
-        <form onSubmit={handleLogin}>
-          <TextField
-            fullWidth
-            label="Username"
-            variant="outlined"
-            margin="normal"
-            value={user.username}
-            onChange={(e) => setUser({ ...user, username: e.target.value })}
-            required
-          />
-          <TextField
-            fullWidth
-            label="Password"
-            variant="outlined"
-            margin="normal"
-            type={showPassword ? "text" : "password"}
-            value={user.password}
-            onChange={(e) => setUser({ ...user, password: e.target.value })}
-            required
-            InputProps={{
-              endAdornment: (
-                <IconButton onClick={() => setShowPassword(!showPassword)}>
-                  {showPassword ? <VisibilityOff /> : <Visibility />}
-                </IconButton>
-              ),
-            }}
-          />
-          {showTotp && (
+          <form onSubmit={handleLogin}>
             <TextField
               fullWidth
-              label="TOTP Code"
+              label="Username"
               variant="outlined"
               margin="normal"
-              value={totpCode}
-              onChange={(e) => setTotpCode(e.target.value)}
+              value={user.username}
+              onChange={(e) => setUser({ ...user, username: e.target.value })}
               required
             />
-          )}
-          <Button fullWidth variant="contained" type="submit" sx={{ mt: 2 }}>
-            Sign in
-          </Button>
-        </form>
-        <Typography variant="body2" mt={2}>
-          Don't have an account? <Link to="/register">Create an account</Link>
-        </Typography>
-      </Paper>
+            <TextField
+              fullWidth
+              label="Password"
+              variant="outlined"
+              margin="normal"
+              type={showPassword ? "text" : "password"}
+              value={user.password}
+              onChange={(e) => setUser({ ...user, password: e.target.value })}
+              required
+              InputProps={{
+                endAdornment: (
+                  <IconButton onClick={() => setShowPassword(!showPassword)}>
+                    {showPassword ? <VisibilityOff /> : <Visibility />}
+                  </IconButton>
+                ),
+              }}
+            />
+            {showTotp && (
+              <TextField
+                fullWidth
+                label="TOTP Code"
+                variant="outlined"
+                margin="normal"
+                value={totpCode}
+                onChange={(e) => setTotpCode(e.target.value)}
+                required
+              />
+            )}
+            <Button fullWidth variant="contained" type="submit" sx={{ mt: 2 }}>
+              Sign in
+            </Button>
+          </form>
+          <Typography variant="body2" mt={2}>
+            Don't have an account? <Link to="/register">Create an account</Link>
+          </Typography>
+        </CardContent>
+      </Card>
     </Box>
     
   );

@@ -253,7 +253,7 @@ export default function Register() {
       alignItems="center"
       height="80vh"
     >
-      <Card sx={{ width: 400, p: 3, borderRadius: 3, boxShadow: 5 }}>
+      <Card elevation={3} sx={{ width: 400, p: 3, borderRadius: 3, boxShadow: 5 }}>
         <CardContent>
           <Box textAlign="center" mb={3}>
             <LockIcon fontSize="large" color="primary" />

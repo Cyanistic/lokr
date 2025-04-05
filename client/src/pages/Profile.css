@@ -22,7 +22,6 @@
     display: flex;
     height: 100vh;
     background-color: var(--background-color);
-    padding-top: 19px;
 }
   
 .profile-sidebar {
