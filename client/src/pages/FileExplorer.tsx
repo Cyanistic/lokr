@@ -68,6 +68,7 @@ import { FileGridView } from "../components/FileGrid";
 import { PasswordModal } from "../components/PasswordModal";
 import { DeleteModal } from "../components/DeleteModal";
 import { useProfile } from "../components/ProfileProvider";
+import { useNavbar } from "../components/NavbarContext";
 
 /** Return an icon based on file extension. */
 export function getFileIcon(
@@ -176,6 +177,18 @@ export default function FileExplorer(
 ) {
   const [params, updateParams] = useSearchParams();
   const { profile, loading: loadingProfile, refreshProfile } = useProfile();
+  const { setShowNavbar } = useNavbar();
+
+  // Hide navbar when component mounts
+  useEffect(() => {
+    setShowNavbar(false);
+
+    // Show navbar again when component unmounts
+    return () => {
+      setShowNavbar(true);
+    };
+  }, [setShowNavbar]);
+
   const preferredView = useRef<"list" | "grid">("list");
   const preferredSortBy = useRef<SortByTypes>("name");
   const parentId = params.get("parentId");
@@ -836,49 +849,14 @@ export default function FileExplorer(
                   </IconButton>
                 )}
                 <Typography variant="h5" sx={{ fontWeight: "bold" }}>
-                  My Files
+                  {type === "files" ? "My Files" : "Files Shared with Me"}
                 </Typography>
               </Box>
             </Box>
           </Box>
           <div style={styles.controls}>
-            <Tooltip
-              title={
-                !(parentId
-                  ? Boolean(files[parentId]?.editPermission)
-                  : false) && type !== "files"
-                  ? "You do not have permission to upload files here"
-                  : "Upload Files"
-              }
-            >
-              <span>
-                <Button
-                  variant="contained"
-                  className="b1"
-                  onClick={() => setShowUpload(true)}
-                  disabled={
-                    !(parentId
-                      ? Boolean(files[parentId]?.editPermission)
-                      : false) && type !== "files"
-                  }
-                >
-                  Upload File
-                </Button>
-              </span>
-            </Tooltip>
-            {showUpload && (
-              <Upload
-                isOverlay={true}
-                parentId={parentId}
-                parentKey={parentId ? files[parentId]?.key : null}
-                linkId={linkId}
-                onUpload={async () => {
-                  await fetchFiles();
-                }}
-                onClose={() => setShowUpload(false)}
-              />
-            )}
-            <Box sx={{ flex: 1, mr: 1 }}>
+            {/* Search bar in its own row */}
+            <Box sx={{ width: "100%", mb: { xs: 2, md: 0 } }}>
               <FileSearch
                 loading={loading}
                 files={files}
@@ -906,110 +884,165 @@ export default function FileExplorer(
               />
             </Box>
 
-            <Box>
-              <ToggleButtonGroup
-                value={view}
-                exclusive
-                onChange={(_, newView) => {
-                  if (newView !== null) {
-                    setParams((params) => {
-                      params.set("view", newView);
-                      return params;
-                    });
-                  }
-                }}
-                size="small"
-                aria-label="view mode"
+            {/* Upload button and view toggle in a row below */}
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "space-between",
+                width: "100%",
+                alignItems: "center",
+              }}
+            >
+              <Tooltip
+                title={
+                  !(parentId
+                    ? Boolean(files[parentId]?.editPermission)
+                    : false) && type !== "files"
+                    ? "You do not have permission to upload files here"
+                    : "Upload Files"
+                }
               >
-                <ToggleButton value="list" aria-label="list view">
-                  <ViewListIcon />
-                </ToggleButton>
-                <ToggleButton value="grid" aria-label="grid view">
-                  <ViewModuleIcon />
-                </ToggleButton>
-              </ToggleButtonGroup>
-            </Box>
-          </div>
+                <span>
+                  <Button
+                    variant="contained"
+                    className="b1"
+                    onClick={() => setShowUpload(true)}
+                    disabled={
+                      !(parentId
+                        ? Boolean(files[parentId]?.editPermission)
+                        : false) && type !== "files"
+                    }
+                  >
+                    Upload File
+                  </Button>
+                </span>
+              </Tooltip>
+              {showUpload && (
+                <Upload
+                  isOverlay={true}
+                  parentId={parentId}
+                  parentKey={parentId ? files[parentId]?.key : null}
+                  linkId={linkId}
+                  onUpload={async () => {
+                    await fetchFiles();
+                  }}
+                  onClose={() => setShowUpload(false)}
+                />
+              )}
 
-          {/* Sort controls row - responsive design */}
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              mb: 2,
-              mt: { xs: -1, md: -2 },
-            }}
-          >
-            <Collapse in={view === "grid"} timeout={300}>
               <Box
                 sx={{
                   display: "flex",
                   alignItems: "center",
-                  py: 1,
+                  position: "relative",
                 }}
               >
-                <FormControl size="small" sx={{ minWidth: 120, mr: 1 }}>
-                  <InputLabel id="sort-by-label">Sort By</InputLabel>
-                  <Select
-                    labelId="sort-by-label"
-                    value={sortBy}
-                    label="Sort By"
-                    onChange={(e) =>
-                      setParams((params) => {
-                        params.set(
-                          "sortBy",
-                          e.target.value as
-                            | "name"
-                            | "size"
-                            | "createdAt"
-                            | "modifiedAt"
-                            | "owner"
-                            | "uploader",
-                        );
-                        return params;
-                      })
-                    }
-                  >
-                    <MenuItem value="name">Name</MenuItem>
-                    <MenuItem value="size">Size</MenuItem>
-                    <MenuItem value="createdAt">Creation Date</MenuItem>
-                    <MenuItem value="modifiedAt">Modification Date</MenuItem>
-                    <MenuItem value="owner">Owner</MenuItem>
-                    <MenuItem value="uploader">Uploader</MenuItem>
-                  </Select>
-                </FormControl>
-                <Tooltip
-                  title={`Sort ${sortOrder === "asc" ? "Descending" : "Ascending"}`}
-                >
-                  <IconButton
-                    onClick={() => {
-                      const value = sortOrder === "asc" ? "desc" : "asc";
-                      setParams((params) => {
-                        params.set("sortOrder", value);
-                        return params;
-                      });
-                    }}
-                    size="small"
+                {/* Sort controls that slide out from under the view toggle */}
+                <Box sx={{ position: "absolute", right: "100%", top: 0 }}>
+                  <Collapse
+                    in={view === "grid"}
+                    orientation="horizontal"
+                    timeout={300}
                   >
                     <Box
                       sx={{
-                        transform:
-                          sortOrder === "asc"
-                            ? "rotate(0deg)"
-                            : "rotate(180deg)",
-                        transition: "transform 0.3s ease-in-out",
                         display: "flex",
                         alignItems: "center",
-                        justifyContent: "center",
+                        pr: 1,
                       }}
                     >
-                      <ArrowUpwardIcon />
+                      <FormControl size="small" sx={{ minWidth: 120, mr: 1 }}>
+                        <InputLabel id="sort-by-label">Sort By</InputLabel>
+                        <Select
+                          labelId="sort-by-label"
+                          value={sortBy}
+                          label="Sort By"
+                          onChange={(e) =>
+                            setParams((params) => {
+                              params.set(
+                                "sortBy",
+                                e.target.value as
+                                  | "name"
+                                  | "size"
+                                  | "createdAt"
+                                  | "modifiedAt"
+                                  | "owner"
+                                  | "uploader",
+                              );
+                              return params;
+                            })
+                          }
+                        >
+                          <MenuItem value="name">Name</MenuItem>
+                          <MenuItem value="size">Size</MenuItem>
+                          <MenuItem value="createdAt">Creation Date</MenuItem>
+                          <MenuItem value="modifiedAt">
+                            Modification Date
+                          </MenuItem>
+                          <MenuItem value="owner">Owner</MenuItem>
+                          <MenuItem value="uploader">Uploader</MenuItem>
+                        </Select>
+                      </FormControl>
+                      <Tooltip
+                        title={`Sort ${sortOrder === "asc" ? "Descending" : "Ascending"}`}
+                      >
+                        <IconButton
+                          onClick={() => {
+                            const value = sortOrder === "asc" ? "desc" : "asc";
+                            setParams((params) => {
+                              params.set("sortOrder", value);
+                              return params;
+                            });
+                          }}
+                          size="small"
+                        >
+                          <Box
+                            sx={{
+                              transform:
+                                sortOrder === "asc"
+                                  ? "rotate(0deg)"
+                                  : "rotate(180deg)",
+                              transition: "transform 0.3s ease-in-out",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                            }}
+                          >
+                            <ArrowUpwardIcon />
+                          </Box>
+                        </IconButton>
+                      </Tooltip>
                     </Box>
-                  </IconButton>
-                </Tooltip>
+                  </Collapse>
+                </Box>
+
+                <ToggleButtonGroup
+                  value={view}
+                  exclusive
+                  onChange={(_, newView) => {
+                    if (newView !== null) {
+                      setParams((params) => {
+                        params.set("view", newView);
+                        return params;
+                      });
+                    }
+                  }}
+                  size="small"
+                  aria-label="view mode"
+                >
+                  <ToggleButton value="list" aria-label="list view">
+                    <ViewListIcon />
+                  </ToggleButton>
+                  <ToggleButton value="grid" aria-label="grid view">
+                    <ViewModuleIcon />
+                  </ToggleButton>
+                </ToggleButtonGroup>
               </Box>
-            </Collapse>
-          </Box>
+            </Box>
+          </div>
+
+          {/* Sort controls have been moved to slide out next to the view toggle button */}
+          <Box sx={{ mb: 2 }} />
 
           <BreadcrumbsNavigation
             path={dirStack.map((f) => f.name ?? "Encrypted directory")}
@@ -1018,56 +1051,66 @@ export default function FileExplorer(
               setDirStack(tempStack);
             }}
           />
-
-          {view === "list" ? (
-            <FileList
-              onRowClick={(fileId) => {
-                const file = files[fileId]!;
-                handleOpenFolder(file);
-              }}
-              onSortModelChange={(model) => {
-                const value = model[0];
-                if (!value) {
-                  setParams((params) => {
-                    params.delete("sortBy");
-                    params.delete("sortOrder");
-                    return params;
-                  });
-                } else {
-                  setParams((params) => {
-                    params.set("sortBy", value.field);
-                    params.set("sortOrder", value.sort || "desc");
-                    return params;
-                  });
-                }
-              }}
-              onAction={handleFileAction}
-              files={currentDir ?? []}
-              loading={loading}
-              sortBy={sortBy}
-              sortOrder={sortOrder}
-              users={users}
-              owner={type === "files"}
-            />
-          ) : (
-            <>
-              {
-                <FileGridView
-                  files={currentDir ?? []}
-                  users={users}
-                  onNavigate={(fileId) => {
-                    const file = files[fileId]!;
-                    handleOpenFolder(file);
-                  }}
-                  onAction={handleFileAction}
-                  loading={loading}
-                  sortBy={sortBy}
-                  sortOrder={sortOrder}
-                  owner={type === "files"}
-                />
-              }
-            </>
-          )}
+          
+          {/* Create a box that takes the remaining height of the viewport */}
+          <Box 
+            sx={{ 
+              height: "calc(100vh - 275px)", 
+              display: 'flex', 
+              flexDirection: 'column',
+              bgcolor: view === "grid" ? "action.hover" : "background.paper", 
+              borderRadius: 1,
+              border: 1,
+              borderColor: "divider",
+              overflow: "hidden" // Ensure no overflow outside this container
+            }}
+          >
+            {view === "list" ? (
+              <FileList
+                onRowClick={(fileId) => {
+                  const file = files[fileId]!;
+                  handleOpenFolder(file);
+                }}
+                onSortModelChange={(model) => {
+                  const value = model[0];
+                  if (!value) {
+                    setParams((params) => {
+                      params.delete("sortBy");
+                      params.delete("sortOrder");
+                      return params;
+                    });
+                  } else {
+                    setParams((params) => {
+                      params.set("sortBy", value.field);
+                      params.set("sortOrder", value.sort || "desc");
+                      return params;
+                    });
+                  }
+                }}
+                onAction={handleFileAction}
+                files={currentDir ?? []}
+                loading={loading}
+                sortBy={sortBy}
+                sortOrder={sortOrder}
+                users={users}
+                owner={type === "files"}
+              />
+            ) : (
+              <FileGridView
+                files={currentDir ?? []}
+                users={users}
+                onNavigate={(fileId) => {
+                  const file = files[fileId]!;
+                  handleOpenFolder(file);
+                }}
+                onAction={handleFileAction}
+                loading={loading}
+                sortBy={sortBy}
+                sortOrder={sortOrder}
+                owner={type === "files"}
+              />
+            )}
+          </Box>
         </Box>
       </Box>
       {/* File sharing dialog holder */}
@@ -1142,7 +1185,7 @@ export default function FileExplorer(
 const styles = {
   controls: {
     display: "flex",
-    alignItems: "center",
+    flexDirection: "column" as const,
     gap: "10px",
     marginBottom: "20px",
     flex: 1,

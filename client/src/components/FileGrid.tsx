@@ -8,7 +8,7 @@ import {
   Skeleton,
 } from "@mui/material";
 import { FileMetadata } from "../types";
-import { Visibility } from "@mui/icons-material";
+import { Visibility, FolderOff } from "@mui/icons-material";
 import { FileContextMenu } from "./FileMenu";
 import { getFileIcon, SortByTypes } from "../pages/FileExplorer";
 import { useTheme } from "@emotion/react";
@@ -172,9 +172,39 @@ export function FileGridView({
     );
   }
 
+  // If no files to display, show a message
+  if (sortedFiles.length === 0 && !loading) {
+    return (
+      <Box
+        sx={{
+          height: "100%",
+          width: "100%",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+          alignItems: "center",
+          p: 2,
+          borderRadius: 1
+        }}
+      >
+        <FolderOff sx={{ fontSize: 64, mb: 2, color: "text.secondary" }} />
+        <Typography variant="h6" color="text.secondary">No files found</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 1, textAlign: "center" }}>
+          {owner ? "Upload a file to get started" : "No files have been shared with you yet"}
+        </Typography>
+      </Box>
+    );
+  }
+
   return (
     <Box
-      sx={{ height: "calc(100vh - 180px)", overflowY: "auto", mt: 2, pt: 1 }}
+      sx={{
+        height: "100%", 
+        flexGrow: 1,
+        overflowY: "auto",
+        p: 2,
+        borderRadius: 1
+      }}
     >
       <Grid container spacing={2}>
         {sortedFiles.map((file, index) => (

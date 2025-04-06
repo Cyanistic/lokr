@@ -317,11 +317,12 @@ export default function FileList({
   return (
     <Box
       sx={{
+        height: "100%",
+        display: "flex",
         flexDirection: "column",
         minWidth: 0,
         flexGrow: 1,
-        flexBasis: 0,
-        flexShrink: 0,
+        overflow: "hidden", // Prevent overflow outside the container
       }}
     >
       <DataGrid
@@ -368,8 +369,6 @@ export default function FileList({
           "& .MuiDataGrid-cell": {
             borderBottom: "none",
           },
-          // border: 1,
-          // borderColor: "divider",
           borderRadius: 4,
           "& .MuiDataGrid-columnHeaders": {
             backgroundColor: "background.paper",
@@ -383,10 +382,25 @@ export default function FileList({
             outline: "none",
           },
           "& .MuiDataGrid-cell:focus-within": {
-            outline: "neone",
+            outline: "none",
           },
           "& *": {
             minWidth: 0,
+          },
+          // Ensure scrollbars are visible and consistent
+          "& .MuiDataGrid-virtualScroller": {
+            "&::-webkit-scrollbar": {
+              width: "8px",
+              height: "8px",
+            },
+            "&::-webkit-scrollbar-thumb": {
+              backgroundColor: "rgba(0,0,0,0.2)",
+              borderRadius: "4px",
+            },
+            "&::-webkit-scrollbar-thumb:hover": {
+              backgroundColor: "rgba(0,0,0,0.3)",
+            },
+            outline: "none",
           },
         }}
         loading={loading}
