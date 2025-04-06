@@ -107,6 +107,9 @@ pub struct UploadRequest {
     post,
     path = "/api/upload",
     request_body(content = UploadRequest, content_type = "multipart/form-data"),
+    params(
+        LinkParams,
+    ),
     responses(
         (status = OK, description = "The file was uploaded successfully", body = UploadResponse),
         (status = BAD_REQUEST, description = "The file metadata or file data was not provided or provided incorrectly", body = ErrorResponse),
@@ -120,6 +123,8 @@ pub struct UploadRequest {
 pub async fn upload_file(
     State(state): State<AppState>,
     user: Option<SessionAuth>,
+    TypedHeader(cookies): TypedHeader<Cookie>,
+    Query(params): Query<LinkParams>,
     mut data: Multipart,
 ) -> Result<Response, AppError> {
     let mut metadata: Option<UploadMetadata> = None;
@@ -128,7 +133,10 @@ pub async fn upload_file(
     let mut file_path: Option<PathBuf> = None;
     // Allocate a megabyte buffer
     let mut file_data: Vec<u8> = Vec::with_capacity(1024 * 1024);
-    let mut link_id: Option<Uuid> = None;
+    let link_password = params
+        .link_id
+        .and_then(|l_id| cookies.get(&l_id.to_string()))
+        .and_then(|password_hash| urlencoding::decode(password_hash).ok());
 
     while let Some(mut field) = data.next_field().await? {
         match field.name() {
@@ -140,12 +148,6 @@ pub async fn upload_file(
 
                 while let Some(chunk) = field.chunk().await? {
                     file_data.extend_from_slice(&chunk);
-                }
-            }
-            Some("linkId") => {
-                let bytes = field.bytes().await?;
-                if !bytes.is_empty() {
-                    link_id = Some(Uuid::try_parse_ascii(&bytes)?);
                 }
             }
             _ => {}
@@ -204,12 +206,14 @@ pub async fn upload_file(
                 ON su.file_id = file.id AND su.user_id = ?
                 LEFT JOIN share_link AS sl
                 ON sl.file_id = file.id AND sl.id = ? AND (expires_at IS NULL OR DATETIME(expires_at) >= CURRENT_TIMESTAMP)
+                AND (sl.password_hash IS NULL OR sl.password_hash = ?)
                 WHERE file.id IN (SELECT id FROM ancestors) AND (owner_id = ? OR su.edit_permission OR sl.edit_permission)
                 LIMIT 1
                 "#,
                 parent_id,
                 uuid,
-                link_id,
+                params.link_id,
+                link_password,
                 uuid
             )
             .fetch_optional(&mut *tx)
@@ -383,6 +387,7 @@ pub struct LinkParams {
 pub async fn delete_file(
     State(state): State<AppState>,
     user: Option<SessionAuth>,
+    TypedHeader(cookies): TypedHeader<Cookie>,
     Query(params): Query<LinkParams>,
     Path(id): Path<Uuid>,
 ) -> Result<Response, AppError> {
@@ -390,6 +395,10 @@ pub async fn delete_file(
     // access to the file. In the case of edit access,
     // only children are able to be deleted
     let uuid = user.map(|user| user.0.id);
+    let link_password = params
+        .link_id
+        .and_then(|l_id| cookies.get(&l_id.to_string()))
+        .and_then(|password_hash| urlencoding::decode(password_hash).ok());
     if sqlx::query!(
         r#"
         WITH RECURSIVE ancestors AS (
@@ -412,6 +421,7 @@ pub async fn delete_file(
         ON su.file_id = file.id AND su.user_id = ?
         LEFT JOIN share_link AS sl
         ON sl.file_id = file.id AND sl.id = ? AND (expires_at IS NULL OR DATETIME(expires_at) >= CURRENT_TIMESTAMP)
+        AND (sl.password_hash IS NULL OR sl.password_hash = ?)
         WHERE file.id IN (SELECT id FROM ancestors) AND (
             owner_id = ? OR (
                 -- Only allow the users that have share access to delete the file
@@ -426,6 +436,7 @@ pub async fn delete_file(
         id,
         uuid,
         params.link_id,
+        link_password,
         uuid,
         id,
         id
@@ -541,11 +552,16 @@ pub enum UpdateFile {
 pub async fn update_file(
     State(state): State<AppState>,
     user: Option<SessionAuth>,
+    TypedHeader(cookies): TypedHeader<Cookie>,
     Query(params): Query<LinkParams>,
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateFile>,
 ) -> Result<Response, AppError> {
     let uuid = user.map(|user| user.0.id);
+    let link_password = params
+        .link_id
+        .and_then(|l_id| cookies.get(&l_id.to_string()))
+        .and_then(|password_hash| urlencoding::decode(password_hash).ok());
     // Check if the user owns the file or has
     // permission to edit the file
     let Some(target) = sqlx::query!(
@@ -570,6 +586,7 @@ pub async fn update_file(
         ON su.file_id = file.id AND su.user_id = ?
         LEFT JOIN share_link AS sl
         ON sl.file_id = file.id AND sl.id = ? AND (expires_at IS NULL OR DATETIME(expires_at) >= CURRENT_TIMESTAMP)
+        AND (sl.password_hash IS NULL OR sl.password_hash = ?)
         WHERE file.id IN (SELECT id FROM ancestors) AND (
             owner_id = ? OR (
                 -- Only allow the users that have share access to update the file
@@ -584,6 +601,7 @@ pub async fn update_file(
         id,
         uuid,
         params.link_id,
+        link_password,
         uuid,
         id,
         id
@@ -882,18 +900,11 @@ pub struct FileResponse {
 #[instrument(err, skip(state))]
 pub async fn get_file_metadata(
     State(state): State<AppState>,
-    user: Option<SessionAuth>,
+    SessionAuth(user): SessionAuth,
     Query(params): Query<FileQuery>,
 ) -> Result<Response, AppError> {
     // Limit the depth to 20 to prevent infinite recursion
     let depth = params.depth.min(20);
-    if params.id.is_none() && user.is_none() {
-        return Err(AppError::UserError((
-            StatusCode::BAD_REQUEST,
-            "No file id or user authorization provided".into(),
-        )));
-    }
-    let user_id = user.map(|user| user.0.id);
     let query = sqlx::query!(
         r#"
             WITH RECURSIVE children AS (
@@ -965,7 +976,7 @@ pub async fn get_file_metadata(
                 modified_at
             FROM children ORDER BY depth ASC LIMIT ? OFFSET ?
             "#,
-        user_id,
+        user.id,
         params.id,
         params.id,
         depth,
@@ -1046,7 +1057,7 @@ pub async fn get_file_metadata(
             WHERE depth > 0
             ORDER BY depth DESC
         "#,
-            user_id,
+            user.id,
             params.id
         )
         .fetch_all(&state.pool);
@@ -1184,21 +1195,22 @@ pub async fn serve_auth(
             FROM file f
             JOIN ancestors a ON f.id = a.parent_id
         )
-        SELECT owner_id AS "owner_id: Uuid",
-        is_directory AS "is_directory!"
+        SELECT is_directory
         FROM file 
         LEFT JOIN share_user AS su
         ON su.file_id = file.id AND su.user_id = ?
         LEFT JOIN share_link AS sl
         ON sl.file_id = file.id AND sl.id = ? AND (expires_at IS NULL OR DATETIME(expires_at) >= CURRENT_TIMESTAMP)
-        AND (sl.password_hash = ?)
-        WHERE file.id IN (SELECT id FROM ancestors)
+        AND (sl.password_hash IS NULL OR sl.password_hash = ?)
+        WHERE file.id IN (SELECT id FROM ancestors) AND
+        owner_id = ? OR su.file_id IS NOT NULL OR sl.file_id IS NOT NULL
         LIMIT 1
         "#,
         id,
         uuid,
         params.link_id,
         link_password,
+        uuid,
     ).fetch_optional(&state.pool).await?;
 
     if query.is_none() {

@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        WITH RECURSIVE ancestors AS (\n            SELECT\n                id,\n                parent_id\n            FROM file\n            WHERE id = ?  -- the file we're checking\n            UNION ALL\n            SELECT\n                f.id,\n                f.parent_id\n            FROM file f\n            JOIN ancestors a ON f.id = a.parent_id\n        )\n        SELECT is_directory\n        FROM file \n        LEFT JOIN share_user AS su\n        ON su.file_id = file.id AND su.user_id = ?\n        LEFT JOIN share_link AS sl\n        ON sl.file_id = file.id AND sl.id = ? AND (expires_at IS NULL OR DATETIME(expires_at) >= CURRENT_TIMESTAMP)\n        AND (sl.password_hash IS NULL OR sl.password_hash = ?)\n        WHERE file.id IN (SELECT id FROM ancestors) AND\n        owner_id = ? OR su.file_id IS NOT NULL OR sl.file_id IS NOT NULL\n        LIMIT 1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "is_directory",
+        "ordinal": 0,
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "022b086122ccf7c762c3f1ff32bc5a2aff30f9b9f3516b989c512d0f5b0a04ca"
+}

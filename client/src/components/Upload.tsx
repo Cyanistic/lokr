@@ -165,12 +165,14 @@ export default function Upload({
       };
 
       try {
-        const response = await API.api.uploadFile({
-          metadata,
-          //@ts-expect-error swagger api is dumb
-          file: encryptedFile,
-          linkId: linkId || "",
-        });
+        const response = await API.api.uploadFile(
+          {
+            metadata,
+            //@ts-expect-error swagger api is dumb
+            file: encryptedFile,
+          },
+          { linkId: linkId ?? undefined },
+        );
 
         if (response.status === 402) {
           showError(

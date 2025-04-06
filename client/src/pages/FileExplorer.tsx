@@ -31,7 +31,6 @@ import {
 import {
   NavigateOptions,
   URLSearchParamsInit,
-  useLocation,
   useNavigate,
   useSearchParams,
 } from "react-router-dom";
@@ -221,10 +220,9 @@ export default function FileExplorer(
   const [passwordOpen, setPasswordOpen] = useState<boolean>(false);
   const [deleteOpen, setDeleteOpen] = useState<boolean>(false);
   const selectedFile = useRef<FileMetadata>();
-  const [linkPassword, setLinkPasword] = useState<string | null>(null);
+  const [linkPassword, setLinkPassword] = useState<string | null>(null);
   const [linkError, setLinkError] = useState<string | undefined>(undefined);
   const [linkKey, setLinkKey] = useState<CryptoKey | null>(null);
-  const location = useLocation();
 
   useEffect(() => {
     async function importLinkKey() {
@@ -246,7 +244,7 @@ export default function FileExplorer(
       );
     }
     importLinkKey();
-  }, [location.hash]);
+  }, []);
 
   // ***** New State for Move Functionality *****
   const [moveOpen, setMoveOpen] = useState(false);
@@ -736,7 +734,9 @@ export default function FileExplorer(
   /** Delete a file/folder. */
   const handleDelete = async (file: FileMetadata) => {
     try {
-      const resp = await API.api.deleteFile(file.id);
+      const resp = await API.api.deleteFile(file.id, {
+        linkId: linkId ?? undefined,
+      });
       if (!resp.ok) throw resp.error;
       refreshProfile();
       fetchFiles();
@@ -791,10 +791,12 @@ export default function FileExplorer(
         parentId,
       };
 
-      const resp = await API.api.uploadFile({
-        metadata,
-        linkId: linkId || "",
-      });
+      const resp = await API.api.uploadFile(
+        {
+          metadata,
+        },
+        { linkId: linkId ?? undefined },
+      );
       if (!resp.ok) throw resp.error;
       refreshProfile();
       fetchFiles();
@@ -1051,18 +1053,18 @@ export default function FileExplorer(
               setDirStack(tempStack);
             }}
           />
-          
+
           {/* Create a box that takes the remaining height of the viewport */}
-          <Box 
-            sx={{ 
-              height: "calc(100vh - 275px)", 
-              display: 'flex', 
-              flexDirection: 'column',
-              bgcolor: view === "grid" ? "action.hover" : "background.paper", 
+          <Box
+            sx={{
+              height: "calc(100vh - 275px)",
+              display: "flex",
+              flexDirection: "column",
+              bgcolor: view === "grid" ? "action.hover" : "background.paper",
               borderRadius: 1,
               border: 1,
               borderColor: "divider",
-              overflow: "hidden" // Ensure no overflow outside this container
+              overflow: "hidden", // Ensure no overflow outside this container
             }}
           >
             {view === "list" ? (
@@ -1134,7 +1136,7 @@ export default function FileExplorer(
       <PasswordModal
         open={passwordOpen}
         loading={loading}
-        onSubmit={(password) => setLinkPasword(password)}
+        onSubmit={(password) => setLinkPassword(password)}
         customText="This link requires a password to access:"
         error={linkError}
       />
@@ -1158,6 +1160,8 @@ export default function FileExplorer(
             setMoveOpen(false);
             await fetchFiles();
           }}
+          linkId={linkId}
+          owner={type === "file"}
           file={selectedFile.current}
           files={files}
           root={[...root]}

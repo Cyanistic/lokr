@@ -940,7 +940,10 @@ pub async fn get_link_shared_file(
         if let Some(password) = password {
             AppendHeaders(vec![(
                 SET_COOKIE,
-                format!("{link_id}={}; HttpOnly", urlencoding::encode(&password)),
+                format!(
+                    "{link_id}={}; HttpOnly; Path=/api",
+                    urlencoding::encode(&password)
+                ),
             )])
         } else {
             AppendHeaders(vec![])

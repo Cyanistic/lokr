@@ -16,7 +16,7 @@
   -- (x) File and directory decryption
   -- (x) Directory navigation
   -- ( ) File previews (for supported file types)
-  --- ( ) Previews should be shown with a small thumbnail in grid view
+  --- (x) Previews should be shown with a small thumbnail in grid view
   --- ( ) Previews enlarged upon double clicking
   -- (x) File moving
   -- ( ) File copying
@@ -33,9 +33,9 @@
   -- ( ) Share Links
   --- (x) Viewing all active links for a file and when they expire
   --- (x) Link creation
-  --- ( ) Uploading and viewing through links
+  --- (x) Uploading and viewing through links
   --- ( ) Upload progress indicators
-  --- ( ) Password prompts for protected links
+  --- (x) Password prompts for protected links
   -- (x) Add support for direct user sharing
   --- (x) Viewing files shared directly
   - ( ) Add proper login screen for totp verification
@@ -43,12 +43,12 @@
   - ( ) Add file renaming modal
   - (x) Add file deletion modal
   - ( ) Properly handle anonymous uploads
-  -- ( ) Do not show an error on home page when the user is not logged in
+  -- (x) Do not show an error on home page when the user is not logged in
   -- ( ) Provide a share link after a successful anonymous upload
   - (x) Show file context menu upon right clicking on a file
-  - ( ) Grid view
+  - (x) Grid view
   -- (x) Add context menu to grid view
-  -- ( ) Add file previews to grid view
+  -- (x) Add file previews to grid view
   - ( ) Support for persistent settings
   -- (x) Dark/Light theme customization
   -- (x) Grid/List view by default

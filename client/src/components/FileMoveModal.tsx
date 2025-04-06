@@ -11,6 +11,7 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import { FileMetadata } from "../types";
@@ -35,6 +36,8 @@ interface FileMoveModalProps {
   root: string[];
   dirStack: FileMetadata[];
   userPublicKey: CryptoKey | null;
+  linkId?: string | null;
+  owner?: boolean;
 }
 
 export default function FileMoveModal({
@@ -46,6 +49,8 @@ export default function FileMoveModal({
   root,
   dirStack,
   userPublicKey,
+  linkId,
+  owner,
 }: FileMoveModalProps) {
   const [loading, setLoading] = useState<boolean>(false);
   // We want to keep track of the directory stack so that we can display a breadcrumbs
@@ -60,13 +65,16 @@ export default function FileMoveModal({
       (currentMoveFolder ? (files[currentMoveFolder]?.children ?? []) : root)
         .map((fileId) => files[fileId])
         /// Only allow moving files across folders owned by the same owner
-        .filter((f) => f.isDirectory && f.id !== file?.id && f.ownerId === file?.ownerId)
+        .filter(
+          (f) =>
+            f.isDirectory && f.id !== file?.id && f.ownerId === file?.ownerId,
+        )
         .sort((a, b) =>
           (a.name ?? a.encryptedFileName).localeCompare(
             b.name ?? b.encryptedFileName,
           ),
         ),
-    [currentMoveFolder, files],
+    [currentMoveFolder, files, file, root],
   );
 
   const { showError } = useErrorToast();
@@ -108,14 +116,18 @@ export default function FileMoveModal({
         return;
       }
 
-      const res = await API.api.updateFile(file.id, {
-        type: "move",
-        parentId: targetFolderId, // The new parent folder ID
-        encryptedKey: bufferToBase64(
-          await encryptAESKeyWithParentKey(parentKey, file.key, algorithm),
-        ),
-        keyNonce: keyNonce ? bufferToBase64(keyNonce) : undefined,
-      });
+      const res = await API.api.updateFile(
+        file.id,
+        {
+          type: "move",
+          parentId: targetFolderId, // The new parent folder ID
+          encryptedKey: bufferToBase64(
+            await encryptAESKeyWithParentKey(parentKey, file.key, algorithm),
+          ),
+          keyNonce: keyNonce ? bufferToBase64(keyNonce) : undefined,
+        },
+        { linkId: linkId ?? undefined },
+      );
 
       if (!res.ok) throw res.error;
       onMove(targetFolderId);
@@ -239,13 +251,27 @@ export default function FileMoveModal({
 
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
-        <Button
-          disabled={currentMoveFolder === (file?.parentId ?? null)}
-          variant="contained"
-          onClick={async () => await handleMove(currentMoveFolder)}
+        <Tooltip
+          title={
+            currentMoveFolder === (file?.parentId ?? null) ||
+            (currentMoveFolder === null && !owner)
+              ? "You do not have permission to move this file here"
+              : ""
+          }
         >
-          Move Here
-        </Button>
+          <span>
+            <Button
+              disabled={
+                currentMoveFolder === (file?.parentId ?? null) ||
+                (currentMoveFolder === null && !owner)
+              }
+              variant="contained"
+              onClick={async () => await handleMove(currentMoveFolder)}
+            >
+              Move Here
+            </Button>
+          </span>
+        </Tooltip>
       </DialogActions>
     </Dialog>
   );

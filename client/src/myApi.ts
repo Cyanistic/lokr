@@ -1313,10 +1313,18 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request POST:/api/upload
      * @secure
      */
-    uploadFile: (data: UploadRequest, params: RequestParams = {}) =>
+    uploadFile: (
+      data: UploadRequest,
+      query?: {
+        /** @format uuid */
+        linkId?: string | null;
+      },
+      params: RequestParams = {},
+    ) =>
       this.request<UploadResponse, ErrorResponse>({
         path: `/api/upload`,
         method: "POST",
+        query: query,
         body: data,
         secure: true,
         type: ContentType.FormData,
