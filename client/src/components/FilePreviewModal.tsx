@@ -24,6 +24,8 @@ import CodeIcon from "@mui/icons-material/Code"
 import MusicNoteIcon from "@mui/icons-material/MusicNote"
 import MovieIcon from "@mui/icons-material/Movie"
 import FolderIcon from "@mui/icons-material/Folder"
+import Tooltip from "@mui/material/Tooltip"
+
 
 import { Document, Page, pdfjs } from "react-pdf"
 import "react-pdf/dist/esm/Page/AnnotationLayer.css"
@@ -390,56 +392,59 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
           <Typography variant="h6" align="center" sx={{ color: "white" }}>
             {file!.name}
           </Typography>
-
+  
           <Box sx={{ display: "flex", justifyContent: "center", my: 2 }}>
-            <Box
-              sx={{
-                position: "relative",
-                width: 200,
-                height: 200,
-                borderRadius: "50%",
-                backgroundColor: "#555",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                boxShadow: "0 4px 8px rgba(0,0,0,0.2)",
-                cursor: "pointer",
-              }}
-              onClick={togglePlay}
-            >
-              <AudioIcon size={80} />
-
-              {/* Loading spinner */}
-              {loading && (
-                <CircularProgress
-                  size={48}
-                  sx={{
-                    position: "absolute",
-                    color: "white",
-                  }}
-                />
-              )}
-
-              {/* Play icon in center */}
-              {!isPlaying && !loading && (
-                <Box
-                  sx={{
-                    position: "absolute",
-                    width: 64,
-                    height: 64,
-                    borderRadius: "50%",
-                    backgroundColor: "rgba(255,255,255,0.8)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <PlayArrowIcon sx={{ fontSize: 40, color: "#333" }} />
-                </Box>
-              )}
-            </Box>
+            {/* Wrap the whole audio play area with a tooltip */}
+            <Tooltip title={isPlaying ? "Pause Audio" : "Play Audio"}>
+              <Box
+                sx={{
+                  position: "relative",
+                  width: 200,
+                  height: 200,
+                  borderRadius: "50%",
+                  backgroundColor: "#555",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  boxShadow: "0 4px 8px rgba(0,0,0,0.2)",
+                  cursor: "pointer",
+                }}
+                onClick={togglePlay}
+              >
+                <AudioIcon size={80} />
+  
+                {/* Loading spinner */}
+                {loading && (
+                  <CircularProgress
+                    size={48}
+                    sx={{
+                      position: "absolute",
+                      color: "white",
+                    }}
+                  />
+                )}
+  
+                {/* Play icon in center */}
+                {!isPlaying && !loading && (
+                  <Box
+                    sx={{
+                      position: "absolute",
+                      width: 64,
+                      height: 64,
+                      borderRadius: "50%",
+                      backgroundColor: "rgba(255,255,255,0.8)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <PlayArrowIcon sx={{ fontSize: 40, color: "#333" }} />
+                  </Box>
+                )}
+              </Box>
+            </Tooltip>
           </Box>
-
+  
           <audio
             ref={audioRef}
             src={file!.url}
@@ -448,7 +453,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
             onEnded={() => setIsPlaying(false)}
             style={{ display: "none" }}
           />
-
+  
           <Box sx={{ width: "100%", mb: 1 }}>
             <Slider
               value={currentTime}
@@ -466,7 +471,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
               </Typography>
             </Box>
           </Box>
-
+  
           <Box
             sx={{
               display: "flex",
@@ -475,47 +480,52 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
             }}
           >
             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <IconButton
-              onClick={toggleMute}
-              sx={{
-                color: "white",
-                padding: "6px", // tighter padding so it doesn't overlap with the slider
-                zIndex: 2, // make sure it's clickable above the slider
-              }}
-            >
-              {isMuted ? <VolumeOffIcon /> : <VolumeUpIcon />}
-            </IconButton>
-
-            <Slider
-              value={volume}
-              min={0}
-              max={1}
-              step={0.01}
-              onChange={handleVolumeChange}
-              aria-label="Volume"
-              sx={{
-                color: "white",
-                width: 100,
-                ml: 0.5,
-              }}
-            />
-          </Box>
-
-            <IconButton
-              onClick={togglePlay}
-              sx={{
-                backgroundColor: "#1976d2",
-                color: "white",
-                "&:hover": { backgroundColor: "#1565c0" },
-              }}
-            >
-              {isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
-            </IconButton>
+              <Tooltip title="Toggle Mute">
+                <IconButton
+                  onClick={toggleMute}
+                  sx={{
+                    color: "white",
+                    padding: "6px",
+                    zIndex: 2,
+                  }}
+                >
+                  {isMuted ? <VolumeOffIcon /> : <VolumeUpIcon />}
+                </IconButton>
+              </Tooltip>
+  
+              <Slider
+                value={volume}
+                min={0}
+                max={1}
+                step={0.01}
+                onChange={handleVolumeChange}
+                aria-label="Volume"
+                sx={{
+                  color: "white",
+                  width: 100,
+                  ml: 0.5,
+                }}
+              />
+            </Box>
+  
+            <Tooltip title={isPlaying ? "Pause" : "Play"}>
+              <IconButton
+                onClick={togglePlay}
+                sx={{
+                  backgroundColor: "#1976d2",
+                  color: "white",
+                  "&:hover": { backgroundColor: "#1565c0" },
+                }}
+              >
+                {isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
+              </IconButton>
+            </Tooltip>
           </Box>
         </Box>
       </Box>
     )
   }
+  
 
   const [showControlsBar, setShowControlsBar] = useState(true)
   const hideControlsTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -541,15 +551,15 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
 
   // Replace the renderVideo function with this updated version that better matches Google Drive's player
   const renderVideo = () => {
-    console.log("🟦 renderVideo()")
-    console.log("📁 File:", file)
-    console.log("🎬 File type:", file?.type)
-    console.log("🎞️ File extension:", fileExtension)
-    console.log("🔊 Volume:", volume)
-    console.log("⏯️ Playing:", isPlaying)
-    console.log("📍 Current Time:", currentTime, "/", duration)
-    console.log("⚡ Playback Speed:", playbackSpeed)
-    console.log("🖥️ Viewport width:", window.innerWidth)
+    console.log("🟦 renderVideo()");
+    console.log("📁 File:", file);
+    console.log("🎬 File type:", file?.type);
+    console.log("🎞️ File extension:", fileExtension);
+    console.log("🔊 Volume:", volume);
+    console.log("⏯️ Playing:", isPlaying);
+    console.log("📍 Current Time:", currentTime, "/", duration);
+    console.log("⚡ Playback Speed:", playbackSpeed);
+    console.log("🖥️ Viewport width:", window.innerWidth);
   
     return (
       <Box
@@ -583,13 +593,13 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
             controls={false}
             onTimeUpdate={handleTimeUpdate}
             onLoadedMetadata={(e) => {
-              console.log("✅ Metadata loaded")
-              handleLoadedMetadata(e)
-              e.currentTarget.playbackRate = playbackSpeed
+              console.log("✅ Metadata loaded");
+              handleLoadedMetadata(e);
+              e.currentTarget.playbackRate = playbackSpeed;
             }}
             onEnded={() => {
-              console.log("🔚 Video ended")
-              setIsPlaying(false)
+              console.log("🔚 Video ended");
+              setIsPlaying(false);
             }}
             onClick={togglePlay}
             style={{
@@ -603,27 +613,29 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
   
           {/* Overlay Play Button */}
           {!isPlaying && !loading && (
-            <Box
-              onClick={togglePlay}
-              sx={{
-                position: "absolute",
-                width: "68px",
-                height: "68px",
-                borderRadius: "50%",
-                backgroundColor: "#1976d2",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                cursor: "pointer",
-                transition: "transform 0.2s",
-                "&:hover": {
-                  transform: "scale(1.1)",
+            <Tooltip title="Play Video">
+              <Box
+                onClick={togglePlay}
+                sx={{
+                  position: "absolute",
+                  width: "68px",
+                  height: "68px",
+                  borderRadius: "50%",
                   backgroundColor: "#1976d2",
-                },
-              }}
-            >
-              <PlayArrowIcon sx={{ fontSize: 40, color: "white" }} />
-            </Box>
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                  transition: "transform 0.2s",
+                  "&:hover": {
+                    transform: "scale(1.1)",
+                    backgroundColor: "#1976d2",
+                  },
+                }}
+              >
+                <PlayArrowIcon sx={{ fontSize: 40, color: "white" }} />
+              </Box>
+            </Tooltip>
           )}
   
           {loading && (
@@ -680,69 +692,73 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
             }}
           >
             <Box sx={{ display: "flex", alignItems: "center" }}>
-            <IconButton
-              onClick={togglePlay}
-              sx={{
-                backgroundColor: "#1976d2", // blue background
-                color: "white",             // white icon
-                "&:hover": { backgroundColor: "#1565c0" }, // darker on hover
-              }}
-            >
-              {isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
-            </IconButton>
-
+              <Tooltip title={isPlaying ? "Pause Video" : "Play Video"}>
+                <IconButton
+                  onClick={togglePlay}
+                  sx={{
+                    backgroundColor: "#1976d2",
+                    color: "white",
+                    "&:hover": { backgroundColor: "#1565c0" },
+                  }}
+                >
+                  {isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
+                </IconButton>
+              </Tooltip>
               <Typography variant="caption" sx={{ color: "white", ml: 1 }}>
                 {formatTime(currentTime)} / {formatTime(duration)}
               </Typography>
             </Box>
   
             <Box sx={{ display: "flex", alignItems: "center" }}>
-              <Select
-                value={playbackSpeed}
-                onChange={(e) => {
-                  const speed = Number(e.target.value)
-                  setPlaybackSpeed(speed)
-                  if (videoRef.current) {
-                    videoRef.current.playbackRate = speed
-                  }
-                }}
-                sx={{
-                  color: "white",
-                  fontSize: "13px",
-                  mr: 2,
-                  ".MuiOutlinedInput-notchedOutline": { border: "none" },
-                  "& .MuiSvgIcon-root": { color: "white" },
-                  backgroundColor: "rgba(255,255,255,0.1)",
-                  borderRadius: "4px",
-                }}
-                MenuProps={{
-                  PaperProps: {
-                    sx: {
-                      backgroundColor: "#333",
-                      color: "white",
-                    },
-                  },
-                }}
-              >
-                {[0.25, 0.5, 0.75, 1, 1.25, 1.5, 2].map((speed) => (
-                  <MenuItem key={speed} value={speed}>
-                    {speed === 1 ? "Normal" : `${speed}x`}
-                  </MenuItem>
-                ))}
-              </Select>
-  
-              {/* Volume Control Group (fixed layout) */}
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                <IconButton
-                  onClick={toggleMute}
+              <Tooltip title="Change playback speed">
+                <Select
+                  value={playbackSpeed}
+                  onChange={(e) => {
+                    const speed = Number(e.target.value);
+                    setPlaybackSpeed(speed);
+                    if (videoRef.current) {
+                      videoRef.current.playbackRate = speed;
+                    }
+                  }}
                   sx={{
                     color: "white",
-                    padding: "6px",
-                    zIndex: 2,
+                    fontSize: "13px",
+                    mr: 2,
+                    ".MuiOutlinedInput-notchedOutline": { border: "none" },
+                    "& .MuiSvgIcon-root": { color: "white" },
+                    backgroundColor: "rgba(255,255,255,0.1)",
+                    borderRadius: "4px",
+                  }}
+                  MenuProps={{
+                    PaperProps: {
+                      sx: {
+                        backgroundColor: "#333",
+                        color: "white",
+                      },
+                    },
                   }}
                 >
-                  {isMuted ? <VolumeOffIcon /> : <VolumeUpIcon />}
-                </IconButton>
+                  {[0.25, 0.5, 0.75, 1, 1.25, 1.5, 2].map((speed) => (
+                    <MenuItem key={speed} value={speed}>
+                      {speed === 1 ? "Normal" : `${speed}x`}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </Tooltip>
+  
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Tooltip title="Toggle Mute">
+                  <IconButton
+                    onClick={toggleMute}
+                    sx={{
+                      color: "white",
+                      padding: "6px",
+                      zIndex: 2,
+                    }}
+                  >
+                    {isMuted ? <VolumeOffIcon /> : <VolumeUpIcon />}
+                  </IconButton>
+                </Tooltip>
   
                 <Slider
                   value={volume}
@@ -762,38 +778,86 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
           </Box>
         </Box>
       </Box>
-    )
-  }
+    );
+  };
+  
   
 
   const renderImage = () => {
     return (
       <Box
         sx={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
+          position: "relative", // Make the container relative so the bottom bar can be positioned absolutely
           height: "100%",
           width: "100%",
-          backgroundColor: "transparent", // Changed from #000 to transparent
+          backgroundColor: "transparent", // or you can set it to a solid color if needed
         }}
       >
-        <img
-          src={file!.url || "/placeholder.svg"}
-          alt={file!.name}
-          style={{
-            transformOrigin: "center",
-            transform: `scale(${scale})`,
-            maxWidth: "100%",
-            maxHeight: "100%",
-            display: "block",
-            margin: "0 auto",
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            height: "100%",
+            width: "100%",
           }}
-          onLoad={() => setLoading(false)}
-        />
+        >
+          <img
+            src={file!.url || "/placeholder.svg"}
+            alt={file!.name}
+            style={{
+              transformOrigin: "center",
+              transform: `scale(${scale})`,
+              maxWidth: "100%",
+              maxHeight: "100%",
+              display: "block",
+              margin: "0 auto",
+            }}
+            onLoad={() => setLoading(false)}
+          />
+        </Box>
+  
+        {/* Bottom Bar */}
+        <Box
+          sx={{
+            position: "absolute",
+            bottom: 16,
+            left: "50%",
+            transform: "translateX(-50%)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: "40px",
+            backdropFilter: "blur(8px)",
+            backgroundColor: "rgba(30, 30, 30, 0.6)",
+            color: "#fff",
+            px: 1.5,
+            py: 0.5,
+            gap: 1,
+            zIndex: 2,
+            fontSize: "0.8rem",
+          }}
+        >
+          <Tooltip title="Zoom out">
+            <IconButton onClick={handleZoomOut} size="small" sx={{ color: "#fff" }}>
+              <ZoomOutIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Zoom in">
+            <IconButton onClick={handleZoomIn} size="small" sx={{ color: "#fff" }}>
+              <ZoomInIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Reset zoom">
+            <IconButton onClick={handleResetZoom} size="small" sx={{ color: "#fff" }}>
+              <RestartAltIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        </Box>
       </Box>
     )
   }
+  
 
   const renderWordDoc = () => {
     return (
@@ -801,24 +865,80 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
         sx={{
           width: "100%",
           height: "100%",
-          padding: 3,
-          overflow: "auto",
-          backgroundColor: "white",
-          color: "#000",
-          maxWidth: "800px",
-          margin: "0 auto",
-          "& *": {
-            color: "#000 !important", // ← this forces all children to be black
-          },
+          position: "relative",
+          overflow: "hidden",
         }}
       >
-        <div
-          dangerouslySetInnerHTML={{ __html: wordDocContent }}
-          style={{ fontFamily: "Arial, sans-serif", lineHeight: "1.5" }}
-        />
+        {/* Word document content container */}
+        <Box
+          sx={{
+            width: "100%",
+            height: "100%",
+            overflow: "auto",
+            backgroundColor: "white",
+            "& *": { color: "#000 !important" },
+          }}
+        >
+          <Box
+            sx={{
+              transform: `scale(${scale})`,
+              transformOrigin: "top left",
+              width: `calc(100% / ${scale})`,
+            }}
+          >
+            <div
+              dangerouslySetInnerHTML={{ __html: wordDocContent }}
+              style={{
+                fontFamily: "Arial, sans-serif",
+                lineHeight: "1.5",
+                padding: "16px",
+                boxSizing: "border-box",
+              }}
+            />
+          </Box>
+        </Box>
+  
+        {/* Bottom Bar (same as for PDF) */}
+        <Box
+          sx={{
+            position: "absolute",
+            bottom: 16,
+            left: "50%",
+            transform: "translateX(-50%)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: "40px",
+            backdropFilter: "blur(8px)",
+            backgroundColor: "rgba(30, 30, 30, 0.6)",
+            color: "#fff",
+            px: 1.5,
+            py: 0.5,
+            gap: 1,
+            zIndex: 2,
+            fontSize: "0.8rem",
+          }}
+        >
+          <Tooltip title="Zoom out">
+            <IconButton onClick={handleZoomOut} size="small" sx={{ color: "#fff" }}>
+              <ZoomOutIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Zoom in">
+            <IconButton onClick={handleZoomIn} size="small" sx={{ color: "#fff" }}>
+              <ZoomInIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Reset zoom">
+            <IconButton onClick={handleResetZoom} size="small" sx={{ color: "#fff" }}>
+              <RestartAltIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        </Box>
       </Box>
     )
   }
+  
 
   const renderContent = () => {
     if (!file) return null
@@ -959,9 +1079,11 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
 
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
           {/* Download button */}
-          <IconButton href={file?.url} download={file?.name} sx={{ color: "#e8eaed" }} aria-label="Download">
-            <DownloadIcon />
-          </IconButton>
+          <Tooltip title="Download">
+            <IconButton href={file?.url} download={file?.name} sx={{ color: "#e8eaed" }} aria-label="Download">
+              <DownloadIcon />
+            </IconButton>
+          </Tooltip>
         </Box>
       </Box>
 
@@ -1013,6 +1135,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
               fontSize: "0.8rem",
             }}
           >
+            
             <IconButton onClick={handlePrev} size="small" sx={{ color: "#fff" }}>
               <ArrowBackIosNewIcon fontSize="small" />
             </IconButton>
@@ -1045,21 +1168,30 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
 
             <Typography variant="body2">/ {numPages}</Typography>
 
+            
             <IconButton onClick={handleNext} size="small" sx={{ color: "#fff" }}>
               <ArrowForwardIosIcon fontSize="small" />
             </IconButton>
 
             <Box sx={{ mx: 1, height: "20px", borderLeft: "1px solid #666" }} />
 
+            <Tooltip title = "Zoom out">
             <IconButton onClick={handleZoomOut} size="small" sx={{ color: "#fff" }}>
               <ZoomOutIcon fontSize="small" />
             </IconButton>
+            </Tooltip>
+
+            <Tooltip title = "Zoom in">
             <IconButton onClick={handleZoomIn} size="small" sx={{ color: "#fff" }}>
               <ZoomInIcon fontSize="small" />
             </IconButton>
+            </Tooltip>
+            
+            <Tooltip title = "Reset zoom">
             <IconButton onClick={handleResetZoom} size="small" sx={{ color: "#fff" }}>
               <RestartAltIcon fontSize="small" />
             </IconButton>
+            </Tooltip>
           </Box>
         )}
 
