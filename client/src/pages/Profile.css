@@ -58,3 +58,22 @@
     color: var(--text-color);
     overflow-y: auto;
 }
+
+.profile-columns {
+    display: flex;
+    /* gap: 2rem;  Alternatively, you can use gap to separate columns */
+  }
+  
+  .profile-left {
+    flex: 1;
+    padding: 50px 0 0 10px;  /* Top and left padding */
+    margin-right: 20px;      /* Space between left and right columns */
+    display: flex;           /* Make it a flex container */
+    flex-direction: column;  /* Arrange items vertically */
+    gap: 15px;               /* Space between each child item */
+  }
+  
+  .profile-right {
+    flex: 1;
+    padding: 10px;          /* adjust as needed */
+  }

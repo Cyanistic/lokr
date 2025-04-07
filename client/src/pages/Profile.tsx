@@ -49,7 +49,11 @@ function Profile() {
   const [totpInputCode, setTOTPInputCode] = useState("");
   const [totpVerified, setTOTPVerified] = useState(false);
 
-  //Fetch User data
+  // New state for theme and sort order preferences
+  const [selectedTheme, setSelectedTheme] = useState<string>("default");
+  const [selectedSortOrder, setSelectedSortOrder] = useState<string>("name");
+
+  // Fetch user data
   useEffect(() => {
     const getData = async () => {
       if (!profile) return;
@@ -58,7 +62,7 @@ function Profile() {
           `${getAvatarUrl({
             id: profile.id,
             avatarExtension: profile?.avatarExtension,
-          })}/?q=${Math.random()}`,
+          })}/?q=${Math.random()}`
         );
       }
     };
@@ -72,7 +76,15 @@ function Profile() {
     }
   }, [loadingProfile, profile]);
 
-  //Fetch Sessions
+  // Update selected preferences when profile data changes
+  useEffect(() => {
+    if (profile) {
+      setSelectedTheme(profile.theme || "default");
+      setSelectedSortOrder(profile.sortOrder || "name");
+    }
+  }, [profile]);
+
+  // Fetch Sessions
   useEffect(() => {
     fetch(`${BASE_URL}/api/sessions`, {
       credentials: "include",
@@ -94,13 +106,13 @@ function Profile() {
   const getAvatarUrl = (user: { id: string; avatarExtension: string }) => {
     if (user) {
       return user.avatarExtension
-        ? `${BASE_URL}/api/avatars/${user.id}.${user.avatarExtension}` // Construct the URL using user.id and user.avatarExtension
-        : DefaultProfile; // Default avatar URL
+        ? `${BASE_URL}/api/avatars/${user.id}.${user.avatarExtension}`
+        : DefaultProfile;
     }
-    return DefaultProfile; // Default avatar if user is null
+    return DefaultProfile;
   };
 
-  //Regenerate TOTP
+  // Regenerate TOTP
   const handleRegenerateTOTP = async () => {
     try {
       const password = prompt("Enter your current password:");
@@ -130,7 +142,7 @@ function Profile() {
       // Ensure the QR code has the correct format
       let qrCode = responseData.qrCode;
       if (!qrCode.startsWith("data:image/png;base64,")) {
-        qrCode = `data:image/png;base64,${qrCode}`; // Manually add prefix
+        qrCode = `data:image/png;base64,${qrCode}`;
       }
       setQrCode(qrCode);
       setShowTOTPSetup(true);
@@ -142,7 +154,7 @@ function Profile() {
     }
   };
 
-  //Verify TOTP
+  // Verify TOTP
   const handleVerifyInline = async () => {
     try {
       const responseBody: VerifyTOTPRequest = {
@@ -167,7 +179,7 @@ function Profile() {
     }
   };
 
-  //Enable/Disable TOTP
+  // Enable/Disable TOTP
   const handleEnableTOTP = async () => {
     try {
       const password = prompt("Enter your current password:");
@@ -179,7 +191,7 @@ function Profile() {
       const passwordSalt: Uint8Array | null =
         await localforage.getItem("passwordSalt");
       if (!passwordSalt) {
-        throw new Error("Passsword salt not found");
+        throw new Error("Password salt not found");
       }
 
       const hashedPassword = await hashPassword(password, passwordSalt);
@@ -192,11 +204,10 @@ function Profile() {
 
       console.log(
         `Sending TOTP ${enable ? "Enable" : "Disable"} Request:`,
-        JSON.stringify(requestBody, null, 2),
+        JSON.stringify(requestBody, null, 2)
       );
 
       const response = await API.api.updateTotp(requestBody);
-
       console.log("Response status:", response.status);
 
       if (!response.ok) {
@@ -214,10 +225,10 @@ function Profile() {
     }
   };
 
-  //Delete session
+  // Delete session
   const handleDeleteSession = async (sessionNumber: number) => {
     const confirmDelete = confirm(
-      "Are you sure you want to delete session #${sessionNumber}?",
+      "Are you sure you want to delete session #${sessionNumber}?"
     );
     if (!confirmDelete) return;
 
@@ -233,24 +244,24 @@ function Profile() {
       }
       //Remove deleted session from the state
       setSessions((prev) =>
-        prev.filter((session) => session.number !== sessionNumber),
+        prev.filter((session) => session.number !== sessionNumber)
       );
     } catch (err) {
       console.error("Error deleting session:", err);
     }
   };
 
-  //Start editing a field
+  // Start editing a field
   const handleEdit = (field: string, currentValue: string | null) => {
     setEditingField(field);
     setUpdatedValue(currentValue || "");
   };
 
-  //Save edit to backend
+  // Save edit to backend
   const handleSave = async (field: "username" | "password" | "email") => {
     try {
       const passwordSalt: Uint8Array | null = (await localforage.getItem(
-        "passwordSalt",
+        "passwordSalt"
       )) as Uint8Array | null;
       const password = prompt("Enter your current password to confirm change");
       let requestBody: UserUpdate;
@@ -285,33 +296,31 @@ function Profile() {
         const { encrypted: encryptedPrivateKey } = await encryptPrivateKey(
           privateKey,
           masterKey,
-          iv,
+          iv
         );
         requestBody.encryptedPrivateKey = bufferToBase64(encryptedPrivateKey);
         // Hash the new password for the backend
         requestBody.newValue = await hashPassword(
           requestBody.newValue,
-          passwordSalt,
+          passwordSalt
         );
       } else {
         requestBody = {
           type: field,
           newValue: updatedValue,
           password: await hashPassword(password, passwordSalt),
-        };
+        } as UserUpdate;
       }
 
-      console.log("Sending request:", JSON.stringify(requestBody, null, 2)); // Log formatted request
-
+      console.log("Sending request:", JSON.stringify(requestBody, null, 2));
       const response = await API.api.updateUser(requestBody);
 
-      console.log("Response status:", response.status); // Log response status
-
+      console.log("Response status:", response.status);
       if (!response.ok) {
         const errorData = await response.json();
         console.error("Server Response:", errorData);
         throw new Error(
-          `Failed to update ${field}: ${errorData.message || response.statusText}`,
+          `Failed to update ${field}: ${errorData.message || response.statusText}`
         );
       }
 
@@ -319,36 +328,159 @@ function Profile() {
       setEditingField(null);
     } catch (err) {
       showError(
-        `Error updating ${field}: ${err instanceof Error ? err.message : "Unknown error"}`,
-        err,
+        `Error updating ${field}: ${
+          err instanceof Error ? err.message : "Unknown error"
+        }`,
+        err
       );
     }
   };
 
-  // Define sections as separate components or elements
+  // Toggle grid (list) view for the profile
+  const toggleGridView = async () => {
+    if (!profile) return;
+    const newView = !profile.gridView;
+    const currentTheme = profile.theme || "default";
+    const currentSortOrder = profile.sortOrder || "name";
+    try {
+      const response = await fetch(`${BASE_URL}/api/profile/preferences`, {
+        method: "PUT",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          gridView: newView,
+          theme: currentTheme,
+          sortOrder: currentSortOrder,
+        }),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText);
+      }
+      refreshProfile();
+    } catch (err: any) {
+      showError(`Error updating view mode: ${err.message}`, err);
+    }
+  };
+
+  // Update theme and sort order preferences
+  const updatePreferences = async () => {
+    if (!profile) return;
+    try {
+      const response = await fetch(`${BASE_URL}/api/profile/preferences`, {
+        method: "PUT",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          gridView: profile.gridView,
+          theme: selectedTheme,
+          sortOrder: selectedSortOrder,
+        }),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText);
+      }
+      refreshProfile();
+    } catch (err: any) {
+      showError(`Error updating preferences: ${err.message}`, err);
+    }
+  };
+
+  // Reorganize so the avatar is on the right, everything else on the left
   const renderContent = () => {
     switch (activeSection) {
       case "profile":
         if (loading) {
           return (
             <div className="profileInfo">
-              <h3>Profile Information Section</h3>
+              <h3>Profile Information</h3>
               <p>Loading user data...</p>
             </div>
           );
         }
         return (
           <div className="profileInfo">
-            <h3>Profile Information Section</h3>
-            <div>
-              <div className="userInfo">
+            <h3>Profile Information</h3>
+
+            {/* Two-column container */}
+            <div className="profile-columns">
+              {/* Left column: username, email, theme, view mode, sort order */}
+              <div className="profile-left">
                 <p>
-                  <strong>Username:</strong> {profile!.username}{" "}
+                  <strong>Username:</strong>{" "}
+                  {editingField === "username" ? (
+                    <>
+                      <input
+                        type="text"
+                        value={updatedValue}
+                        onChange={(e) => setUpdatedValue(e.target.value)}
+                      />
+                      <button
+                        className="b1"
+                        onClick={() => handleSave("username")}
+                      >
+                        Save
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      {profile!.username}{" "}
+                      <button
+                        className="b1"
+                        onClick={() =>
+                          handleEdit("username", profile!.username)
+                        }
+                      >
+                        Edit
+                      </button>
+                    </>
+                  )}
                 </p>
                 <p>
                   <strong>Email:</strong>{" "}
                   {profile!.email || "No email provided"}
                 </p>
+                <p>
+                  <strong>Theme:</strong>{" "}
+                  <select
+                    value={selectedTheme}
+                    onChange={(e) => setSelectedTheme(e.target.value)}
+                  >
+                    <option value="system">System</option>
+                    <option value="light">Light</option>
+                    <option value="dark">Dark</option>
+                  </select>
+                </p>
+                <p>
+                  <strong>View Mode:</strong>{" "}
+                  <span>{profile!.gridView ? "Grid" : "List"}</span>{" "}
+                  <button className="b1" onClick={toggleGridView}>
+                    Toggle
+                  </button>
+                </p>
+                <p>
+                  <strong>Sort Order:</strong>{" "}
+                  <select
+                    value={selectedSortOrder}
+                    onChange={(e) => setSelectedSortOrder(e.target.value)}
+                  >
+                    <option value="name">Name</option>
+                    <option value="modified">Modified</option>
+                    <option value="created">Created</option>
+                  </select>
+                </p>
+                <button className="b1" onClick={updatePreferences}>
+                  Save Preferences
+                </button>
+              </div>
+
+              {/* Right column: avatar */}
+              <div className="profile-right">
                 <h3>Upload your avatar</h3>
                 <AvatarUpload
                   avatarUrl={avatarUrl}
@@ -357,63 +489,6 @@ function Profile() {
                   }}
                 />
               </div>
-              <p>
-                <strong>Username:</strong>{" "}
-                {editingField === "username" ? (
-                  <>
-                    <input
-                      type="text"
-                      value={updatedValue}
-                      onChange={(e) => setUpdatedValue(e.target.value)}
-                    />
-                    <button
-                      className="b1"
-                      onClick={() => handleSave("username")}
-                    >
-                      Save
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    {profile!.username}{" "}
-                    <button
-                      className="b1"
-                      onClick={() => handleEdit("username", profile!.username)}
-                    >
-                      Edit
-                    </button>
-                  </>
-                )}
-              </p>
-              <p>
-                <strong>Password:</strong>{" "}
-                {editingField === "password" ? (
-                  <>
-                    <input
-                      type="password"
-                      placeholder="Enter new password"
-                      value={updatedValue}
-                      onChange={(e) => setUpdatedValue(e.target.value)}
-                    />
-                    <button
-                      className="b1"
-                      onClick={() => handleSave("password")}
-                    >
-                      Save
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    ••••••••{" "}
-                    <button
-                      className="b1"
-                      onClick={() => handleEdit("password", "")}
-                    >
-                      Change Password
-                    </button>
-                  </>
-                )}
-              </p>
             </div>
           </div>
         );
@@ -421,21 +496,40 @@ function Profile() {
         if (loading) {
           return (
             <div className="profileInfo">
-              <h3>Security and Privacy Section</h3>
+              <h3>Security and Privacy</h3>
               <p>Loading user data...</p>
             </div>
           );
         }
-        // if (error) {
-        //   <div className="profileInfo">
-        //     <h3>Security and Privacy Section</h3>
-        //     <p style={{ color: "red" }}>Error: {error}</p>
-        //   </div>
-        // }
         return (
           <div className="profileInfo">
-            <h3>Security and Privacy Section</h3>
-            {/* Display TOTP Status */}
+            <h3>Security and Privacy</h3>
+            <p>
+              <strong>Password:</strong>{" "}
+              {editingField === "password" ? (
+                <>
+                  <input
+                    type="password"
+                    placeholder="Enter new password"
+                    value={updatedValue}
+                    onChange={(e) => setUpdatedValue(e.target.value)}
+                  />
+                  <button className="b1" onClick={() => handleSave("password")}>
+                    Save
+                  </button>
+                </>
+              ) : (
+                <>
+                  ••••••••{" "}
+                  <button
+                    className="b1"
+                    onClick={() => handleEdit("password", "")}
+                  >
+                    Change Password
+                  </button>
+                </>
+              )}
+            </p>
             <p>
               TOTP is currently:{" "}
               <strong>{profile?.totpEnabled ? "Enabled" : "Disabled"}</strong>
@@ -534,9 +628,9 @@ function Profile() {
           </div>
         );
       case "notifications":
-        return <div>Notifications Settings Section</div>;
+        return <div>Notifications Settings</div>;
       default:
-        return <div>Profile Information Section</div>;
+        return <div>Profile Information</div>;
     }
   };
 
@@ -565,7 +659,9 @@ function Profile() {
         {/* Left Sidebar with buttons */}
         <div className="profile-sidebar">
           <button
-            className={`profile-button ${activeSection === "profile" ? "active" : ""}`}
+            className={`profile-button ${
+              activeSection === "profile" ? "active" : ""
+            }`}
             onClick={() =>
               setParams((prev) => {
                 prev.set("section", "profile");
@@ -576,7 +672,9 @@ function Profile() {
             Profile Information
           </button>
           <button
-            className={`profile-button ${activeSection === "security" ? "active" : ""}`}
+            className={`profile-button ${
+              activeSection === "security" ? "active" : ""
+            }`}
             onClick={() =>
               setParams((prev) => {
                 prev.set("section", "security");
@@ -587,7 +685,9 @@ function Profile() {
             Security and Privacy
           </button>
           <button
-            className={`profile-button ${activeSection === "notifications" ? "active" : ""}`}
+            className={`profile-button ${
+              activeSection === "notifications" ? "active" : ""
+            }`}
             onClick={() =>
               setParams((prev) => {
                 prev.set("section", "notifications");
