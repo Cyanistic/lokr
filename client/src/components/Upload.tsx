@@ -1,6 +1,6 @@
 import { API } from "../utils";
 import { FileMetadata } from "../types";
-import { UploadResponse } from "../myApi";
+import { UploadMetadata } from "../myApi";
 import {
   encryptAESKeyWithParentKey,
   encryptText,
@@ -26,7 +26,6 @@ interface Props {
 export default function Upload({
   parentId,
   parentKey,
-  onUpload,
   isOverlay = false,
   onClose,
   linkId,
@@ -39,6 +38,12 @@ export default function Upload({
   const [files, setFile] = useState<File[]>([]);
   const [fileMeta, setFileMeta] = useState<FileMetadata[]>([]);
   const [uploadStatus, setUploadStatus] = useState<string>("");
+  const [fileStatuses, setFileStatuses] = useState<{
+    [filename: string]: {
+      status: "pending" | "success" | "error";
+      message?: string;
+    };
+  }>({});
   const { showError } = useErrorToast();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const overlayRef = useRef<HTMLDivElement | null>(null);
@@ -97,7 +102,6 @@ export default function Upload({
       showError("Please wait for your profile to load before uploading files.");
       return;
     }
-    // Here you can handle file upload logic (e.g., sending to server)
 
     setUploadStatus("Uploading...");
 
@@ -120,94 +124,159 @@ export default function Upload({
       }
     }
 
-    // Create a metadata object
-    for (const [ind, file] of files.entries()) {
-      // Generate an AES key for encrypting the file and metadata
-      const aesKey = await generateKey();
-      const fileNonce = generateNonce();
-      const nameNonce = generateNonce();
-      const mimeTypeNonce = generateNonce();
-      // Encrypt the file content using AES
-      const encryptedFile = await encryptFileWithAES(aesKey, file, fileNonce);
-
-      // Encrypt the file metadata (name and mime type) using AES
-      const encryptedFileName = await encryptText(aesKey, file.name, nameNonce);
-      const encryptedMimeType = await encryptText(
-        aesKey,
-        file.type,
-        mimeTypeNonce,
-      );
-
-      let keyNonce;
-      if (parentId || !profile?.importedPublicKey) {
-        keyNonce = generateNonce();
-        algorithm = { name: "AES-GCM", iv: keyNonce };
-      } else {
-        algorithm = { name: "RSA-OAEP" };
-      }
-      // Encrypt the AES key using the user's public RSA key
-      const encryptedAESKey = await encryptAESKeyWithParentKey(
-        key,
-        aesKey,
-        algorithm,
-      );
-
-      const metadata = {
-        encryptedFileName: btoa(String.fromCharCode(...encryptedFileName)),
-        encryptedKey: btoa(String.fromCharCode(...encryptedAESKey)),
-        encryptedMimeType: btoa(String.fromCharCode(...encryptedMimeType)),
-        isDirectory: fileMeta[ind].isDirectory || false,
-        fileNonce: btoa(String.fromCharCode(...fileNonce)),
-        nameNonce: btoa(String.fromCharCode(...nameNonce)),
-        mimeTypeNonce: btoa(String.fromCharCode(...mimeTypeNonce)),
-        keyNonce: keyNonce ? btoa(String.fromCharCode(...keyNonce)) : undefined,
-        parentId,
+    // Initialize status for all files
+    const initialStatuses: {
+      [filename: string]: {
+        status: "pending" | "success" | "error";
+        message?: string;
       };
+    } = {};
+    files.forEach((file) => {
+      initialStatuses[file.name] = { status: "pending" };
+    });
+    setFileStatuses(initialStatuses);
 
-      try {
-        const response = await API.api.uploadFile(
-          {
-            metadata,
-            //@ts-expect-error swagger api is dumb
-            file: encryptedFile,
-          },
-          { linkId: linkId ?? undefined },
-        );
+    let successCount = 0;
+    let errorCount = 0;
 
-        if (response.status === 402) {
-          showError(
-            "Error during file upload. You do not have enough free storage space. Please purchase more.",
+    // Leverage Promise.allSettled to handle multiple file uploads concurrently
+    await Promise.allSettled(
+      files.map(async (file, index) => {
+        try {
+          // Update status to show we're working on this file
+          setFileStatuses((prev) => ({
+            ...prev,
+            [file.name]: { status: "pending", message: "Encrypting..." },
+          }));
+
+          // Generate an AES key for encrypting the file and metadata
+          const aesKey = await generateKey();
+          const fileNonce = generateNonce();
+          const nameNonce = generateNonce();
+          const mimeTypeNonce = generateNonce();
+
+          // Encrypt the file content using AES
+          const encryptedFile = await encryptFileWithAES(
+            aesKey,
+            file,
+            fileNonce,
           );
-          return;
-        } else if (response.status === 405) {
-          showError("Error during file upload. Your file is too large");
-          return;
-        } else if (!response.ok) {
-          throw response.error;
+
+          // Encrypt the file metadata (name and mime type) using AES
+          const encryptedFileName = await encryptText(
+            aesKey,
+            file.name,
+            nameNonce,
+          );
+          const encryptedMimeType = await encryptText(
+            aesKey,
+            file.type || "application/octet-stream",
+            mimeTypeNonce,
+          );
+
+          let keyNonce;
+          if (parentId || !profile?.importedPublicKey) {
+            keyNonce = generateNonce();
+            algorithm = { name: "AES-GCM", iv: keyNonce };
+          } else {
+            algorithm = { name: "RSA-OAEP" };
+          }
+
+          // Encrypt the AES key using the user's public RSA key
+          const encryptedAESKey = await encryptAESKeyWithParentKey(
+            key,
+            aesKey,
+            algorithm,
+          );
+
+          const metadata: UploadMetadata = {
+            encryptedFileName: btoa(String.fromCharCode(...encryptedFileName)),
+            encryptedKey: btoa(String.fromCharCode(...encryptedAESKey)),
+            encryptedMimeType: btoa(String.fromCharCode(...encryptedMimeType)),
+            isDirectory: fileMeta[index].isDirectory || false,
+            fileNonce: btoa(String.fromCharCode(...fileNonce)),
+            nameNonce: btoa(String.fromCharCode(...nameNonce)),
+            mimeTypeNonce: btoa(String.fromCharCode(...mimeTypeNonce)),
+            keyNonce: keyNonce
+              ? btoa(String.fromCharCode(...keyNonce))
+              : undefined,
+            parentId,
+          };
+
+          // Update status to show we're uploading
+          setFileStatuses((prev) => ({
+            ...prev,
+            [file.name]: { status: "pending", message: "Uploading..." },
+          }));
+
+          const response = await API.api.uploadFile(
+            {
+              metadata: metadata as UploadMetadata,
+              //@ts-expect-error swagger api is dumb
+              file: encryptedFile,
+            },
+            { linkId: linkId ?? undefined },
+          );
+
+          if (response.status === 402) {
+            setFileStatuses((prev) => ({
+              ...prev,
+              [file.name]: {
+                status: "error",
+                message: "Not enough storage space",
+              },
+            }));
+            errorCount++;
+            return;
+          } else if (response.status === 405) {
+            setFileStatuses((prev) => ({
+              ...prev,
+              [file.name]: {
+                status: "error",
+                message: "File is too large",
+              },
+            }));
+            errorCount++;
+            return;
+          } else if (!response.ok) {
+            throw response.error;
+          }
+
+          // Successfully uploaded
+          setFileStatuses((prev) => ({
+            ...prev,
+            [file.name]: { status: "success" },
+          }));
+          successCount++;
+        } catch (error) {
+          setFileStatuses((prev) => ({
+            ...prev,
+            [file.name]: {
+              status: "error",
+              message: error instanceof Error ? error.message : "Unknown error",
+            },
+          }));
+          errorCount++;
         }
-        const data: UploadResponse = response.data;
-        console.log("File uploaded successfully");
-        setUploadStatus("File uploaded successfully!");
-        const createdAtDate = new Date();
-        const modifiedAtDate = new Date();
-        if (onUpload) {
-          onUpload({
-            ...metadata,
-            createdAtDate,
-            modifiedAtDate,
-            id: data.id,
-            createdAt: createdAtDate.toDateString(),
-            modifiedAt: modifiedAtDate.toDateString(),
-            key: aesKey,
-            name: file.name,
-            mimeType: file.type,
-            size: data.size,
-          });
-        }
-        refreshProfile();
-      } catch (error) {
-        showError("Error during file upload.", error);
-      }
+      }),
+    );
+
+    // Update profile to reflect storage changes
+    refreshProfile();
+
+    // Set overall status
+    if (errorCount === 0) {
+      setUploadStatus(`All ${successCount} files uploaded successfully!`);
+    } else if (successCount === 0) {
+      setUploadStatus(
+        `All ${errorCount} files failed to upload. Check errors below.`,
+      );
+      showError(`All ${errorCount} files failed to upload.`);
+    } else {
+      setUploadStatus(
+        `${successCount} files uploaded successfully, ${errorCount} files failed.`,
+      );
+      showError(`${errorCount} files failed to upload.`);
     }
   };
 
@@ -287,8 +356,34 @@ export default function Upload({
         <div className="file-list">
           <ul>
             {fileMeta.map((meta, index) => (
-              <li key={index}>
+              <li
+                key={index}
+                className={
+                  fileStatuses[meta.name]?.status === "success"
+                    ? "file-success"
+                    : fileStatuses[meta.name]?.status === "error"
+                      ? "file-error"
+                      : ""
+                }
+              >
                 {meta.name} {meta.isDirectory ? "(Directory)" : "(File)"}
+                {fileStatuses[meta.name]?.status === "pending" &&
+                  fileStatuses[meta.name]?.message && (
+                    <span className="file-status-pending">
+                      {" "}
+                      - {fileStatuses[meta.name]?.message}
+                    </span>
+                  )}
+                {fileStatuses[meta.name]?.status === "success" && (
+                  <span className="file-status-success"> - Success</span>
+                )}
+                {fileStatuses[meta.name]?.status === "error" && (
+                  <span className="file-status-error">
+                    {" "}
+                    - Error:{" "}
+                    {fileStatuses[meta.name]?.message || "Failed to upload"}
+                  </span>
+                )}
               </li>
             ))}
           </ul>

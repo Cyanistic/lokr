@@ -1,3 +1,26 @@
+/* Add these styles to your existing CSS */
+.file-success {
+  color: #4caf50;
+}
+
+.file-error {
+  color: #f44336;
+}
+
+.file-status-pending {
+  font-style: italic;
+  color: #ff9800;
+}
+
+.file-status-success {
+  color: #4caf50;
+  font-weight: bold;
+}
+
+.file-status-error {
+  color: #f44336;
+  font-weight: bold;
+}
 :root {
     --file-bg: #ffffff;
     --file-border: #cbd5e1;

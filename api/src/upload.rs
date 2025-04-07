@@ -175,6 +175,81 @@ pub async fn upload_file(
         )));
     }
 
+    // Implement retry mechanism for the entire transaction
+    const MAX_RETRIES: usize = 5;
+    const BASE_RETRY_DELAY_MS: u64 = 50;
+
+    let mut retries = 0;
+    let link;
+
+    loop {
+        // Begin a new transaction for each attempt
+        match process_upload_transaction(
+            &state,
+            &uuid,
+            &params,
+            &metadata,
+            link_password.as_deref(),
+            file_id,
+            file_data.len() as i64
+        )
+        .await
+        {
+            Ok(link_result) => {
+                link = link_result;
+                break;
+            }
+            Err(e) => {
+                // Check if it's an SQLITE_BUSY error because if it is
+                // then we need to retry. 517 is SQLITE_BUSY_SNAPSHOT
+                // Reference: https://www.sqlite.org/rescode.html#busy_snapshot
+                if let AppError::SqlxError(db_err) = &e {
+                    if let Some(code) = db_err.as_database_error().and_then(|e| e.code()) {
+                        if (code == "5" || code == "517") && retries < MAX_RETRIES {
+                            retries += 1;
+                            // Exponential backoff with jitter
+                            let jitter = fastrand::u64(1..=50);
+                            let delay = BASE_RETRY_DELAY_MS * (1 << retries) + jitter;
+                            tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
+                            continue;
+                        }
+                    }
+                }
+                return Err(e);
+            }
+        }
+    }
+
+    // If everything succeeds, write the file to disk (only if it's not a directory)
+    if let Some(file_path) = file_path {
+        if !metadata.is_directory && !file_data.is_empty() {
+            let mut file = File::create(file_path).await?;
+            file.write_all(&file_data).await?;
+        }
+    }
+
+    Ok((
+        StatusCode::OK,
+        Json(UploadResponse {
+            id: file_id,
+            size: file_data.len() as i64,
+            is_directory: metadata.is_directory,
+            link,
+        }),
+    )
+        .into_response())
+}
+
+// Extract the transaction logic into a separate function to enable proper retries
+async fn process_upload_transaction(
+    state: &AppState,
+    uuid: &Option<Uuid>,
+    params: &LinkParams,
+    metadata: &UploadMetadata,
+    link_password: Option<&str>,
+    file_id: Uuid,
+    file_size: i64,
+) -> Result<Option<ShareResponse>, AppError> {
     // Begin a transaction to prevent a race condition across threads
     // that could allow a user to upload more than they are allowed to
     let mut tx = state.pool.begin().await?;
@@ -244,21 +319,7 @@ pub async fn upload_file(
         }
         // This is a file in the root directory, so the owner
         // will automatically be the uploader
-        None => uuid
-    };
-
-    let file_size = if !metadata.is_directory {
-        let Some(file_path) = file_path else {
-            return Err(AppError::UserError((
-                StatusCode::BAD_REQUEST,
-                "Missing file".into(),
-            )));
-        };
-        let mut file = File::create(file_path).await?;
-        file.write_all(&file_data).await?;
-        file_data.len() as i64
-    } else {
-        0
+        None => *uuid
     };
 
     // Check if the owner has enough space to upload the file
@@ -301,7 +362,7 @@ pub async fn upload_file(
             // anonymous users filling up a bunch of space.
             // Might add ability to password protect in the future, keeping things simple for now.
             // Will probably prevent abuse in the future using some kind of captcha or cloudflare
-            Some(share_with_link(&state, &mut *tx, file_id, uuid, 60 * 60 * 24, None, false).await?)
+            Some(share_with_link(state, &mut *tx, file_id, *uuid, 60 * 60 * 24, None, false).await?)
         }
     };
 
@@ -336,10 +397,9 @@ pub async fn upload_file(
                 .and_then(|e| e.code())
                 .is_some_and(|code| code == "787") =>
         {
-            return Err(AppError::UserError((
-                StatusCode::BAD_REQUEST,
-                "Invalid parent id".into(),
-            )))
+            return Err(
+                AppError::UserError((StatusCode::BAD_REQUEST, "Invalid parent id".into())),
+            )
         }
         Err(e) => return Err(e.into()),
         _ => {}
@@ -348,16 +408,7 @@ pub async fn upload_file(
     // Everything went well, commit the transaction
     tx.commit().await?;
 
-    Ok((
-        StatusCode::OK,
-        Json(UploadResponse {
-            id: file_id,
-            size: file_size,
-            is_directory: metadata.is_directory,
-            link,
-        }),
-    )
-        .into_response())
+    Ok(link)
 }
 
 #[derive(Debug, Deserialize, IntoParams)]

@@ -222,8 +222,8 @@ export function FileGridView({
             <Box
               sx={{
                 opacity: 0,
-                animation: `fadeIn 0.6s ease-in-out forwards`,
-                animationDelay: `${index * 0.05}s`,
+                animation: `fadeIn ${0.6}s ease-in-out forwards`,
+                animationDelay: `${index * 0.01}s`,
                 "@keyframes fadeIn": {
                   "0%": { opacity: 0, transform: "translateY(10px)" },
                   "100%": { opacity: 1, transform: "translateY(0)" },

@@ -1534,6 +1534,7 @@ dependencies = [
  "chrono",
  "dirs",
  "dotenvy",
+ "fastrand",
  "futures-util",
  "image",
  "password-auth",

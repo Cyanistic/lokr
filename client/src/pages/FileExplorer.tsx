@@ -469,6 +469,7 @@ export default function FileExplorer(
   }
 
   useEffect(() => {
+    if (loadingProfile) return;
     decryptPrivateKey();
   }, [loadingProfile]);
 
