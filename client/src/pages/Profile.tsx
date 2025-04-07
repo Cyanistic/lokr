@@ -15,9 +15,7 @@ import { useErrorToast } from "../components/ErrorToastProvider";
 import "./Profile.css";
 import { useProfile } from "../components/ProfileProvider";
 import { Dialog, DialogTitle, DialogContent, DialogActions } from "@mui/material";
-import { Button, TextField, Typography, Box, IconButton, Card, CardContent } from "@mui/material";
-
-
+import { Button, /*TextField,*/ Typography, /*Box, IconButton, Card, CardContent*/ } from "@mui/material";
 
 // Valid profile sections
 const Sections = ["profile", "security", "notifications"] as const;
@@ -124,7 +122,6 @@ function Profile() {
         showError("Password is required!");
         return;
       }
-
       const passwordSalt: Uint8Array | null =
         await localforage.getItem("passwordSalt");
       const hashedPassword = await hashPassword(password, passwordSalt);
@@ -132,9 +129,7 @@ function Profile() {
         type: "regenerate",
         password: hashedPassword,
       };
-
       const response = await API.api.updateTotp(requestBody);
-
       if (!response.ok) {
         const errorText = await response.text();
         showError("Server Error", errorText);
@@ -169,7 +164,6 @@ function Profile() {
       if (!response.ok) {
         throw new Error(await response.text());
       }
-
       alert("TOTP verified successfully! You can now enable TOTP.");
       setTOTPVerified(true);
 
@@ -191,13 +185,11 @@ function Profile() {
         showError("Password is required!");
         return;
       }
-
       const passwordSalt: Uint8Array | null =
         await localforage.getItem("passwordSalt");
       if (!passwordSalt) {
         throw new Error("Password salt not found");
       }
-
       const hashedPassword = await hashPassword(password, passwordSalt);
       const enable = !profile?.totpEnabled;
       const requestBody: EnableTOTPRequest = {
@@ -205,22 +197,18 @@ function Profile() {
         enable,
         password: hashedPassword,
       };
-
       console.log(
         `Sending TOTP ${enable ? "Enable" : "Disable"} Request:`,
         JSON.stringify(requestBody, null, 2)
       );
-
       const response = await API.api.updateTotp(requestBody);
       console.log("Response status:", response.status);
-
       if (!response.ok) {
         const errorText = await response.text();
         console.error("Server Error:", errorText);
         showError(`Error: ${errorText}`);
         return;
       }
-
       showError(`TOTP ${enable ? "enabled" : "disabled"} successfully!`);
       await refreshProfile();
     } catch (err) {
@@ -235,13 +223,11 @@ function Profile() {
       "Are you sure you want to delete session #${sessionNumber}?"
     );
     if (!confirmDelete) return;
-
     try {
       const response = await fetch(`${BASE_URL}/api/session/${sessionNumber}`, {
         method: "DELETE",
         credentials: "include",
       });
-
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(errorText);
@@ -269,11 +255,18 @@ function Profile() {
       )) as Uint8Array | null;
       const password = prompt("Enter your current password to confirm change");
       let requestBody: UserUpdate;
-
       if (!password) {
         throw new Error("Password confirmation is required.");
       }
-
+      if (field === "username") {
+        if (updatedValue.length < 3 || updatedValue.length > 20) {
+          throw new Error("Username must be 3-20 characters long.");
+        }
+      } else if (field === "password") {
+        if (updatedValue.length < 8) {
+          throw new Error("Password must be at least 8 characters long.");
+        }
+      }
       if (field === "password") {
         requestBody = {
           type: "password",
@@ -281,7 +274,6 @@ function Profile() {
           password: await hashPassword(password, passwordSalt),
           encryptedPrivateKey: "",
         };
-        // Encrypt the user's private key with their new password
         const salt: string | undefined | null =
           await localforage.getItem("salt");
         const privateKey: CryptoKey | undefined | null =
@@ -315,10 +307,8 @@ function Profile() {
           password: await hashPassword(password, passwordSalt),
         } as UserUpdate;
       }
-
       console.log("Sending request:", JSON.stringify(requestBody, null, 2));
       const response = await API.api.updateUser(requestBody);
-
       console.log("Response status:", response.status);
       if (!response.ok) {
         const errorData = await response.json();
@@ -327,17 +317,14 @@ function Profile() {
           `Failed to update ${field}: ${errorData.message || response.statusText}`
         );
       }
-
       if (field === "email") {
-        await refreshProfile();   
-        console.log("Disabling TOTP in UI due to email change");  
+        await refreshProfile();
+        console.log("Disabling TOTP in UI due to email change");
         setShowTotpWarningModal(true);
       } else {
-        refreshProfile();                     
+        refreshProfile();
       }
-      
       setEditingField(null);
-      
     } catch (err) {
       showError(
         `Error updating ${field}: ${
@@ -403,7 +390,7 @@ function Profile() {
     }
   };
 
-  // Reorganize so the avatar is on the right, everything else on the left
+  // Reorganize columns for profile section (avatar remains on right)
   const renderContent = () => {
     switch (activeSection) {
       case "profile":
@@ -432,10 +419,7 @@ function Profile() {
                         value={updatedValue}
                         onChange={(e) => setUpdatedValue(e.target.value)}
                       />
-                      <button
-                        className="b1"
-                        onClick={() => handleSave("username")}
-                      >
+                      <button className="b1" onClick={() => handleSave("username")}>
                         Save
                       </button>
                     </>
@@ -444,18 +428,12 @@ function Profile() {
                       {profile!.username}{" "}
                       <button
                         className="b1"
-                        onClick={() =>
-                          handleEdit("username", profile!.username)
-                        }
+                        onClick={() => handleEdit("username", profile!.username)}
                       >
                         Edit
                       </button>
                     </>
                   )}
-                </p>
-                <p>
-                  <strong>Email:</strong>{" "}
-                  {profile!.email || "No email provided"}
                 </p>
                 <p>
                   <strong>Theme:</strong>{" "}
@@ -543,51 +521,72 @@ function Profile() {
               )}
             </p>
             <p>
+              <strong>Email:</strong>{" "}
+              {profile!.email || "No email provided"}{" "}
+              {editingField === "email" ? (
+                <>
+                  <input
+                    type="text"
+                    value={updatedValue}
+                    onChange={(e) => setUpdatedValue(e.target.value)}
+                  />
+                  <button className="b1" onClick={() => handleSave("email")}>
+                    Save
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    className="b1"
+                    onClick={() => handleEdit("email", profile!.email || "")}
+                  >
+                    Edit
+                  </button>
+                </>
+              )}
+            </p>
+            <p>
               TOTP is currently:{" "}
               <strong>{profile?.totpEnabled ? "Enabled" : "Disabled"}</strong>
             </p>
-
-          <button className="b1" onClick={handleRegenerateTOTP}>
-            Regenerate TOTP
-          </button>
-
-          {/* QR code display */}
-          {showTOTPSetup && (
-            <div style={{ marginTop: "20px" }}>
-              <h4>Scan this QR Code with your Authenticator App</h4>
-              <img
-                src={qrCode!}
-                alt="TOTP QR Code"
-                style={{ width: "250px", height: "250px" }}
-              />
-
-              <div style={{ marginTop: "10px" }}>
-                <input
-                  type="text"
-                  placeholder="Enter 6-digit code"
-                  value={totpInputCode}
-                  onChange={(e) => setTOTPInputCode(e.target.value)}
-                  maxLength={6}
-                  style={{ padding: "8px", width: "200px" }}
-                />
-                <button
-                  onClick={handleVerifyInline}
-                  style={{ marginLeft: "10px", padding: "8px 16px" }}
-                >
-                  Verify
-                </button>
-              </div>
-            </div>
-          )}
-
-          {(totpVerified || profile?.totpEnabled) && (
-            <button onClick={handleEnableTOTP}>
-              {profile?.totpEnabled ? "Disable TOTP" : "Enable TOTP"}
+            <button className="b1" onClick={handleRegenerateTOTP}>
+              Regenerate TOTP
             </button>
-          )}
-
-            {/*Modal alert after Email change*/}
-            <Dialog open={showTotpWarningModal} onClose={() => setShowTotpWarningModal(false)}>
+            {showTOTPSetup && (
+              <div style={{ marginTop: "20px" }}>
+                <h4>Scan this QR Code with your Authenticator App</h4>
+                <img
+                  src={qrCode!}
+                  alt="TOTP QR Code"
+                  style={{ width: "250px", height: "250px" }}
+                />
+                <div style={{ marginTop: "10px" }}>
+                  <input
+                    type="text"
+                    placeholder="Enter 6-digit code"
+                    value={totpInputCode}
+                    onChange={(e) => setTOTPInputCode(e.target.value)}
+                    maxLength={6}
+                    style={{ padding: "8px", width: "200px" }}
+                  />
+                  <button
+                    onClick={handleVerifyInline}
+                    style={{ marginLeft: "10px", padding: "8px 16px" }}
+                  >
+                    Verify
+                  </button>
+                </div>
+              </div>
+            )}
+            {(totpVerified || profile?.totpEnabled) && (
+              <button onClick={handleEnableTOTP}>
+                {profile?.totpEnabled ? "Disable TOTP" : "Enable TOTP"}
+              </button>
+            )}
+            <Dialog
+              open={showTotpWarningModal}
+              onClose={() => setShowTotpWarningModal(false)}
+            >
               <DialogTitle>Important Notice</DialogTitle>
               <DialogContent>
                 <Typography>
@@ -596,73 +595,73 @@ function Profile() {
                 </Typography>
               </DialogContent>
               <DialogActions>
-                <Button variant="contained" type="submit" sx={{ mt: 2 }}
-                  onClick={() => setShowTotpWarningModal(false)} autoFocus>
+                <Button
+                  variant="contained"
+                  type="submit"
+                  sx={{ mt: 2 }}
+                  onClick={() => setShowTotpWarningModal(false)}
+                  autoFocus
+                >
                   Got it
                 </Button>
               </DialogActions>
             </Dialog>
-
-          {/* Sessions List */}
-          <div style={sessionStyles.container}>
-            <h4>Sessions</h4>
-            {sessions.length === 0 ? (
-              <p>No sessions found.</p>
-            ) : (
-              <ul style={sessionStyles.list}>
-                {sessions.map((session, index) => (
-                  <li key={session.number} style={sessionStyles.item}>
-                    <p>
-                      <strong>
-                        {index === 0
-                          ? "Current Session"
-                          : `Session #${session.number}`}
-                      </strong>
-                    </p>
-                    <p>
-                      <strong>Created:</strong>{" "}
-                      {new Date(session.createdAt).toLocaleString()}
-                    </p>
-                    <p>
-                      <strong>Last Used:</strong>{" "}
-                      {new Date(session.lastUsedAt).toLocaleString()}
-                    </p>
-                    <p>
-                      <strong>User Agent:</strong>{" "}
-                      {session.userAgent || "Unknown"}
-                    </p>
-
-                    {/* Delete session button except for current*/}
-                    {index !== 0 && (
-                      <button
-                        onClick={() => handleDeleteSession(session.number)}
-                        style={{
-                          marginTop: "10px",
-                          backgroundColor: "#e74c3c",
-                          color: "white",
-                          border: "none",
-                          padding: "6px 12px",
-                          borderRadius: "4px",
-                          cursor: "pointer",
-                        }}
-                      >
-                        Delete Session
-                      </button>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
+            <div style={sessionStyles.container}>
+              <h4>Sessions</h4>
+              {sessions.length === 0 ? (
+                <p>No sessions found.</p>
+              ) : (
+                <ul style={sessionStyles.list}>
+                  {sessions.map((session, index) => (
+                    <li key={session.number} style={sessionStyles.item}>
+                      <p>
+                        <strong>
+                          {index === 0
+                            ? "Current Session"
+                            : `Session #${session.number}`}
+                        </strong>
+                      </p>
+                      <p>
+                        <strong>Created:</strong>{" "}
+                        {new Date(session.createdAt).toLocaleString()}
+                      </p>
+                      <p>
+                        <strong>Last Used:</strong>{" "}
+                        {new Date(session.lastUsedAt).toLocaleString()}
+                      </p>
+                      <p>
+                        <strong>User Agent:</strong>{" "}
+                        {session.userAgent || "Unknown"}
+                      </p>
+                      {index !== 0 && (
+                        <button
+                          onClick={() => handleDeleteSession(session.number)}
+                          style={{
+                            marginTop: "10px",
+                            backgroundColor: "#e74c3c",
+                            color: "white",
+                            border: "none",
+                            padding: "6px 12px",
+                            borderRadius: "4px",
+                            cursor: "pointer",
+                          }}
+                        >
+                          Delete Session
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
-        </div>
-      );
-    case "notifications":
-      return <div>Notifications Settings</div>;
-    default:
-      return <div>Profile Information</div>;
-  }
-};
-
+        );
+      case "notifications":
+        return <div>Notifications Settings</div>;
+      default:
+        return <div>Profile Information</div>;
+    }
+  };
 
   const sessionStyles = {
     container: {
