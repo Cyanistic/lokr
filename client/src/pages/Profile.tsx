@@ -14,6 +14,10 @@ import { UserUpdate } from "../myApi";
 import { useErrorToast } from "../components/ErrorToastProvider";
 import "./Profile.css";
 import { useProfile } from "../components/ProfileProvider";
+import { Dialog, DialogTitle, DialogContent, DialogActions } from "@mui/material";
+import { Button, TextField, Typography, Box, IconButton, Card, CardContent } from "@mui/material";
+
+
 
 // Valid profile sections
 const Sections = ["profile", "security", "notifications"] as const;
@@ -44,7 +48,7 @@ function Profile() {
     isValidValue(params.get("section"), Sections) ?? "profile";
   const { showError } = useErrorToast();
   const [sessions, setSessions] = useState<Session[]>([]);
-
+  const [showTotpWarningModal, setShowTotpWarningModal] = useState(false);
   const [showTOTPSetup, setShowTOTPSetup] = useState(false); // State to control TOTP setup
   const [totpInputCode, setTOTPInputCode] = useState("");
   const [totpVerified, setTOTPVerified] = useState(false);
@@ -324,8 +328,16 @@ function Profile() {
         );
       }
 
-      refreshProfile();
+      if (field === "email") {
+        await refreshProfile();   
+        console.log("Disabling TOTP in UI due to email change");  
+        setShowTotpWarningModal(true);
+      } else {
+        refreshProfile();                     
+      }
+      
       setEditingField(null);
+      
     } catch (err) {
       showError(
         `Error updating ${field}: ${
@@ -535,104 +547,122 @@ function Profile() {
               <strong>{profile?.totpEnabled ? "Enabled" : "Disabled"}</strong>
             </p>
 
-            <button className="b1" onClick={handleRegenerateTOTP}>
-              Regenerate TOTP
-            </button>
+          <button className="b1" onClick={handleRegenerateTOTP}>
+            Regenerate TOTP
+          </button>
 
-            {/* QR code display */}
-            {showTOTPSetup && (
-              <div style={{ marginTop: "20px" }}>
-                <h4>Scan this QR Code with your Authenticator App</h4>
-                <img
-                  src={qrCode!}
-                  alt="TOTP QR Code"
-                  style={{ width: "250px", height: "250px" }}
+          {/* QR code display */}
+          {showTOTPSetup && (
+            <div style={{ marginTop: "20px" }}>
+              <h4>Scan this QR Code with your Authenticator App</h4>
+              <img
+                src={qrCode!}
+                alt="TOTP QR Code"
+                style={{ width: "250px", height: "250px" }}
+              />
+
+              <div style={{ marginTop: "10px" }}>
+                <input
+                  type="text"
+                  placeholder="Enter 6-digit code"
+                  value={totpInputCode}
+                  onChange={(e) => setTOTPInputCode(e.target.value)}
+                  maxLength={6}
+                  style={{ padding: "8px", width: "200px" }}
                 />
-
-                <div style={{ marginTop: "10px" }}>
-                  <input
-                    type="text"
-                    placeholder="Enter 6-digit code"
-                    value={totpInputCode}
-                    onChange={(e) => setTOTPInputCode(e.target.value)}
-                    maxLength={6}
-                    style={{ padding: "8px", width: "200px" }}
-                  />
-                  <button
-                    onClick={handleVerifyInline}
-                    style={{ marginLeft: "10px", padding: "8px 16px" }}
-                  >
-                    Verify
-                  </button>
-                </div>
+                <button
+                  onClick={handleVerifyInline}
+                  style={{ marginLeft: "10px", padding: "8px 16px" }}
+                >
+                  Verify
+                </button>
               </div>
-            )}
-
-            {totpVerified && (
-              <button onClick={handleEnableTOTP}>
-                {profile?.totpEnabled ? "Disable TOTP" : "Enable TOTP"}
-              </button>
-            )}
-
-            {/* Sessions List */}
-            <div style={sessionStyles.container}>
-              <h4>Sessions</h4>
-              {sessions.length === 0 ? (
-                <p>No sessions found.</p>
-              ) : (
-                <ul style={sessionStyles.list}>
-                  {sessions.map((session, index) => (
-                    <li key={session.number} style={sessionStyles.item}>
-                      <p>
-                        <strong>
-                          {index === 0
-                            ? "Current Session"
-                            : `Session #${session.number}`}
-                        </strong>
-                      </p>
-                      <p>
-                        <strong>Created:</strong>{" "}
-                        {new Date(session.createdAt).toLocaleString()}
-                      </p>
-                      <p>
-                        <strong>Last Used:</strong>{" "}
-                        {new Date(session.lastUsedAt).toLocaleString()}
-                      </p>
-                      <p>
-                        <strong>User Agent:</strong>{" "}
-                        {session.userAgent || "Unknown"}
-                      </p>
-
-                      {/* Delete session button except for current*/}
-                      {index !== 0 && (
-                        <button
-                          onClick={() => handleDeleteSession(session.number)}
-                          style={{
-                            marginTop: "10px",
-                            backgroundColor: "#e74c3c",
-                            color: "white",
-                            border: "none",
-                            padding: "6px 12px",
-                            borderRadius: "4px",
-                            cursor: "pointer",
-                          }}
-                        >
-                          Delete Session
-                        </button>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
             </div>
+          )}
+
+          {(totpVerified || profile?.totpEnabled) && (
+            <button onClick={handleEnableTOTP}>
+              {profile?.totpEnabled ? "Disable TOTP" : "Enable TOTP"}
+            </button>
+          )}
+
+            {/*Modal alert after Email change*/}
+            <Dialog open={showTotpWarningModal} onClose={() => setShowTotpWarningModal(false)}>
+              <DialogTitle>Important Notice</DialogTitle>
+              <DialogContent>
+                <Typography>
+                  You have updated your email, however, if you had TOTP enabled your authenticator app will still display your old email.
+                  Regenerate to update the email in your authenticator app.
+                </Typography>
+              </DialogContent>
+              <DialogActions>
+                <Button variant="contained" type="submit" sx={{ mt: 2 }}
+                  onClick={() => setShowTotpWarningModal(false)} autoFocus>
+                  Got it
+                </Button>
+              </DialogActions>
+            </Dialog>
+
+          {/* Sessions List */}
+          <div style={sessionStyles.container}>
+            <h4>Sessions</h4>
+            {sessions.length === 0 ? (
+              <p>No sessions found.</p>
+            ) : (
+              <ul style={sessionStyles.list}>
+                {sessions.map((session, index) => (
+                  <li key={session.number} style={sessionStyles.item}>
+                    <p>
+                      <strong>
+                        {index === 0
+                          ? "Current Session"
+                          : `Session #${session.number}`}
+                      </strong>
+                    </p>
+                    <p>
+                      <strong>Created:</strong>{" "}
+                      {new Date(session.createdAt).toLocaleString()}
+                    </p>
+                    <p>
+                      <strong>Last Used:</strong>{" "}
+                      {new Date(session.lastUsedAt).toLocaleString()}
+                    </p>
+                    <p>
+                      <strong>User Agent:</strong>{" "}
+                      {session.userAgent || "Unknown"}
+                    </p>
+
+                    {/* Delete session button except for current*/}
+                    {index !== 0 && (
+                      <button
+                        onClick={() => handleDeleteSession(session.number)}
+                        style={{
+                          marginTop: "10px",
+                          backgroundColor: "#e74c3c",
+                          color: "white",
+                          border: "none",
+                          padding: "6px 12px",
+                          borderRadius: "4px",
+                          cursor: "pointer",
+                        }}
+                      >
+                        Delete Session
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
-        );
-      case "notifications":
-        return <div>Notifications Settings</div>;
-      default:
-        return <div>Profile Information</div>;
-    }
-  };
+        </div>
+      );
+    case "notifications":
+      return <div>Notifications Settings</div>;
+    default:
+      return <div>Profile Information</div>;
+  }
+};
+
 
   const sessionStyles = {
     container: {
