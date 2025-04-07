@@ -25,6 +25,9 @@ import MusicNoteIcon from "@mui/icons-material/MusicNote"
 import MovieIcon from "@mui/icons-material/Movie"
 import FolderIcon from "@mui/icons-material/Folder"
 import Tooltip from "@mui/material/Tooltip"
+import Replay10Icon from '@mui/icons-material/Replay10';
+import Forward10Icon from '@mui/icons-material/Forward10';
+import FullscreenIcon from '@mui/icons-material/Fullscreen';
 
 
 import { Document, Page, pdfjs } from "react-pdf"
@@ -525,6 +528,8 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
       </Box>
     )
   }
+
+
   
 
   const [showControlsBar, setShowControlsBar] = useState(true)
@@ -561,6 +566,41 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
     console.log("⚡ Playback Speed:", playbackSpeed);
     console.log("🖥️ Viewport width:", window.innerWidth);
   
+    // Add these new functions for fast forward and rewind
+    const handleFastForward = () => {
+      if (videoRef.current) {
+        const newTime = Math.min(videoRef.current.currentTime + 10, duration);
+        videoRef.current.currentTime = newTime;
+        setCurrentTime(newTime);
+      }
+    };
+  
+    const handleRewind = () => {
+      if (videoRef.current) {
+        const newTime = Math.max(videoRef.current.currentTime - 10, 0);
+        videoRef.current.currentTime = newTime;
+        setCurrentTime(newTime);
+      }
+    };
+  
+    // Fixed fullscreen implementation for TypeScript
+    const toggleFullScreen = () => {
+      const videoContainer = document.getElementById('video-container');
+      if (!videoContainer) return;
+      
+      if (!document.fullscreenElement) {
+        videoContainer.requestFullscreen?.()
+          .catch(err => {
+            console.error(`Error attempting to enable fullscreen: ${err.message}`);
+          });
+      } else {
+        document.exitFullscreen?.()
+          .catch(err => {
+            console.error(`Error attempting to exit fullscreen: ${err.message}`);
+          });
+      }
+    };
+  
     return (
       <Box
         sx={{
@@ -576,6 +616,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
       >
         {/* Video Player Container */}
         <Box
+          id="video-container"
           sx={{
             width: "1070px",
             height: "598px",
@@ -692,6 +733,19 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
             }}
           >
             <Box sx={{ display: "flex", alignItems: "center" }}>
+              {/* Add Rewind Button */}
+              <Tooltip title="Rewind 10 seconds">
+                <IconButton
+                  onClick={handleRewind}
+                  sx={{
+                    color: "white",
+                    mr: 1,
+                  }}
+                >
+                  <Replay10Icon />
+                </IconButton>
+              </Tooltip>
+              
               <Tooltip title={isPlaying ? "Pause Video" : "Play Video"}>
                 <IconButton
                   onClick={togglePlay}
@@ -704,6 +758,20 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
                   {isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
                 </IconButton>
               </Tooltip>
+              
+              {/* Add Fast Forward Button */}
+              <Tooltip title="Fast Forward 10 seconds">
+                <IconButton
+                  onClick={handleFastForward}
+                  sx={{
+                    color: "white",
+                    ml: 1,
+                  }}
+                >
+                  <Forward10Icon />
+                </IconButton>
+              </Tooltip>
+              
               <Typography variant="caption" sx={{ color: "white", ml: 1 }}>
                 {formatTime(currentTime)} / {formatTime(duration)}
               </Typography>
@@ -774,12 +842,25 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({ isOpen, onClose, fi
                   }}
                 />
               </Box>
+              
+              {/* Add Full Screen Button */}
+              <Tooltip title="Toggle Fullscreen">
+                <IconButton
+                  onClick={toggleFullScreen}
+                  sx={{
+                    color: "white",
+                    ml: 1,
+                  }}
+                >
+                  <FullscreenIcon />
+                </IconButton>
+              </Tooltip>
             </Box>
           </Box>
         </Box>
       </Box>
     );
-  };
+};
   
   
 
