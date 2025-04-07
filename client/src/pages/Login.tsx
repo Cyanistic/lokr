@@ -35,7 +35,9 @@ const Login: React.FC = () => {
   const [totpCode, setTotpCode] = useState(""); // Optional for 2FA users
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [searchParams] = useSearchParams();
-  const [showTotp, setShowTotp] = useState<boolean>(false);
+  //const [showTotp, setShowTotp] = useState<boolean>(false);
+  const [loginStep, setLoginStep] = useState<"login" | "totp">("login");
+  const [savedCredentials, setSavedCredentials] = useState<{ username: string; password: string } | null>(null);  
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
 
@@ -45,6 +47,7 @@ const Login: React.FC = () => {
     setErrorMessage(null);
 
     try {
+      if (loginStep === "login") {
       console.log("Starting login process...");
 
       if (!user.username || !user.password) {
@@ -75,7 +78,6 @@ const Login: React.FC = () => {
       const loginResponse = await API.api.authenticateUser({
         username: user.username,
         password,
-        totpCode: totpCode || undefined,
       });
 
       console.log("Login Response Status:", loginResponse.status);
@@ -84,19 +86,15 @@ const Login: React.FC = () => {
 
       if (loginResponse.status === 307) {
         console.log("TOTP required, showing TOTP input field.");
-        setErrorMessage("TOTP required.");
+        setSavedCredentials({ username: user.username, password });
+        setLoginStep("totp");
+        //setShowTotp(true);
         return;
       }
 
       if (loginResponse.status === 401) {
         console.log("Invalid username or password.");
         setErrorMessage("Invalid username or password.");
-        return;
-      }
-
-      if (loginResponse.status === 307) {
-        setShowTotp(true);
-        //showEr("TOTP is required. Please enter your totp code");
         return;
       }
 
@@ -108,35 +106,73 @@ const Login: React.FC = () => {
         return;
       }
 
-      // Save session data
-      console.log("Login successful! Saving session data...");
+      await completeLogin(user.password, responseData, passwordSaltUint8Array);
 
-      const masterKey = await deriveKeyFromPassword(
-        user.password,
-        responseData.salt,
-      );
-      const privateKey = await unwrapPrivateKey(
-        responseData.encryptedPrivateKey,
-        masterKey,
-        responseData.iv,
-      );
-      localforage.setItem("iv", responseData.iv);
-      localforage.setItem("publicKey", responseData.publicKey);
-      localforage.setItem(
-        "encryptedPrivateKey",
-        responseData.encryptedPrivateKey,
-      );
-      localforage.setItem("salt", responseData.salt);
-      localforage.setItem("privateKey", privateKey);
-      localforage.setItem("passwordSalt", passwordSaltUint8Array);
-
-      // Navigate to the redirect URL or the files page if none exists
-      navigate(searchParams.get("redirect") ?? "/files");
-    } catch (error) {
-      console.error("Login error:", error);
-      setErrorMessage("Login failed. Please try again.");
     }
-  };
+
+    //TOTP Step
+    else if (loginStep === "totp" && savedCredentials) {
+      const loginResponse = await API.api.authenticateUser({
+        username: savedCredentials.username,
+        password: savedCredentials.password,
+        totpCode,
+      });
+
+      const responseData = await loginResponse.json();
+
+      if (!loginResponse.ok) {
+        setErrorMessage(responseData.message || "TOTP verification failed.");
+        return;
+      }
+
+      const passwordSalt = await localforage.getItem("passwordSalt") as Uint8Array | null;
+
+      if (user.password && responseData && passwordSalt) {
+        await completeLogin(user.password, responseData, passwordSalt);
+      } else {
+        setErrorMessage("Missing login information. Please try again.");
+        return;
+      }
+
+      }
+      } catch (error) {
+          console.error("Login error:", error);
+          setErrorMessage("Login failed. Please try again.");
+        }
+      };
+      
+  // Function to complete the login process after authentication
+  async function completeLogin(password: string, responseData: any, passwordSaltUint8Array: Uint8Array | null) {
+          try{
+          // Save session data
+          console.log("Login successful! Saving session data...");
+
+          const masterKey = await deriveKeyFromPassword(
+            password,
+            responseData.salt,
+          );
+          const privateKey = await unwrapPrivateKey(
+            responseData.encryptedPrivateKey,
+            masterKey,
+            responseData.iv,
+          );
+          localforage.setItem("iv", responseData.iv);
+          localforage.setItem("publicKey", responseData.publicKey);
+          localforage.setItem(
+            "encryptedPrivateKey",
+            responseData.encryptedPrivateKey,
+          );
+          localforage.setItem("salt", responseData.salt);
+          localforage.setItem("privateKey", privateKey);
+          localforage.setItem("passwordSalt", passwordSaltUint8Array);
+    
+          // Navigate to the redirect URL or the files page if none exists
+          navigate(searchParams.get("redirect") ?? "/files");
+        } catch (error) {
+          console.error("Login error:", error);
+          setErrorMessage("Login failed. Please try again.");
+        }
+  }
 
   return (
     <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
@@ -152,6 +188,8 @@ const Login: React.FC = () => {
             {errorMessage && <p style={{ color: "red" }}>{errorMessage}</p>}
           </Typography>
           <form onSubmit={handleLogin}>
+            { loginStep === "login" && (
+              <>
             <TextField
               fullWidth
               label="Username"
@@ -178,7 +216,14 @@ const Login: React.FC = () => {
                 ),
               }}
             />
-            {showTotp && (
+            </>
+            )}
+
+            {loginStep === "totp" && (
+              <>
+              <Typography variant="body2" fontWeight="bold" >
+                Enter the TOTP code from your authenticator app
+              </Typography>
               <TextField
                 fullWidth
                 label="TOTP Code"
@@ -188,11 +233,13 @@ const Login: React.FC = () => {
                 onChange={(e) => setTotpCode(e.target.value)}
                 required
               />
+              </>
             )}
             <Button fullWidth variant="contained" type="submit" sx={{ mt: 2 }}>
-              Sign in
+              {loginStep === "totp" ? "Verify TOTP" : "Sign In"}
             </Button>
           </form>
+
           <Typography variant="body2" mt={2}>
             Don't have an account? <Link to="/register">Create an account</Link>
           </Typography>
