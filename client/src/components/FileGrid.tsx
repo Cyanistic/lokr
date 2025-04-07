@@ -25,6 +25,7 @@ interface FileGridViewProps {
   owner: boolean;
   sortBy: SortByTypes;
   sortOrder?: "asc" | "desc"; // Optional, for sorting
+  onPreviewLoad?: (fileId: string, blobUrl?: string) => void; // Optional callback for preview load
 }
 
 export function FileGridView({
@@ -36,6 +37,7 @@ export function FileGridView({
   sortOrder,
   users,
   loading = false,
+  onPreviewLoad,
 }: FileGridViewProps) {
   const [contextMenu, setContextMenu] = useState<{
     mouseX: number;
@@ -184,13 +186,21 @@ export function FileGridView({
           justifyContent: "center",
           alignItems: "center",
           p: 2,
-          borderRadius: 1
+          borderRadius: 1,
         }}
       >
         <FolderOff sx={{ fontSize: 64, mb: 2, color: "text.secondary" }} />
-        <Typography variant="h6" color="text.secondary">No files found</Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 1, textAlign: "center" }}>
-          {owner ? "Upload a file to get started" : "No files have been shared with you yet"}
+        <Typography variant="h6" color="text.secondary">
+          No files found
+        </Typography>
+        <Typography
+          variant="body2"
+          color="text.secondary"
+          sx={{ mt: 1, textAlign: "center" }}
+        >
+          {owner
+            ? "Upload a file to get started"
+            : "No files have been shared with you yet"}
         </Typography>
       </Box>
     );
@@ -199,11 +209,11 @@ export function FileGridView({
   return (
     <Box
       sx={{
-        height: "100%", 
+        height: "100%",
         flexGrow: 1,
         overflowY: "auto",
         p: 2,
-        borderRadius: 1
+        borderRadius: 1,
       }}
     >
       <Grid container spacing={2}>
@@ -227,6 +237,7 @@ export function FileGridView({
                 onAction={onAction}
                 owner={owner}
                 onContextMenu={(event) => handleContextMenu(event, file)}
+                onPreviewLoad={(blobUrl) => onPreviewLoad?.(file.id, blobUrl)}
               />
             </Box>
           </Grid>
@@ -262,6 +273,7 @@ interface FileGridItemProps {
   onAction: (action: string, fileId: string) => void;
   owner: boolean;
   onContextMenu: (event: React.MouseEvent) => void;
+  onPreviewLoad?: (blobUrl?: string) => void; // Optional callback for preview load
 }
 
 function FileGridItem({
@@ -270,6 +282,7 @@ function FileGridItem({
   onAction,
   owner,
   onContextMenu,
+  onPreviewLoad,
 }: FileGridItemProps) {
   const theme = useTheme();
 
@@ -282,7 +295,7 @@ function FileGridItem({
     const isImage = file.mimeType?.startsWith("image/");
     const isVideo = file.mimeType?.startsWith("video/");
     const isPreviewable = isImage || isVideo;
-  
+
     return (
       <Box
         sx={{
@@ -293,7 +306,12 @@ function FileGridItem({
         }}
       >
         {isPreviewable ? (
-          <FileGridPreviewAttachment file={file} width={"100%"} height={"100%"} />
+          <FileGridPreviewAttachment
+            file={file}
+            width={"100%"}
+            height={"100%"}
+            onLoad={onPreviewLoad}
+          />
         ) : (
           getFileIcon(file.mimeType, 64, 64)
         )}

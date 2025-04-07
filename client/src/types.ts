@@ -56,6 +56,7 @@ export interface FileMetadata {
   modifiedAtDate?: Date;
   size: number;
   editPermission?: boolean | "children";
+  blobUrl?: string;
 }
 
 export interface FileResponse {

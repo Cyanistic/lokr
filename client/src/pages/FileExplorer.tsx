@@ -358,34 +358,21 @@ export default function FileExplorer(
     if (!file.key) {
       throw new Error("File encryption key not found");
     }
-    const response = await API.api.getFile(file.id, {
-      linkId: linkId ?? undefined,
-    });
-    if (!response.ok) throw response.error;
 
-    // Convert response to a Blob
-    const dataBuffer = await response.arrayBuffer();
-    if (!file.fileNonce) {
-      showError(
-        "Unable to decrypt file for downloading. A file nonce was not found.",
-      );
+    const url = await decryptAndCacheFile(file);
+    if (!url) {
+      showError("Unable to decrypt file for download. Please try again.");
       return;
     }
-    const fileData = await crypto.subtle.decrypt(
-      { name: "AES-GCM", iv: base64ToArrayBuffer(file.fileNonce) },
-      file.key,
-      dataBuffer,
-    );
-    const url = window.URL.createObjectURL(new Blob([fileData]));
 
     // Create a temporary link to trigger download
     const link = document.createElement("a");
     link.href = url;
-    link.download = file.name ?? "download"; // Temporary file name
+    link.download = file.name ?? "download";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    window.URL.revokeObjectURL(url);
+    // We don't revoke the URL here as it's now cached in the file metadata
   };
 
   async function downloadFolder(folder: FileMetadata) {
@@ -485,6 +472,55 @@ export default function FileExplorer(
     decryptPrivateKey();
   }, [loadingProfile]);
 
+  /**
+   * Decrypts a file and caches its blob URL in the files state
+   * Returns the blob URL for the decrypted file
+   */
+  const decryptAndCacheFile = async (
+    file: FileMetadata,
+  ): Promise<string | null> => {
+    // Return cached URL if available - this ensures we never overwrite an existing blob URL
+    if (file.blobUrl) return file.blobUrl;
+
+    if (!file.key || !file.fileNonce) {
+      return null;
+    }
+
+    try {
+      const response = await API.api.getFile(file.id, {
+        linkId: linkId ?? undefined,
+      });
+      if (!response.ok) throw response.error;
+
+      const dataBuffer = await response.arrayBuffer();
+
+      // Decrypt the file
+      const fileNonceBuffer = base64ToArrayBuffer(file.fileNonce);
+      const fileData = await crypto.subtle.decrypt(
+        { name: "AES-GCM", iv: fileNonceBuffer },
+        file.key,
+        dataBuffer,
+      );
+
+      const blob = new Blob([fileData], { type: file.mimeType });
+      const url = URL.createObjectURL(blob);
+
+      // Update file metadata with blob URL
+      setFiles((prevFiles) => ({
+        ...prevFiles,
+        [file.id]: {
+          ...prevFiles[file.id],
+          blobUrl: url,
+        },
+      }));
+
+      return url;
+    } catch (err) {
+      showError("Error decrypting file", err);
+      return null;
+    }
+  };
+
   async function fetchFiles(
     {
       depth,
@@ -561,10 +597,30 @@ export default function FileExplorer(
         setRoot(new Set(data.root));
       }
       setUsers({ ...users, ...data.users });
-      const tempFiles: Record<string, FileMetadata> = {
-        ...files,
-        ...data.files,
-      };
+      // Preserve existing blob URLs when updating file metadata
+      const tempFiles: Record<string, FileMetadata> = {};
+
+      // Process all files, preserving blob URLs for files that already exist
+      for (const fileId in data.files) {
+        if (files[fileId]?.blobUrl) {
+          // Preserve the existing blob URL if the file already exists
+          tempFiles[fileId] = {
+            ...data.files[fileId],
+            blobUrl: files[fileId].blobUrl,
+          };
+        } else {
+          // New file, just copy it over
+          tempFiles[fileId] = data.files[fileId];
+        }
+      }
+
+      // Include any existing files that weren't in the new data
+      for (const fileId in files) {
+        if (!tempFiles[fileId]) {
+          tempFiles[fileId] = files[fileId];
+        }
+      }
+
       let queue: string[] = [];
       const stack = [];
       if (data.root.length) {
@@ -691,6 +747,18 @@ export default function FileExplorer(
       setDownloadTarget(null);
     }
   }, [files, downloadTarget, loading]);
+
+  // Clean up all blob URLs when component unmounts
+  useEffect(() => {
+    return () => {
+      // Revoke all blob URLs stored in files
+      Object.values(files).forEach((file) => {
+        if (file.blobUrl) {
+          URL.revokeObjectURL(file.blobUrl);
+        }
+      });
+    };
+  }, []);
 
   /** Directory navigation. */
   const handleOpenFolder = (folder: FileMetadata) => {
@@ -1109,6 +1177,17 @@ export default function FileExplorer(
                 loading={loading}
                 sortBy={sortBy}
                 sortOrder={sortOrder}
+                onPreviewLoad={(fileId, blobUrl) => {
+                  if (blobUrl) {
+                    setFiles((prevFiles) => ({
+                      ...prevFiles,
+                      [fileId]: {
+                        ...prevFiles[fileId],
+                        blobUrl,
+                      },
+                    }));
+                  }
+                }}
                 owner={type === "files"}
               />
             )}
@@ -1161,7 +1240,7 @@ export default function FileExplorer(
             await fetchFiles();
           }}
           linkId={linkId}
-          owner={type === "file"}
+          owner={type === "files"}
           file={selectedFile.current}
           files={files}
           root={[...root]}

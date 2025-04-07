@@ -10,7 +10,7 @@ interface FileGridPreviewAttachmentProps {
   file: FileMetadata;
   width?: number | string;
   height?: number | string;
-  onLoad?: () => void;
+  onLoad?: (blobUrl?: string) => void;
   onError?: (error: Error) => void;
 }
 
@@ -38,18 +38,27 @@ export default function FileGridPreviewAttachment({
   const linkId = params.get("linkId");
 
   // Clean up preview URL when component unmounts or file changes
+  // We only revoke the URL if we created it and it's not stored in the file metadata
   useEffect(() => {
     return () => {
-      if (previewUrl) {
+      if (previewUrl && previewUrl !== file.blobUrl) {
         URL.revokeObjectURL(previewUrl);
       }
     };
-  }, [previewUrl]);
+  }, [previewUrl, file.blobUrl]);
 
   // Fetch and decrypt file when component mounts or file changes
   useEffect(() => {
     // Make sure we have all required properties before proceeding
     if (!file.id || !file.key || !file.fileNonce || !isPreviewable) {
+      return;
+    }
+
+    // Use cached blob URL if available
+    if (file.blobUrl) {
+      setPreviewUrl(file.blobUrl);
+      setLoading(false);
+      onLoad?.();
       return;
     }
 
@@ -59,7 +68,9 @@ export default function FileGridPreviewAttachment({
 
       try {
         // Fetch the encrypted file
-        const response = await API.api.getFile(file.id, { linkId: linkId ?? undefined });
+        const response = await API.api.getFile(file.id, {
+          linkId: linkId ?? undefined,
+        });
         if (!response.ok) throw response.error;
 
         // Convert response to ArrayBuffer
@@ -89,7 +100,13 @@ export default function FileGridPreviewAttachment({
         const url = URL.createObjectURL(blob);
 
         setPreviewUrl(url);
-        onLoad?.();
+
+        // Store the blob URL in the file metadata (handled at parent level)
+        if (onLoad) {
+          // We can use onLoad as a hook to inform the parent to update the file metadata
+          // Pass the generated blob URL to the parent component
+          onLoad(url);
+        }
       } catch (err) {
         console.error("Error decrypting file:", err);
         setError(true);
