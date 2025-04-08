@@ -57,8 +57,8 @@ function App() {
                   element={<FileExplorer key={"shared"} type={"shared"} />}
                 />
                 <Route path="/test" element={<TestPage />} />
-                <Route path="/preview" element={<TestPreviewPage />} />
               </Route>
+              <Route path="/preview" element={<TestPreviewPage />} />
               <Route path="/share" element={<FileExplorer type={"link"} />} />
             </Routes>
           </ProfileProvider>
