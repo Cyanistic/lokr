@@ -518,7 +518,10 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
         onTouchMove={handlePdfTouchMove}
         onTouchEnd={handlePdfTouchEnd}
         onMouseMove={handleUserActivity}
-        onClick={handleUserActivity}
+        onClick={(e) => {
+          handleUserActivity();
+          handleContentBackgroundClick(e);
+        }}
         style={{
           width: "100%",
           height: "100%",
@@ -573,7 +576,10 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
           height: "100%",
           padding: 2,
         }}
-        onClick={handleUserActivity}
+        onClick={(e) => {
+          handleUserActivity();
+          handleContentBackgroundClick(e); // Close modal when clicking outside audio player
+        }}
         onMouseMove={handleUserActivity}
         onTouchStart={handleUserActivity}
       >
@@ -611,7 +617,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
                 onClick={(e) => {
                   togglePlay();
                   handleUserActivity();
-                  e.stopPropagation();
+                  e.stopPropagation(); // Prevent close when clicking on audio player
                 }}
               >
                 <AudioIcon size={80} />
@@ -938,7 +944,10 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
           position: "relative",
           py: 2,
         }}
-        onClick={handleUserActivity} // Reset timer when container is clicked
+        onClick={(e) => {
+          handleUserActivity(); // Reset timer when container is clicked
+          handleContentBackgroundClick(e); // Close modal when clicking outside video
+        }}
         onMouseMove={handleUserActivity} // Reset timer when mouse moves in container
         onMouseLeave={handleMouseLeaveVideo} // Hide controls when mouse leaves
         onTouchStart={handleUserActivity} // Reset timer when touch starts in container
@@ -1329,6 +1338,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
   const renderImage = () => {
     // Handle mouse drag for panning images
     const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+      console.log(e);
       e.preventDefault(); // Prevent default behavior
       setDragState({
         ...dragState,
@@ -1467,15 +1477,8 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
           alignItems: "center",
           touchAction: "none", // Disable browser default touch actions
         }}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
-        onClick={handleUserActivity}
+        onClick={onClose}
         onWheel={handleImageWheel}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
       >
         <Box
           sx={{
@@ -1491,6 +1494,17 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
             ref={imageRef}
             src={file!.url || "/placeholder.svg"}
             alt={file!.name}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+            onClick={(e) => {
+              handleUserActivity();
+              handleContentBackgroundClick(e); // Close modal when clicking outside image
+            }}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
             style={{
               transformOrigin: "center",
               transform: `scale(${scale}) translate(${dragState.translateX / scale}px, ${dragState.translateY / scale}px)`,
@@ -1499,7 +1513,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
               display: "block",
               margin: "0 auto",
               userSelect: "none",
-              pointerEvents: "none", // This prevents the image from capturing mouse events
+              pointerEvents: "auto", // Change to auto so we can handle clicks
               transition: dragState.isDragging
                 ? "none"
                 : "transform 0.15s ease-out",
@@ -1599,7 +1613,10 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
           position: "relative",
           overflow: "hidden",
         }}
-        onClick={handleUserActivity}
+        onClick={(e) => {
+          handleUserActivity();
+          handleContentBackgroundClick(e); // Close modal when clicking outside document
+        }}
       >
         {/* Word document content container */}
         <Box
@@ -1625,6 +1642,9 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
                 lineHeight: "1.5",
                 padding: "16px",
                 boxSizing: "border-box",
+              }}
+              onClick={(e) => {
+                e.stopPropagation(); // Prevent closing when clicking on the document content
               }}
             />
           </Box>
@@ -1708,6 +1728,13 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
             whiteSpace: "pre-wrap",
             fontFamily: "monospace",
           }}
+          onClick={(e) => {
+            // Only close if clicking directly on the container background (not the text itself)
+            if (e.target === e.currentTarget) {
+              onClose();
+            }
+            e.stopPropagation();
+          }}
         >
           {textContent}
         </Box>
@@ -1759,6 +1786,15 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
   // Function to handle backdrop click
   const handleBackdropClick = (e: React.MouseEvent) => {
     // Check if the click is on the backdrop (not on the content)
+    if (e.target === e.currentTarget) {
+      onClose();
+    }
+  };
+
+  // Close modal when clicking on background areas around media elements
+  const handleContentBackgroundClick = (e: React.MouseEvent) => {
+    // Only close if clicking directly on the container background
+    // (not on controls, media elements, or their direct children)
     if (e.target === e.currentTarget) {
       onClose();
     }
@@ -1912,10 +1948,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
               paddingTop: "20px", // Add padding at top
             },
           }}
-          onClick={(e) => {
-            // Prevent clicks from propagating to the backdrop
-            e.stopPropagation();
-          }}
+          onClick={handleContentBackgroundClick}
           onWheel={(e) => {
             // Check if we're displaying an image
             if (
