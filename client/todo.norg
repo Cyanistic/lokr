@@ -1,11 +1,11 @@
 * List of frontend Todos
   - ( ) Make cohesive styling across application
   -- (x) Style home
-  -- ( ) Style register
-  -- ( ) Style login
+  -- (x) Style register
+  -- (x) Style login
   -- ( ) Style profile
   -- ( ) Style about us
-  -- ( ) Style file page
+  -- (x) Style file page
   -- ( ) Add logo/branding
   -- (x) Add colors
   -- ( ) Styling sessions menu
@@ -15,31 +15,31 @@
   - ( ) File Management
   -- (x) File and directory decryption
   -- (x) Directory navigation
-  -- ( ) File previews (for supported file types)
+  -- (x) File previews (for supported file types)
   --- (x) Previews should be shown with a small thumbnail in grid view
-  --- ( ) Previews enlarged upon double clicking
+  --- (x) Previews enlarged upon double clicking
   -- (x) File moving
-  -- ( ) File copying
+  -- (_) File copying
   -- (x) File deletion
   -- (x) File searching
   -- (x) Prompts when creating a new folder
   -- (x) Displaying file owner or uploader name and avatar if files are shared
   -- (x) Directory-aware file uploads
   --- (x) Encrypt uploaded files with the encryption key of parent directory
-  - ( ) File sharing
+  - (x) File sharing
   -- (x) Revoking shared permissions
   -- (x) Managing permissions and updating with drop-down menu
   -- (x) Viewing all users that have access to a file (only if you own the file)
-  -- ( ) Share Links
+  -- (x) Share Links
   --- (x) Viewing all active links for a file and when they expire
   --- (x) Link creation
   --- (x) Uploading and viewing through links
-  --- ( ) Upload progress indicators
+  --- (x) Upload progress indicators
   --- (x) Password prompts for protected links
   -- (x) Add support for direct user sharing
   --- (x) Viewing files shared directly
-  - ( ) Add proper login screen for totp verification
-  - ( ) Add preferences menu
+  - (x) Add proper login screen for totp verification
+  - (x) Add preferences menu
   - ( ) Add file renaming modal
   - (x) Add file deletion modal
   - ( ) Properly handle anonymous uploads
@@ -49,7 +49,7 @@
   - (x) Grid view
   -- (x) Add context menu to grid view
   -- (x) Add file previews to grid view
-  - ( ) Support for persistent settings
+  -- ( ) Add virtualization to grid previews
+  - (x) Support for persistent settings
   -- (x) Dark/Light theme customization
   -- (x) Grid/List view by default
-  -- ( ) Default number of files to show per page (or infinite scrolling with dynamic updates)
