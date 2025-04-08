@@ -1,6 +1,6 @@
 import Cookies from "js-cookie";
-import { PublicUser } from "./types";
-import { Api } from "./myApi";
+import { FileMetadata, PublicUser } from "./types";
+import { Api, FileSortOrder } from "./myApi";
 
 // A base URL that changes based on whether the app is in development or production
 // In dev this should always be the backend URL, so that `npm run dev` works properly
@@ -78,4 +78,45 @@ export function formatBytes(bytes: number, decimals: number = 2): string {
 
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+}
+
+export function gridToList(inputOrder: FileSortOrder): string {
+  switch (inputOrder) {
+    case "created":
+      return "createdAtDate";
+    case "modified":
+      return "modifiedAtDate";
+    case "uploader":
+      return "uploaderId";
+    case "owner":
+      return "ownerId";
+    default:
+      return inputOrder;
+  }
+}
+
+export function listToGrid(inputOrder: string): FileSortOrder {
+  switch (inputOrder) {
+    case "createdAtDate":
+      return "created";
+    case "modifiedAtDate":
+      return "modified";
+    case "uploaderId":
+      return "uploader";
+    case "ownerId":
+      return "owner";
+    default:
+      return inputOrder as FileSortOrder;
+  }
+}
+
+export function getExtension(file: FileMetadata | string) {
+  let fileName;
+  if (typeof file === "string") {
+    fileName = file;
+  } else {
+    fileName = file.name ?? file.encryptedFileName;
+  }
+  const lastDotIndex = fileName.lastIndexOf(".");
+  return lastDotIndex > 0 ? fileName.slice(lastDotIndex + 1).toLowerCase() : "";
 }

@@ -112,11 +112,7 @@ export interface FileResponse {
   users: Record<string, PublicUser>;
 }
 
-export enum FileSortOrder {
-  Name = "name",
-  Modified = "modified",
-  Created = "created",
-}
+export type FileSortOrder = "name" | "modified" | "created" | "size" | "uploader" | "owner" | "extension";
 
 /** A successful login response */
 export interface LoginResponse {
@@ -369,11 +365,7 @@ export interface TOTPResponse {
   qrCode: string;
 }
 
-export enum Theme {
-  System = "system",
-  Dark = "dark",
-  Light = "light",
-}
+export type Theme = "system" | "dark" | "light";
 
 /** Move the file to a new parent */
 export type UpdateFile =

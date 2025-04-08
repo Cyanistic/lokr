@@ -535,6 +535,10 @@ pub enum FileSortOrder {
     Name = 0,
     Modified = 1,
     Created = 2,
+    Size = 3,
+    Uploader = 4,
+    Owner = 5,
+    Extension = 6,
 }
 
 impl TryFrom<i64> for FileSortOrder {
@@ -545,6 +549,10 @@ impl TryFrom<i64> for FileSortOrder {
             0 => Ok(Self::Name),
             1 => Ok(Self::Modified),
             2 => Ok(Self::Created),
+            3 => Ok(Self::Size),
+            4 => Ok(Self::Uploader),
+            5 => Ok(Self::Owner),
+            6 => Ok(Self::Extension),
             _ => Err(anyhow!("Invalid file sort order value")),
         }
     }

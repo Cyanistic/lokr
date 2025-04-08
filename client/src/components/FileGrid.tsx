@@ -10,11 +10,12 @@ import {
 import { FileMetadata } from "../types";
 import { Visibility, FolderOff } from "@mui/icons-material";
 import { FileContextMenu } from "./FileMenu";
-import { getFileIcon, SortByTypes } from "../pages/FileExplorer";
+import { getFileIcon } from "../pages/FileExplorer";
 import { useTheme } from "@emotion/react";
 import { useMemo, useState } from "react";
-import { PublicUser } from "../myApi";
+import { FileSortOrder, PublicUser } from "../myApi";
 import FileGridPreviewAttachment from "./FileGridPreview";
+import { getExtension } from "../utils";
 
 interface FileGridViewProps {
   files: FileMetadata[];
@@ -23,7 +24,7 @@ interface FileGridViewProps {
   onAction: (action: string, fileId: string) => void;
   loading?: boolean;
   owner: boolean;
-  sortBy: SortByTypes;
+  sortBy: FileSortOrder;
   sortOrder?: "asc" | "desc"; // Optional, for sorting
   onPreviewLoad?: (fileId: string, blobUrl?: string) => void; // Optional callback for preview load
 }
@@ -78,13 +79,13 @@ export function FileGridView({
             )
           );
 
-        case "createdAt": {
+        case "created": {
           const aCreated = a.createdAtDate!.getTime();
           const bCreated = b.createdAtDate!.getTime();
           return direction * (aCreated - bCreated);
         }
 
-        case "modifiedAt": {
+        case "modified": {
           const aModified = a.modifiedAtDate!.getTime();
           const bModified = b.modifiedAtDate!.getTime();
           return direction * (aModified - bModified);
@@ -111,6 +112,13 @@ export function FileGridView({
               b.uploaderId ? users[b.uploaderId].username : "Anonymous",
             )
           );
+
+        case "extension": {
+          const aExt = getExtension(a);
+          const bExt = getExtension(b);
+
+          return direction * aExt.localeCompare(bExt);
+        }
 
         default:
           return (

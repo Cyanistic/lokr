@@ -16,7 +16,7 @@ import {
   Movie as MovieIcon,
   ArrowUpward as ArrowUpwardIcon,
 } from "@mui/icons-material";
-import { API, logout } from "../utils";
+import { API, listToGrid, logout } from "../utils";
 import localforage from "localforage";
 import {
   unwrapAESKey,
@@ -40,7 +40,7 @@ import FileSearch from "../components/FileSearch";
 import JSZip from "jszip";
 import { useThrottledCallback } from "use-debounce";
 import FileList from "../components/FileList";
-import { PublicUser } from "../myApi";
+import { FileSortOrder, PublicUser } from "../myApi";
 import { FileSidebar } from "../components/FileSidebar";
 import {
   Box,
@@ -163,14 +163,6 @@ interface FileExplorerProps {
   type: "files" | "shared" | "link";
 }
 
-export type SortByTypes =
-  | "name"
-  | "size"
-  | "createdAt"
-  | "modifiedAt"
-  | "owner"
-  | "uploader";
-
 export default function FileExplorer(
   { type }: FileExplorerProps = { type: "files" },
 ) {
@@ -189,12 +181,12 @@ export default function FileExplorer(
   }, [setShowNavbar]);
 
   const preferredView = useRef<"list" | "grid">("list");
-  const preferredSortBy = useRef<SortByTypes>("name");
+  const preferredSortBy = useRef<FileSortOrder>("name");
   const parentId = params.get("parentId");
   const view = params.get("view") || preferredView.current;
   const linkId = params.get("linkId");
-  const sortBy: SortByTypes =
-    (params.get("sortBy") as SortByTypes) || preferredSortBy.current;
+  const sortBy: FileSortOrder =
+    (params.get("sortBy") as FileSortOrder) || preferredSortBy.current;
   const sortOrder: "asc" | "desc" =
     (params.get("sortOrder") as "asc" | "desc") || "asc";
   // const fileId = params.get("fileId");
@@ -1032,13 +1024,7 @@ export default function FileExplorer(
                             setParams((params) => {
                               params.set(
                                 "sortBy",
-                                e.target.value as
-                                  | "name"
-                                  | "size"
-                                  | "createdAt"
-                                  | "modifiedAt"
-                                  | "owner"
-                                  | "uploader",
+                                e.target.value as FileSortOrder,
                               );
                               return params;
                             })
@@ -1046,12 +1032,13 @@ export default function FileExplorer(
                         >
                           <MenuItem value="name">Name</MenuItem>
                           <MenuItem value="size">Size</MenuItem>
-                          <MenuItem value="createdAt">Creation Date</MenuItem>
-                          <MenuItem value="modifiedAt">
+                          <MenuItem value="created">Creation Date</MenuItem>
+                          <MenuItem value="modified">
                             Modification Date
                           </MenuItem>
                           <MenuItem value="owner">Owner</MenuItem>
                           <MenuItem value="uploader">Uploader</MenuItem>
+                          <MenuItem value="extension">Extension</MenuItem>
                         </Select>
                       </FormControl>
                       <Tooltip
@@ -1152,7 +1139,7 @@ export default function FileExplorer(
                     });
                   } else {
                     setParams((params) => {
-                      params.set("sortBy", value.field);
+                      params.set("sortBy", listToGrid(value.field));
                       params.set("sortOrder", value.sort || "desc");
                       return params;
                     });

@@ -9,9 +9,9 @@ import {
 } from "@mui/x-data-grid";
 import { Avatar, Box, Tooltip, Typography } from "@mui/material";
 import { FileMetadata } from "../types";
-import { PublicUser } from "../myApi";
-import { getFileIcon, SortByTypes } from "../pages/FileExplorer";
-import { BASE_URL, formatBytes } from "../utils";
+import { FileSortOrder, PublicUser } from "../myApi";
+import { getFileIcon } from "../pages/FileExplorer";
+import { BASE_URL, formatBytes, getExtension, gridToList } from "../utils";
 import FolderOffIcon from "@mui/icons-material/FolderOff";
 import { useWindowSize } from "./hooks/useWindowSize";
 import { FileContextMenu } from "./FileMenu";
@@ -42,7 +42,7 @@ interface FileListProps {
   onAction: (action: string, fileId: string) => Promise<void>;
   owner: boolean;
   onSortModelChange: (model: GridSortModel) => void;
-  sortBy: SortByTypes;
+  sortBy: FileSortOrder;
   sortOrder: "asc" | "desc";
 }
 
@@ -60,6 +60,7 @@ export default function FileList({
   const [columnVisibility, setColumnVisibility] =
     useState<GridColumnVisibilityModel>({
       name: true,
+      extension: true,
       size: true,
       createdAtDate: true,
       modifiedAtDate: true,
@@ -85,6 +86,7 @@ export default function FileList({
       // Extra small screens: Only show name, size, and actions
       setColumnVisibility({
         name: true,
+        extension: false,
         size: true,
         createdAtDate: false,
         modifiedAtDate: false,
@@ -96,6 +98,7 @@ export default function FileList({
       // Small screens: Show name, size, modified date, and actions
       setColumnVisibility({
         name: true,
+        extension: false,
         size: true,
         createdAtDate: false,
         modifiedAtDate: true,
@@ -107,6 +110,7 @@ export default function FileList({
       // Medium screens: Show all except created date
       setColumnVisibility({
         name: true,
+        extension: false,
         size: true,
         createdAtDate: false,
         modifiedAtDate: true,
@@ -118,6 +122,7 @@ export default function FileList({
       // Medium screens: Show all except created date
       setColumnVisibility({
         name: true,
+        extension: true,
         size: true,
         createdAtDate: false,
         modifiedAtDate: true,
@@ -130,6 +135,7 @@ export default function FileList({
       setColumnVisibility({
         name: true,
         size: true,
+        extension: true,
         createdAtDate: true,
         modifiedAtDate: true,
         uploaderId: true,
@@ -159,9 +165,18 @@ export default function FileList({
       },
     },
     {
+      field: "extension",
+      headerName: "Ext",
+      width: 90,
+      valueGetter: (_, row) => {
+        if (!row?.name) return "";
+        return getExtension(row.name);
+      },
+    },
+    {
       field: "size",
       headerName: "Size",
-      width: 90,
+      width: 120,
       valueFormatter: (value: number, params) => {
         if (params?.isDirectory) {
           return "";
@@ -334,7 +349,7 @@ export default function FileList({
           },
         }}
         pageSizeOptions={[5, 10, 25]}
-        sortModel={[{ field: sortBy, sort: sortOrder }]}
+        sortModel={[{ field: gridToList(sortBy), sort: sortOrder }]}
         onSortModelChange={onSortModelChange}
         disableRowSelectionOnClick
         slots={{
@@ -369,7 +384,6 @@ export default function FileList({
           "& .MuiDataGrid-cell": {
             borderBottom: "none",
           },
-          borderRadius: 4,
           "& .MuiDataGrid-columnHeaders": {
             backgroundColor: "background.paper",
             // borderBottom: 1,

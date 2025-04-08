@@ -31,7 +31,7 @@ export function ErrorToastProvider({ children }: ErrorToastProviderProps) {
   const showError = (errorMessage: string, ...consoleMessage: unknown[]) => {
     setMessage(errorMessage);
     if (consoleMessage.length) {
-      console.error(errorMessage, consoleMessage);
+      console.error(errorMessage, ...consoleMessage);
     }
     setOpen(true);
     setProgress(0);

@@ -10,12 +10,17 @@ import {
 } from "../cryptoFunctions";
 import localforage from "localforage";
 import { useSearchParams } from "react-router-dom";
-import { UserUpdate } from "../myApi";
+import { FileSortOrder, Theme, UserUpdate } from "../myApi";
 import { useErrorToast } from "../components/ErrorToastProvider";
 import "./Profile.css";
 import { useProfile } from "../components/ProfileProvider";
-import { Dialog, DialogTitle, DialogContent, DialogActions } from "@mui/material";
-import { Button, /*TextField,*/ Typography, /*Box, IconButton, Card, CardContent*/ } from "@mui/material";
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+} from "@mui/material";
+import { Button, Typography } from "@mui/material";
 
 // Valid profile sections
 const Sections = ["profile", "security", "notifications"] as const;
@@ -52,8 +57,9 @@ function Profile() {
   const [totpVerified, setTOTPVerified] = useState(false);
 
   // New state for theme and sort order preferences
-  const [selectedTheme, setSelectedTheme] = useState<string>("default");
-  const [selectedSortOrder, setSelectedSortOrder] = useState<string>("name");
+  const [selectedTheme, setSelectedTheme] = useState<Theme>("system");
+  const [selectedSortOrder, setSelectedSortOrder] =
+    useState<FileSortOrder>("name");
 
   // Fetch user data
   useEffect(() => {
@@ -64,7 +70,7 @@ function Profile() {
           `${getAvatarUrl({
             id: profile.id,
             avatarExtension: profile?.avatarExtension,
-          })}/?q=${Math.random()}`
+          })}/?q=${Math.random()}`,
         );
       }
     };
@@ -81,27 +87,24 @@ function Profile() {
   // Update selected preferences when profile data changes
   useEffect(() => {
     if (profile) {
-      setSelectedTheme(profile.theme || "default");
+      setSelectedTheme(profile.theme || "system");
       setSelectedSortOrder(profile.sortOrder || "name");
     }
   }, [profile]);
 
   // Fetch Sessions
   useEffect(() => {
-    fetch(`${BASE_URL}/api/sessions`, {
-      credentials: "include",
-    })
+    API.api
+      .getSessions()
       .then((response) => {
-        if (!response.ok) {
-          throw new Error("Failed to fetch sessions");
-        }
+        if (!response.ok) throw response.error;
         return response.json();
       })
       .then((sessionData) => {
         setSessions(sessionData);
       })
       .catch((err) => {
-        console.error("Failed to fetch sessions:", err);
+        showError("Error loading sessions", err);
       });
   }, []);
 
@@ -199,7 +202,7 @@ function Profile() {
       };
       console.log(
         `Sending TOTP ${enable ? "Enable" : "Disable"} Request:`,
-        JSON.stringify(requestBody, null, 2)
+        JSON.stringify(requestBody, null, 2),
       );
       const response = await API.api.updateTotp(requestBody);
       console.log("Response status:", response.status);
@@ -220,7 +223,7 @@ function Profile() {
   // Delete session
   const handleDeleteSession = async (sessionNumber: number) => {
     const confirmDelete = confirm(
-      "Are you sure you want to delete session #${sessionNumber}?"
+      "Are you sure you want to delete session #${sessionNumber}?",
     );
     if (!confirmDelete) return;
     try {
@@ -234,7 +237,7 @@ function Profile() {
       }
       //Remove deleted session from the state
       setSessions((prev) =>
-        prev.filter((session) => session.number !== sessionNumber)
+        prev.filter((session) => session.number !== sessionNumber),
       );
     } catch (err) {
       console.error("Error deleting session:", err);
@@ -251,7 +254,7 @@ function Profile() {
   const handleSave = async (field: "username" | "password" | "email") => {
     try {
       const passwordSalt: Uint8Array | null = (await localforage.getItem(
-        "passwordSalt"
+        "passwordSalt",
       )) as Uint8Array | null;
       const password = prompt("Enter your current password to confirm change");
       let requestBody: UserUpdate;
@@ -292,13 +295,13 @@ function Profile() {
         const { encrypted: encryptedPrivateKey } = await encryptPrivateKey(
           privateKey,
           masterKey,
-          iv
+          iv,
         );
         requestBody.encryptedPrivateKey = bufferToBase64(encryptedPrivateKey);
         // Hash the new password for the backend
         requestBody.newValue = await hashPassword(
           requestBody.newValue,
-          passwordSalt
+          passwordSalt,
         );
       } else {
         requestBody = {
@@ -314,7 +317,7 @@ function Profile() {
         const errorData = await response.json();
         console.error("Server Response:", errorData);
         throw new Error(
-          `Failed to update ${field}: ${errorData.message || response.statusText}`
+          `Failed to update ${field}: ${errorData.message || response.statusText}`,
         );
       }
       if (field === "email") {
@@ -330,7 +333,7 @@ function Profile() {
         `Error updating ${field}: ${
           err instanceof Error ? err.message : "Unknown error"
         }`,
-        err
+        err,
       );
     }
   };
@@ -339,28 +342,18 @@ function Profile() {
   const toggleGridView = async () => {
     if (!profile) return;
     const newView = !profile.gridView;
-    const currentTheme = profile.theme || "default";
+    const currentTheme = profile.theme || "system";
     const currentSortOrder = profile.sortOrder || "name";
     try {
-      const response = await fetch(`${BASE_URL}/api/profile/preferences`, {
-        method: "PUT",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          gridView: newView,
-          theme: currentTheme,
-          sortOrder: currentSortOrder,
-        }),
+      const response = await API.api.updatePreferences({
+        gridView: newView,
+        theme: currentTheme,
+        sortOrder: currentSortOrder,
       });
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText);
-      }
+      if (!response.ok) throw response.error;
       refreshProfile();
-    } catch (err: any) {
-      showError(`Error updating view mode: ${err.message}`, err);
+    } catch (err) {
+      showError(`Error updating view mode.`, err);
     }
   };
 
@@ -368,25 +361,15 @@ function Profile() {
   const updatePreferences = async () => {
     if (!profile) return;
     try {
-      const response = await fetch(`${BASE_URL}/api/profile/preferences`, {
-        method: "PUT",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          gridView: profile.gridView,
-          theme: selectedTheme,
-          sortOrder: selectedSortOrder,
-        }),
+      const response = await API.api.updatePreferences({
+        sortOrder: selectedSortOrder,
+        gridView: profile.gridView,
+        theme: selectedTheme,
       });
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText);
-      }
+      if (!response.ok) throw response.error;
       refreshProfile();
-    } catch (err: any) {
-      showError(`Error updating preferences: ${err.message}`, err);
+    } catch (err) {
+      showError(`Error updating preferences`, err);
     }
   };
 
@@ -419,7 +402,10 @@ function Profile() {
                         value={updatedValue}
                         onChange={(e) => setUpdatedValue(e.target.value)}
                       />
-                      <button className="b1" onClick={() => handleSave("username")}>
+                      <button
+                        className="b1"
+                        onClick={() => handleSave("username")}
+                      >
                         Save
                       </button>
                     </>
@@ -428,7 +414,9 @@ function Profile() {
                       {profile!.username}{" "}
                       <button
                         className="b1"
-                        onClick={() => handleEdit("username", profile!.username)}
+                        onClick={() =>
+                          handleEdit("username", profile!.username)
+                        }
                       >
                         Edit
                       </button>
@@ -439,7 +427,7 @@ function Profile() {
                   <strong>Theme:</strong>{" "}
                   <select
                     value={selectedTheme}
-                    onChange={(e) => setSelectedTheme(e.target.value)}
+                    onChange={(e) => setSelectedTheme(e.target.value as Theme)}
                   >
                     <option value="system">System</option>
                     <option value="light">Light</option>
@@ -457,11 +445,17 @@ function Profile() {
                   <strong>Sort Order:</strong>{" "}
                   <select
                     value={selectedSortOrder}
-                    onChange={(e) => setSelectedSortOrder(e.target.value)}
+                    onChange={(e) =>
+                      setSelectedSortOrder(e.target.value as FileSortOrder)
+                    }
                   >
                     <option value="name">Name</option>
-                    <option value="modified">Modified</option>
-                    <option value="created">Created</option>
+                    <option value="size">Size</option>
+                    <option value="created">Creation Date</option>
+                    <option value="modified">Modification Date</option>
+                    <option value="owner">Owner</option>
+                    <option value="uploader">Uploader</option>
+                    <option value="extension">Extension</option>
                   </select>
                 </p>
                 <button className="b1" onClick={updatePreferences}>
@@ -521,8 +515,7 @@ function Profile() {
               )}
             </p>
             <p>
-              <strong>Email:</strong>{" "}
-              {profile!.email || "No email provided"}{" "}
+              <strong>Email:</strong> {profile!.email || "No email provided"}{" "}
               {editingField === "email" ? (
                 <>
                   <input
@@ -590,7 +583,8 @@ function Profile() {
               <DialogTitle>Important Notice</DialogTitle>
               <DialogContent>
                 <Typography>
-                  You have updated your email, however, if you had TOTP enabled your authenticator app will still display your old email.
+                  You have updated your email, however, if you had TOTP enabled
+                  your authenticator app will still display your old email.
                   Regenerate to update the email in your authenticator app.
                 </Typography>
               </DialogContent>
