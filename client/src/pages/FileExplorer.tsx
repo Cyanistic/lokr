@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import Upload from "../components/Upload";
 import {
   Folder as FolderIcon,
@@ -75,7 +75,7 @@ export function getFileIcon(
   width?: number,
   height?: number,
 ) {
-  const icons: Record<string, JSX.Element> = {
+  const icons: Record<string, React.JSX.Element> = {
     "text/plain": <DescriptionIcon style={{ width, height }} />,
     "image/png": <ImageIcon style={{ color: "#D41632", width, height }} />,
     "image/jpeg": <ImageIcon style={{ color: "#D41632", width, height }} />,
@@ -211,7 +211,7 @@ export default function FileExplorer(
   const [infoOpen, setInfoOpen] = useState<boolean>(false);
   const [passwordOpen, setPasswordOpen] = useState<boolean>(false);
   const [deleteOpen, setDeleteOpen] = useState<boolean>(false);
-  const selectedFile = useRef<FileMetadata>();
+  const selectedFile = useRef<FileMetadata>(undefined);
   const [linkPassword, setLinkPassword] = useState<string | null>(null);
   const [linkError, setLinkError] = useState<string | undefined>(undefined);
   const [linkKey, setLinkKey] = useState<CryptoKey | null>(null);

@@ -11,7 +11,7 @@ import "./About.css"
 interface AboutSection {
   title: string;
   content: string;
-  icon: JSX.Element;
+  icon: React.JSX.Element;
 }
 
 const aboutSections: AboutSection[] = [

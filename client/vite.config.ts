@@ -4,9 +4,19 @@ import wasm from "vite-plugin-wasm";
 import * as child from "child_process";
 
 const commitHash = child.execSync("git rev-parse HEAD").toString();
+const ReactCompilerConfig = {
+  target: "19",
+};
 
 export default defineConfig({
-  plugins: [react(), wasm()],
+  plugins: [
+    react({
+      babel: {
+        plugins: [["babel-plugin-react-compiler", ReactCompilerConfig]],
+      },
+    }),
+    wasm(),
+  ],
   assetsInclude: ["**/*.wasm"], // ✅ Ensure Vite recognizes .wasm files
   define: {
     __COMMIT_HASH__: JSON.stringify(commitHash.trim()), // Expose commit hash to the application
