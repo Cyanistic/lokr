@@ -7,7 +7,7 @@ import {
   generateKey,
   generateNonce,
 } from "../cryptoFunctions";
-import { useErrorToast } from "../components/ErrorToastProvider";
+import { useToast } from "./ToastProvider";
 import React, { useState, useEffect, useRef } from "react";
 import { useDropzone } from "react-dropzone";
 import "./Upload.css";
@@ -44,7 +44,7 @@ export default function Upload({
       message?: string;
     };
   }>({});
-  const { showError } = useErrorToast();
+  const { showError } = useToast();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const modalBoxRef = useRef<HTMLDivElement | null>(null);

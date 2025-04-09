@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Button, Container, Typography, Box } from "@mui/material";
-import { useErrorToast } from "./ErrorToastProvider";
+import { useToast } from "./ToastProvider";
 
 export default function Error({
   error,
@@ -9,7 +9,7 @@ export default function Error({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  const { showError } = useErrorToast();
+  const { showError } = useToast();
 
   useEffect(() => {
     // Log the error to an error reporting service

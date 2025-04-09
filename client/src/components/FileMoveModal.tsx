@@ -17,7 +17,7 @@ import {
 import { FileMetadata } from "../types";
 import { Folder, FolderOff } from "@mui/icons-material";
 import { useMemo, useState } from "react";
-import { useErrorToast } from "./ErrorToastProvider";
+import { useToast } from "./ToastProvider";
 import { API } from "../utils";
 import {
   bufferToBase64,
@@ -77,7 +77,7 @@ export default function FileMoveModal({
     [currentMoveFolder, files, file, root],
   );
 
-  const { showError } = useErrorToast();
+  const { showError } = useToast();
 
   /** Move a file to a new parent using the modal interface. */
   async function handleMove(targetFolderId: string | null) {

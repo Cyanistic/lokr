@@ -9,7 +9,7 @@ import { useLocation } from "react-router-dom";
 import { API } from "../utils";
 import { SessionUser as ApiSessionUser } from "../myApi";
 import { importPublicKey } from "../cryptoFunctions";
-import { useErrorToast } from "./ErrorToastProvider";
+import { useToast } from "./ToastProvider";
 
 export type SessionUser = ApiSessionUser & { importedPublicKey?: CryptoKey };
 
@@ -37,7 +37,7 @@ export const ProfileProvider: React.FC<ProfileProviderProps> = ({
 }) => {
   const [profile, setProfile] = useState<SessionUser | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  const {showError} = useErrorToast();
+  const {showError} = useToast();
 
   // Function to fetch user profile
   const fetchProfile = async () => {

@@ -11,7 +11,7 @@ import {
 import localforage from "localforage";
 import { useSearchParams } from "react-router-dom";
 import { FileSortOrder, Theme, UserUpdate } from "../myApi";
-import { useErrorToast } from "../components/ErrorToastProvider";
+import { useToast } from "../components/ToastProvider";
 import "./Profile.css";
 import { useProfile } from "../components/ProfileProvider";
 import {
@@ -49,7 +49,7 @@ function Profile() {
   const [avatarUrl, setAvatarUrl] = useState<string>(DefaultProfile);
   const activeSection =
     isValidValue(params.get("section"), Sections) ?? "profile";
-  const { showError } = useErrorToast();
+  const { showError } = useToast();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [showTotpWarningModal, setShowTotpWarningModal] = useState(false);
   const [showTOTPSetup, setShowTOTPSetup] = useState(false); // State to control TOTP setup

@@ -15,6 +15,7 @@ import {
   Box,
   InputAdornment,
   IconButton,
+  CircularProgress,
 } from "@mui/material";
 import {
   Lock as LockIcon,
@@ -24,7 +25,7 @@ import {
 import { LoginUser } from "../types";
 import { DebouncedState, useDebouncedCallback } from "use-debounce";
 import { API, validateEmail } from "../utils";
-import { useErrorToast } from "../components/ErrorToastProvider";
+import { useToast } from "../components/ToastProvider";
 import { useNavigate } from "react-router-dom";
 
 // Helper function to convert Uint8Array to Base64 safely
@@ -46,12 +47,12 @@ export default function Register() {
     confirmPassword: "",
   });
 
-  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const nagivate = useNavigate();
-  const { showError } = useErrorToast();
+  const { showError, showSuccess } = useToast();
 
   // Only debounce server side checks
   // Use a different callback function for each input field so that they fire independently
@@ -114,6 +115,7 @@ export default function Register() {
           return false;
         }
         break;
+
       case "password":
         if (!value) {
           setError({ ...error, password: "" });
@@ -128,6 +130,7 @@ export default function Register() {
         }
         setError({ ...error, password: null });
         break;
+
       case "confirmPassword":
         if (value !== user.password) {
           setError({ ...error, confirmPassword: "Passwords do not match" });
@@ -149,7 +152,7 @@ export default function Register() {
       check?.cancel();
       return;
     }
-    if (check) {
+    if (check && event.target.value) {
       setError({
         ...error,
         [event.target.name]: `Checking if ${event.target.name} already exists`,
@@ -163,37 +166,39 @@ export default function Register() {
   async function handleRegister(event?: React.FormEvent<HTMLFormElement>) {
     if (event) event.preventDefault(); // Prevent page reload
     try {
-      const errors = { ...error };
+      const innerErrors = { ...error };
       let isError = false;
       if (!user.username) {
         isError ||= true;
-        errors.username = "Username is required";
+        innerErrors.username = "Username is required";
       }
 
       if (!user.password) {
         isError ||= true;
-        errors.password = "Password is required";
+        innerErrors.password = "Password is required";
       }
 
       if (user.password !== user.confirmPassword) {
         isError ||= true;
-        errors.confirmPassword = "Passwords do not match";
+        innerErrors.confirmPassword = "Passwords do not match";
       }
 
       if (isError) {
-        setError(errors);
+        setError(innerErrors);
         return;
       }
 
       // Check the proper invariants
       let valid = true;
       for (const [key, value] of Object.entries(user)) {
-        valid &&= localCheck(key, value);
+        valid &&= localCheck(key, value) && !error[key as keyof LoginUser];
       }
 
       if (!valid) {
         return;
       }
+
+      setLoading(true);
 
       // Step 1: Generate Salt for PBKDF2
       const salt = crypto.getRandomValues(new Uint8Array(16));
@@ -240,9 +245,14 @@ export default function Register() {
       const response = await API.api.createUser(body);
 
       if (!response.ok) throw response.error;
-      setMessage("Registration successful!");
+      showSuccess("Registration successful! Redirecting to login...");
+      setTimeout(() => {
+        nagivate("/login");
+      }, 100);
     } catch (error) {
       showError("Error during registration.", error);
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -253,7 +263,10 @@ export default function Register() {
       alignItems="center"
       height="80vh"
     >
-      <Card elevation={3} sx={{ width: 400, p: 3, borderRadius: 3, boxShadow: 5 }}>
+      <Card
+        elevation={3}
+        sx={{ width: 400, p: 3, borderRadius: 3, boxShadow: 5 }}
+      >
         <CardContent>
           <Box textAlign="center" mb={3}>
             <LockIcon fontSize="large" color="primary" />
@@ -262,9 +275,6 @@ export default function Register() {
             </Typography>
             <Typography variant="body2" color="textSecondary">
               Enter your details to create your account
-            </Typography>
-            <Typography color="error" textAlign="center">
-              {message}
             </Typography>
           </Box>
 
@@ -355,18 +365,31 @@ export default function Register() {
               />
             </Box>
 
-            <Button
-              type="submit"
-              fullWidth
-              variant="contained"
-              sx={{
-                py: 1.5,
-                fontWeight: "bold",
-                textTransform: "none",
-              }}
-            >
-              Create account
-            </Button>
+            {loading ? (
+              <Box
+                sx={{
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  py: 1.5,
+                }}
+              >
+                <CircularProgress size={24} />
+              </Box>
+            ) : (
+              <Button
+                type="submit"
+                fullWidth
+                variant="contained"
+                sx={{
+                  py: 1.5,
+                  fontWeight: "bold",
+                  textTransform: "none",
+                }}
+              >
+                Create account
+              </Button>
+            )}
           </form>
 
           <Box textAlign="center" mt={2} onClick={() => nagivate("/login")}>

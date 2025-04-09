@@ -48,7 +48,7 @@ import {
 } from "../cryptoFunctions";
 import DefaultProfile from "/default-profile.webp";
 import { API, BASE_URL } from "../utils";
-import { useErrorToast } from "./ErrorToastProvider";
+import { useToast } from "./ToastProvider";
 import { ShareResponse } from "../myApi";
 import { SessionUser } from "./ProfileProvider";
 
@@ -123,7 +123,7 @@ const ShareModal: React.FC<ShareModalProps> = ({
     }));
   };
 
-  const { showError } = useErrorToast();
+  const { showError } = useToast();
 
   // Fetch usernames for Autocomplete
   const fetchUsernames = async (query: string) => {

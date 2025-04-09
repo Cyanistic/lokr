@@ -26,7 +26,7 @@ const ToastContext = createContext<ToastContextType | undefined>(
   undefined,
 );
 
-export const useErrorToast = () => {
+export const useToast = () => {
   const context = useContext(ToastContext);
   if (!context) {
     throw new Error("useErrorToast must be used within an ErrorToastProvider");
@@ -38,7 +38,7 @@ type ToastProviderProps = {
   children: ReactNode;
 };
 
-export function ErrorToastProvider({ children }: ToastProviderProps) {
+export function ToastProvider({ children }: ToastProviderProps) {
   const [messages, setMessages] = useState<ToastMessage[]>([]);
   const duration = 3000;
   const maxToasts = 3;

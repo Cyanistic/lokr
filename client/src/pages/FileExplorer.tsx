@@ -35,7 +35,7 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import { FileMetadata, FileResponse } from "../types";
-import { useErrorToast } from "../components/ErrorToastProvider";
+import { useToast } from "../components/ToastProvider";
 import FileSearch from "../components/FileSearch";
 import JSZip from "jszip";
 import { useThrottledCallback } from "use-debounce";
@@ -196,7 +196,7 @@ export default function FileExplorer(
   const [users, setUsers] = useState<Record<string, PublicUser>>({});
   const [root, setRoot] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
-  const { showError } = useErrorToast();
+  const { showError } = useToast();
   const navigate = useNavigate();
 
   // The user's decrypted private key and public key

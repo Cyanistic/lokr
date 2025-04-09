@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { BASE_URL } from "../utils";
-import { useErrorToast } from "../components/ErrorToastProvider";
+import { useToast } from "../components/ToastProvider";
 
 type AvatarUploadProps = {
   avatarUrl: string;
@@ -13,7 +13,7 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({
 }) => {
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const { showError } = useErrorToast();
+  const { showError } = useToast();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files ? e.target.files[0] : null;
