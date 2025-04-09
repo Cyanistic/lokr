@@ -47,6 +47,7 @@ export default function Upload({
   const { showError } = useErrorToast();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const overlayRef = useRef<HTMLDivElement | null>(null);
+  const modalBoxRef = useRef<HTMLDivElement | null>(null);
   const { profile, loading, refreshProfile } = useProfile();
 
   // Function to encrypt the file content using AES and return the encrypted file
@@ -295,108 +296,121 @@ export default function Upload({
     const handleClickOutside = (event: MouseEvent) => {
       if (
         isOverlay &&
-        overlayRef.current &&
-        !overlayRef.current.contains(event.target as Node)
+        modalBoxRef.current &&
+        !modalBoxRef.current.contains(event.target as Node)
       ) {
         onClose?.();
       }
     };
-
+  
     if (isOverlay) {
       document.addEventListener("mousedown", handleClickOutside);
     }
-
+  
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [isOverlay, onClose]);
+
+  const removeFile = (index: number) => {
+    setFile((prevFiles) => prevFiles.filter((_, i) => i !== index));
+    setFileMeta((prevMeta) => prevMeta.filter((_, i) => i !== index));
+  };
 
   return (
     <div
       ref={overlayRef}
       className={isOverlay ? "upload-overlay" : "file-upload-container"}
     >
-      {isOverlay && (
-        <button className="close-button" onClick={() => onClose?.()}>
-          X
-        </button>
-      )}
-      <div {...getRootProps()} className="dropzone">
-        <input
-          {...getInputProps()}
-          className="hidden"
-          style={{ display: "none" }}
-        />
-        <div className="dropzone-text">
-          <div className="upload-icon">
-            <GrUploadOption size={30} />
-          </div>
-          <p>Drag & Drop Files</p>
-          <p style={{ fontSize: 14, color: "gray" }}>Max File Size: 1GB</p>
-          <button
-            className="browse-button"
-            onClick={(e) => {
-              e.stopPropagation();
-              fileInputRef.current?.click();
-            }}
-          >
-            Browse Files
-          </button>
-        </div>
-      </div>
-      <input
-        type="file"
-        multiple
-        ref={fileInputRef}
-        className="hidden"
-        style={{ display: "none" }}
-        onChange={handleFileChange}
-      />
-      {files.length > 0 && (
-        <div className="file-list">
-          <ul>
-            {fileMeta.map((meta, index) => (
-              <li
-                key={index}
-                className={
-                  fileStatuses[meta.name]?.status === "success"
-                    ? "file-success"
-                    : fileStatuses[meta.name]?.status === "error"
-                      ? "file-error"
-                      : ""
-                }
-              >
-                {meta.name} {meta.isDirectory ? "(Directory)" : "(File)"}
-                {fileStatuses[meta.name]?.status === "pending" &&
-                  fileStatuses[meta.name]?.message && (
-                    <span className="file-status-pending">
-                      {" "}
-                      - {fileStatuses[meta.name]?.message}
-                    </span>
-                  )}
-                {fileStatuses[meta.name]?.status === "success" && (
-                  <span className="file-status-success"> - Success</span>
-                )}
-                {fileStatuses[meta.name]?.status === "error" && (
-                  <span className="file-status-error">
-                    {" "}
-                    - Error:{" "}
-                    {fileStatuses[meta.name]?.message || "Failed to upload"}
-                  </span>
-                )}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      <div className="button-container">
-        {files.length > 0 && (
-          <button onClick={handleSubmit} className="upload-button">
-            Upload Files
+      <div ref={isOverlay ? modalBoxRef : null} className={isOverlay ? "upload-modal-box" : "upload-content"}>
+        {isOverlay && (
+          <button className="close-button" onClick={() => onClose?.()}>
+            X
           </button>
         )}
+        <div {...getRootProps()} className="dropzone">
+          <input
+            {...getInputProps()}
+            className="hidden"
+            style={{ display: "none" }}
+          />
+          <div className="dropzone-text">
+            <div className="upload-icon">
+              <GrUploadOption size={30} />
+            </div>
+            <p>Drag & Drop Files</p>
+            <p style={{ fontSize: 14, color: "gray" }}>Max File Size: 1GB</p>
+            <button
+              className="browse-button"
+              onClick={(e) => {
+                e.stopPropagation();
+                fileInputRef.current?.click();
+              }}
+            >
+              Browse Files
+            </button>
+          </div>
+        </div>
+        <input
+          type="file"
+          multiple
+          ref={fileInputRef}
+          className="hidden"
+          style={{ display: "none" }}
+          onChange={handleFileChange}
+        />
+        {files.length > 0 && (
+          <div className="file-list">
+            <ul>
+              {fileMeta.map((meta, index) => (
+                <li
+                  key={index}
+                  className={
+                    fileStatuses[meta.name]?.status === "success"
+                      ? "file-success"
+                      : fileStatuses[meta.name]?.status === "error"
+                        ? "file-error"
+                        : ""
+                  }
+                >
+                  {meta.name} {meta.isDirectory ? "(Directory)" : "(File)"}
+                  {fileStatuses[meta.name]?.status === "pending" &&
+                    fileStatuses[meta.name]?.message && (
+                      <span className="file-status-pending">
+                        {" "}
+                        - {fileStatuses[meta.name]?.message}
+                      </span>
+                    )}
+                  {fileStatuses[meta.name]?.status === "success" && (
+                    <span className="file-status-success"> - Success</span>
+                  )}
+                  {fileStatuses[meta.name]?.status === "error" && (
+                    <span className="file-status-error">
+                      {" "}
+                      - Error:{" "}
+                      {fileStatuses[meta.name]?.message || "Failed to upload"}
+                    </span>
+                  )}
+                  <button
+                    className="remove-button"
+                    onClick={() => removeFile(index)}
+                  >
+                    ✕
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <div className="button-container">
+          {files.length > 0 && (
+            <button onClick={handleSubmit} className="upload-button">
+              Upload Files
+            </button>
+          )}
+        </div>
+        {uploadStatus && <p>{uploadStatus}</p>}
       </div>
-      {uploadStatus && <p>{uploadStatus}</p>}
     </div>
   );
 }

@@ -1,26 +1,3 @@
-/* Add these styles to your existing CSS */
-.file-success {
-  color: #4caf50;
-}
-
-.file-error {
-  color: #f44336;
-}
-
-.file-status-pending {
-  font-style: italic;
-  color: #ff9800;
-}
-
-.file-status-success {
-  color: #4caf50;
-  font-weight: bold;
-}
-
-.file-status-error {
-  color: #f44336;
-  font-weight: bold;
-}
 :root {
     --file-bg: #ffffff;
     --file-border: #cbd5e1;
@@ -44,6 +21,11 @@
     max-width: 500px;
 }
 
+.upload-content {
+    width: 100%;
+    max-width: 500px;
+}
+
 .upload-overlay {
     position: fixed;
     top: 0;
@@ -56,6 +38,11 @@
     align-items: center;
     flex-direction: column;
     z-index: 1101;
+}
+
+.upload-modal-box {
+    width: 50%;
+    justify-items: center;
 }
   
 .dropzone {
@@ -72,7 +59,7 @@
 }
 
 .upload-overlay .dropzone {
-    width: 50%;
+    width: 100%;
     background-color: var(--file-bg);
 }
   
@@ -95,8 +82,18 @@
     background-color: var(--file-bg);
 }
 
+.remove-button {
+    background: none;
+    border: none;
+    color: red;
+    font-size: 1rem;
+    cursor: pointer;
+    margin-left: 10px;
+    flex-shrink: 0;
+}
+
 .upload-overlay .file-list {
-    width: 50%;
+    width: 100%;
 }
   
 .file-list ul {
@@ -120,7 +117,7 @@
 }
 
 .upload-overlay .button-container{
-    width: 50%;
+    width: 100%;
 }
   
 .browse-button, .upload-button {
@@ -158,4 +155,27 @@
 .close-button:hover {
     color: red;
     border-color: red;
+}
+
+.file-success {
+    color: #4caf50;
+}
+  
+.file-error {
+    color: #f44336;
+}
+  
+.file-status-pending {
+    font-style: italic;
+    color: #ff9800;
+}
+  
+.file-status-success {
+    color: #4caf50;
+    font-weight: bold;
+}
+  
+.file-status-error {
+    color: #f44336;
+    font-weight: bold;
 }
