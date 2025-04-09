@@ -531,7 +531,7 @@ export default function FileExplorer(
       updateLoading?: boolean;
     } = {
       depth: 1,
-      limit: 100,
+      limit: -(1 << 31),
       offset: 0,
       includeAncestors: true,
       fileId: parentId ?? undefined,

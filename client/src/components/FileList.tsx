@@ -348,7 +348,7 @@ export default function FileList({
             paginationModel: { page: 0, pageSize: 10 },
           },
         }}
-        pageSizeOptions={[5, 10, 25]}
+        pageSizeOptions={[20, 100, { value: -1, label: 'All' }]}
         sortModel={[{ field: gridToList(sortBy), sort: sortOrder }]}
         onSortModelChange={onSortModelChange}
         disableRowSelectionOnClick

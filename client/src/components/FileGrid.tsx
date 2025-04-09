@@ -12,10 +12,11 @@ import { Visibility, FolderOff } from "@mui/icons-material";
 import { FileContextMenu } from "./FileMenu";
 import { getFileIcon } from "../pages/FileExplorer";
 import { useTheme } from "@emotion/react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef, useCallback } from "react";
 import { FileSortOrder, PublicUser } from "../myApi";
 import FileGridPreviewAttachment from "./FileGridPreview";
 import { getExtension } from "../utils";
+import { FixedSizeGrid } from "react-window";
 
 interface FileGridViewProps {
   files: FileMetadata[];
@@ -131,6 +132,68 @@ export function FileGridView({
     });
   }, [loading, files, sortBy, sortOrder, users]);
 
+  const gridRef = useRef<HTMLDivElement>(null);
+  const [gridDimensions, setGridDimensions] = useState({
+    width: 0,
+    height: 0,
+  });
+
+  // Calculate number of columns based on screen size
+  const columnCount = useMemo(() => {
+    if (gridDimensions.width < 600) return 2; 
+    if (gridDimensions.width < 900) return 3; 
+    if (gridDimensions.width < 1100) return 4;
+    if (gridDimensions.width < 1600) return 6; 
+    return 6;
+  }, [gridDimensions.width]);
+
+  // Calculate cell dimensions based on grid width and columns
+  const cellWidth = useMemo(() => {
+    // Account for padding and gap between items
+    const padding = 32; // 16px padding on each side (left and right)
+    const gap = 16 * (columnCount - 1); // 16px gap between columns
+    const availableWidth = gridDimensions.width - padding - gap;
+    return Math.floor(availableWidth / columnCount);
+  }, [gridDimensions.width, columnCount]);
+
+  // Cell height is equal to cell width for square cells
+  const cellHeight = cellWidth;
+
+  // Calculate row count based on number of files and columns
+  const rowCount = useMemo(() => {
+    return Math.ceil(sortedFiles.length / columnCount);
+  }, [sortedFiles.length, columnCount]);
+
+  // Update grid dimensions when container size changes
+  const gridRefCallback = useCallback((node: HTMLDivElement) => {
+    gridRef.current = node;
+    if (!gridRef.current) return;
+
+    const updateDimensions = () => {
+      if (gridRef.current) {
+        setGridDimensions({
+          width: gridRef.current.offsetWidth,
+          height: gridRef.current.offsetHeight,
+        });
+      }
+    };
+
+    // Initial size update
+    updateDimensions();
+
+    // Set up resize observer to update on resize
+    const resizeObserver = new ResizeObserver(updateDimensions);
+
+    resizeObserver.observe(gridRef.current);
+
+    // Clean up
+    return () => {
+      if (gridRef.current) {
+        resizeObserver.unobserve(gridRef.current);
+      }
+    };
+  }, []);
+
   // If loading, render skeleton grid
   if (loading) {
     return (
@@ -213,44 +276,76 @@ export function FileGridView({
       </Box>
     );
   }
+  // Cell renderer function for FixedSizeGrid
+  const Cell = ({
+    columnIndex,
+    rowIndex,
+    style,
+  }: {
+    columnIndex: number;
+    rowIndex: number;
+    style: React.CSSProperties;
+  }) => {
+    const index = rowIndex * columnCount + columnIndex;
+
+    // Return empty cell if index is out of bounds
+    if (index >= sortedFiles.length) {
+      return null;
+    }
+
+    const file = sortedFiles[index];
+
+    return (
+      <div
+        style={{
+          ...style,
+          padding: 8, // Add padding inside the cell
+        }}
+      >
+        <Box
+          sx={{
+            height: "100%",
+          }}
+          onContextMenu={(event) => handleContextMenu(event, file)}
+        >
+          <FileGridItem
+            file={file}
+            onNavigate={onNavigate}
+            onAction={onAction}
+            owner={owner}
+            onContextMenu={(event) => handleContextMenu(event, file)}
+            onPreviewLoad={(blobUrl) => onPreviewLoad?.(file.id, blobUrl)}
+          />
+        </Box>
+      </div>
+    );
+  };
 
   return (
     <Box
+      ref={gridRefCallback}
       sx={{
         height: "100%",
         flexGrow: 1,
-        overflowY: "auto",
-        p: 2,
+        pl: 1, // Horizontal padding (left and right)
+        pb: 1,  // Bottom padding
         borderRadius: 1,
       }}
     >
-      <Grid container spacing={2}>
-        {sortedFiles.map((file, index) => (
-          <Grid item xs={6} sm={4} md={3} lg={2} key={file.id}>
-            <Box
-              sx={{
-                opacity: 0,
-                animation: `fadeIn ${0.6}s ease-in-out forwards`,
-                animationDelay: `${index * 0.01}s`,
-                "@keyframes fadeIn": {
-                  "0%": { opacity: 0, transform: "translateY(10px)" },
-                  "100%": { opacity: 1, transform: "translateY(0)" },
-                },
-              }}
-              onContextMenu={(event) => handleContextMenu(event, file)}
-            >
-              <FileGridItem
-                file={file}
-                onNavigate={onNavigate}
-                onAction={onAction}
-                owner={owner}
-                onContextMenu={(event) => handleContextMenu(event, file)}
-                onPreviewLoad={(blobUrl) => onPreviewLoad?.(file.id, blobUrl)}
-              />
-            </Box>
-          </Grid>
-        ))}
-      </Grid>
+      {gridDimensions.width > 0 && gridDimensions.height > 0 && (
+        <FixedSizeGrid
+          columnCount={columnCount}
+          columnWidth={cellWidth + 16} // Add padding for spacing
+          height={gridDimensions.height}
+          rowCount={rowCount}
+          rowHeight={cellHeight + 16} // Add padding for spacing
+          width={gridDimensions.width}
+          itemData={sortedFiles}
+          overscanRowCount={5}
+        >
+          {Cell}
+        </FixedSizeGrid>
+      )}
 
       {/* Right-click context menu */}
 
@@ -331,8 +426,7 @@ function FileGridItem({
     <Paper
       elevation={1}
       sx={{
-        height: 0,
-        paddingBottom: "100%",
+        height: "100%", // Changed from 0 to 100%
         position: "relative",
         overflow: "hidden",
         borderRadius: 1,
@@ -403,8 +497,6 @@ function FileGridItem({
           left: 0,
           right: 0,
           bgcolor: "background.paper",
-          borderTop: "1px solid",
-          borderColor: "divider",
           py: 1,
           px: 1,
           display: "flex",
