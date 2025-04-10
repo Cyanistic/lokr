@@ -14,7 +14,7 @@
 
 a {
   font-weight: 500;
-  color: #81E6D9;
+  color: light-dark(#5fa299, #81E6D9);
   text-decoration: inherit;
 }
 a:hover {
@@ -73,7 +73,7 @@ button:focus-visible {
 .left-home-box p {
   font-size: 1rem;
   margin: 10px 0 20px;
-  color: #bdbdbd;
+  color: light-dark(#6b6b6b,#bdbdbd);
 }
 
 .home-buttons {
@@ -105,10 +105,6 @@ button:focus-visible {
   display: flex;
   justify-content: center;
   margin-top: 100px;
-}
-
-.home-buttons a:hover {
-  color: #151C29;
 }
 
 .uploadFile {

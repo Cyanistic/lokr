@@ -171,7 +171,7 @@ export function Home() {
               >
                 About Lokr
               </Typography>
-              <Typography variant="body2" sx={{ color: "#a0aec0", mb: 2 }}>
+              <Typography variant="body2" sx={{ mb: 2 }}>
                 Lokr is an open-source secure file sharing platform focused on
                 privacy and end-to-end encryption. Share files with confidence
                 using military-grade encryption and zero-knowledge architecture.
@@ -229,7 +229,6 @@ export function Home() {
                     sx={{
                       display: "flex",
                       alignItems: "center",
-                      color: "#a0aec0",
                       mr: 2,
                       mb: 1,
                     }}
@@ -259,7 +258,7 @@ export function Home() {
               >
                 Our Security Commitment
               </Typography>
-              <Typography variant="body2" sx={{ color: "#a0aec0", mb: 2 }}>
+              <Typography variant="body2" sx={{ mb: 2 }}>
                 Your privacy is our priority. We're committed to:
               </Typography>
               <Stack spacing={1.5}>
@@ -285,7 +284,7 @@ export function Home() {
                         flexShrink: 0,
                       }}
                     />
-                    <Typography variant="body2" sx={{ color: "#a0aec0" }}>
+                    <Typography variant="body2">
                       {item}
                     </Typography>
                   </Box>
@@ -303,7 +302,7 @@ export function Home() {
             spacing={2}
           >
             <Box>
-              <Typography variant="body2" sx={{ color: "#a0aec0" }}>
+              <Typography variant="body2">
                 © 2025 Lokr. All rights reserved.
               </Typography>
               <Typography

@@ -10,7 +10,7 @@ const colors = {
   },
   teal: {
     main: "#81E6D9",
-    light: "#9FEBE1",
+    light: "#5fa299",
     dark: "#5BC0B5",
     contrastText: "#1A202C",
   },
@@ -153,6 +153,19 @@ const muiTheme = createTheme({
             color: colors.text.primary,
           },
         },
+        outlined: {
+          borderColor: colors.teal.light,
+          color: colors.teal.light,
+          "&:hover": {
+            borderColor: colors.teal.dark,
+            backgroundColor: alpha(colors.teal.main, 0.08),
+            color: colors.teal.main,
+          },
+          "&.Mui-disabled": {
+            borderColor: alpha(colors.teal.main, 0.3),
+            color: alpha(colors.teal.main, 0.4),
+          },
+        }
       },
     },
     MuiTextField: {
@@ -268,6 +281,9 @@ export const darkMuiTheme = createTheme({
           "&.Mui-disabled": {
             borderColor: alpha("#FFFFFF", 0.3),
             color: alpha("#FFFFFF", 0.4),
+          },
+          "&.hover": {
+            color: colors.teal.main,
           },
         },
       },

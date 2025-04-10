@@ -17,19 +17,20 @@
 }
 
 .about-box {
-    width: 80%; /* Default width for responsive design */
-    max-width: 800px; /* Max width on larger screens */
+    width: 80%;
+    max-width: 800px;
     padding: 20px;
     font-size: 16px;
-    background-color: light-dark(#e2e8f0, #1e293b); /* White background */
+    background-color: light-dark(#e2e8f0, #1e293b);
     color: light-dark(#050316, #eae9fc);
     border: 2px solid;
-    border-radius: 12px; /* Rounded corners */
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2); /* Soft shadow to make it pop */
+    border-radius: 12px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
     transition: box-shadow 0.3s ease, border-color 0.3s ease;
     display: flex;
     align-items: center;
     gap: 15px;
+    border-color: light-dark(#5fa299, #81e6d9);
 }
 
 .icon-container {
@@ -50,4 +51,8 @@
 
 .about-box.left {
     flex-direction: row;
+}
+
+.about-box h2 {
+    color: light-dark(#5fa299, #81e6d9);
 }
