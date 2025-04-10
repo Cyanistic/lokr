@@ -68,6 +68,7 @@ import { PasswordModal } from "../components/PasswordModal";
 import { DeleteModal } from "../components/DeleteModal";
 import { useProfile } from "../components/ProfileProvider";
 import { useNavbar } from "../components/NavbarContext";
+import { RenameModal } from "../components/FileRenameModal";
 
 /** Return an icon based on file extension. */
 export function getFileIcon(
@@ -202,16 +203,19 @@ export default function FileExplorer(
   // The user's decrypted private key and public key
   const [privateKey, setPrivateKey] = useState<CryptoKey | null>(null);
 
-  const [collapsed, setCollapsed] = useState<boolean>(false);
   // Get window size for responsive design
   const { width } = useWindowSize();
   const isMobile = width < 768;
+
+  // Collapse the sidebar on mobile by default
+  const [collapsed, setCollapsed] = useState<boolean>(isMobile);
 
   const [shareOpen, setShareOpen] = useState<boolean>(false);
   const [infoOpen, setInfoOpen] = useState<boolean>(false);
   const [passwordOpen, setPasswordOpen] = useState<boolean>(false);
   const [deleteOpen, setDeleteOpen] = useState<boolean>(false);
-  const selectedFile = useRef<FileMetadata>(undefined);
+  const [renameOpen, setRenameOpen] = useState<boolean>(false);
+  const [selectedFile, setSelectedFile] = useState<FileMetadata>(undefined);
   const [linkPassword, setLinkPassword] = useState<string | null>(null);
   const [linkError, setLinkError] = useState<string | undefined>(undefined);
   const [linkKey, setLinkKey] = useState<CryptoKey | null>(null);
@@ -764,8 +768,8 @@ export default function FileExplorer(
   };
 
   async function handleFileAction(action: string, fileId: string) {
-    selectedFile.current = files[fileId];
-    if (!selectedFile.current) {
+    setSelectedFile(files[fileId]);
+    if (!files[fileId]) {
       showError("Unexpected error encountered. File not found...", fileId);
       return;
     }
@@ -777,9 +781,10 @@ export default function FileExplorer(
         setInfoOpen(true);
         break;
       case "download":
-        handleDownload(selectedFile.current);
+        handleDownload(selectedFile);
         break;
       case "rename":
+        setRenameOpen(true);
         break;
       case "share":
         setShareOpen(true);
@@ -804,6 +809,35 @@ export default function FileExplorer(
     } catch (err) {
       console.error("Error deleting file:", err);
       showError("Error deleting file");
+    }
+  };
+
+  const handleRename = async (
+    file: FileMetadata,
+    newName: string,
+  ): Promise<boolean> => {
+    try {
+      if (!file || !file?.key || file?.name === undefined) {
+        throw "File does not have valid values";
+      }
+      const nameNonce = generateNonce();
+      const encryptedNewName = await encryptText(file.key, newName, nameNonce);
+      const response = await API.api.updateFile(
+        file.id,
+        {
+          type: "rename",
+          encryptedName: bufferToBase64(encryptedNewName),
+          nameNonce: bufferToBase64(nameNonce),
+        },
+        { linkId: linkId ?? undefined },
+      );
+      if (!response.ok) throw response.error;
+      refreshProfile();
+      fetchFiles();
+      return true;
+    } catch (err) {
+      showError("Error renaming file. Please try again later.", err);
+      return false;
     }
   };
 
@@ -1186,7 +1220,7 @@ export default function FileExplorer(
       <ShareModal
         currentUser={profile ?? undefined}
         open={shareOpen}
-        file={selectedFile.current}
+        file={selectedFile}
         onClose={() => setShareOpen(false)}
       />
 
@@ -1194,7 +1228,7 @@ export default function FileExplorer(
       <FileInfoModal
         open={infoOpen}
         onClose={() => setInfoOpen(false)}
-        file={selectedFile.current}
+        file={selectedFile}
         users={users}
         path={dirStack}
       />
@@ -1210,10 +1244,18 @@ export default function FileExplorer(
 
       {/* File deletion confirmation modal */}
       <DeleteModal
-        file={selectedFile.current}
+        file={selectedFile}
         open={deleteOpen}
         onClose={() => setDeleteOpen(false)}
-        onConfirm={async () => await handleDelete(selectedFile.current!)}
+        onConfirm={async () => await handleDelete(selectedFile!)}
+      />
+
+      {/* File renaming modal */}
+      <RenameModal
+        file={selectedFile}
+        open={renameOpen}
+        onClose={() => setRenameOpen(false)}
+        onConfirm={async (newName) => await handleRename(selectedFile, newName)}
       />
 
       {/* File move dialog */}
@@ -1229,7 +1271,7 @@ export default function FileExplorer(
           }}
           linkId={linkId}
           owner={type === "files"}
-          file={selectedFile.current}
+          file={selectedFile}
           files={files}
           root={[...root]}
           dirStack={dirStack}

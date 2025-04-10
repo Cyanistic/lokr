@@ -69,13 +69,6 @@ export default function Navigation() {
       isButton: false,
     },
     {
-      title: "Share Files",
-      path: "/test",
-      authRequired: true,
-      onClick: undefined,
-      isButton: false,
-    },
-    {
       title: "Files",
       path: "/files",
       authRequired: true,

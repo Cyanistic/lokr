@@ -390,6 +390,12 @@ export type UpdateFile =
        * @example "38ZP4XEKLikREzyy9ttdaKLZ8WiWCd2i8ptTCwRwMlc="
        */
       encryptedName: string;
+      /**
+       * The new nonce for the file name
+       * We use a new one for each name for security reasons
+       * @example "nonce"
+       */
+      nameNonce: string;
       type: "rename";
     };
 

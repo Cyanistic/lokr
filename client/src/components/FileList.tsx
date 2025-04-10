@@ -345,10 +345,10 @@ export default function FileList({
         columns={columns}
         initialState={{
           pagination: {
-            paginationModel: { page: 0, pageSize: 10 },
+            paginationModel: { page: 0, pageSize: 20 },
           },
         }}
-        pageSizeOptions={[20, 100, { value: -1, label: 'All' }]}
+        pageSizeOptions={[20, 100, { value: -1, label: "All" }]}
         sortModel={[{ field: gridToList(sortBy), sort: sortOrder }]}
         onSortModelChange={onSortModelChange}
         disableRowSelectionOnClick

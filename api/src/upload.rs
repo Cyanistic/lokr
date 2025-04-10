@@ -191,7 +191,7 @@ pub async fn upload_file(
             &metadata,
             link_password.as_deref(),
             file_id,
-            file_data.len() as i64
+            file_data.len() as i64,
         )
         .await
         {
@@ -397,9 +397,10 @@ async fn process_upload_transaction(
                 .and_then(|e| e.code())
                 .is_some_and(|code| code == "787") =>
         {
-            return Err(
-                AppError::UserError((StatusCode::BAD_REQUEST, "Invalid parent id".into())),
-            )
+            return Err(AppError::UserError((
+                StatusCode::BAD_REQUEST,
+                "Invalid parent id".into(),
+            )))
         }
         Err(e) => return Err(e.into()),
         _ => {}
@@ -578,6 +579,10 @@ pub enum UpdateFile {
             content_encoding = "base64"
         )]
         encrypted_name: String,
+        /// The new nonce for the file name
+        /// We use a new one for each name for security reasons
+        #[schema(example = "nonce", content_encoding = "base64")]
+        name_nonce: String,
     },
 }
 
@@ -785,11 +790,15 @@ pub async fn update_file(
             .execute(&state.pool)
             .await?;
         }
-        UpdateFile::Rename { encrypted_name } => {
+        UpdateFile::Rename {
+            encrypted_name,
+            name_nonce,
+        } => {
             // Rename the file
             sqlx::query!(
-                "UPDATE file SET encrypted_name = ? WHERE id = ?",
+                "UPDATE file SET encrypted_name = ?, name_nonce = ? WHERE id = ?",
                 encrypted_name,
+                name_nonce,
                 id
             )
             .execute(&state.pool)

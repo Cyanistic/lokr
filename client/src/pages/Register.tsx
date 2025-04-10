@@ -291,6 +291,7 @@ export default function Register() {
                 error={Boolean(error.username)}
                 helperText={error.username || " "}
                 margin="none"
+                autoFocus
                 required
               />
 

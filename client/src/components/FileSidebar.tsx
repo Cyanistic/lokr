@@ -259,10 +259,7 @@ export function FileSidebar({
               )}
             </Box>
             {navItems.map((item, index) => (
-              <Link
-                key={index}
-                to={`${item.link}?${searchParams.toString()}`}
-              >
+              <Link key={index} to={`${item.link}?${searchParams.toString()}`}>
                 <ListItem disablePadding sx={{ mb: 0.5 }}>
                   <ListItemButton
                     sx={{

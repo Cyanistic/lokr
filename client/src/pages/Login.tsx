@@ -234,6 +234,7 @@ const Login: React.FC = () => {
                   onChange={(e) =>
                     setUser({ ...user, username: e.target.value })
                   }
+                  autoFocus
                   required
                 />
                 <TextField
