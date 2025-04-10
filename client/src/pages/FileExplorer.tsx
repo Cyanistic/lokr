@@ -276,7 +276,6 @@ export default function FileExplorer(
     if (!privateKey && !linkKey) {
       return;
     }
-    console.log(parentId, privateKey, linkKey, linkPassword);
     fetchFiles();
   }, [parentId, privateKey, linkKey, linkPassword]);
 
@@ -338,7 +337,7 @@ export default function FileExplorer(
         await downloadFile(file);
       }
     } catch (error) {
-      console.error("Error downloading file/folder. Please try again.", error);
+      showError("Error downloading file/folder. Please try again.", error);
     }
   };
 
@@ -443,36 +442,32 @@ export default function FileExplorer(
   }
 
   async function decryptPrivateKey() {
-    try {
-      if (!profile) {
-        return;
-      }
-      const { publicKey, gridView, id, email, username, sortOrder } = profile;
-      preferredView.current = gridView ? "grid" : "list";
-      // Sort order is actually sortBy because I forgot
-      // actually to rename it in the backend when I added sorting
-      preferredSortBy.current = sortOrder as typeof sortBy;
-      setUsers({ ...users, [id]: { publicKey, email, id, username } });
+    if (!profile) {
+      return;
+    }
+    const { publicKey, gridView, id, email, username, sortOrder } = profile;
+    preferredView.current = gridView ? "grid" : "list";
+    // Sort order is actually sortBy because I forgot
+    // actually to rename it in the backend when I added sorting
+    preferredSortBy.current = sortOrder as typeof sortBy;
+    setUsers({ ...users, [id]: { publicKey, email, id, username } });
 
-      // 2) If we have an encrypted private key, prompt for password
-      const storedPrivateKey: CryptoKey | null =
-        await localforage.getItem("privateKey");
-      // We can't compare CryptoKey objects directly because they are
-      // opaque, so instaed just check if the user's username changed,
-      // which likely means that they logged in with a different account
-      // and therefore have a different private key. We need to do this
-      // to prevent `refreshProfile` calls transitively calling `fetchFiles`
-      if (storedPrivateKey != null) {
-        if (previousUsername !== profile.username) {
-          setPrivateKey(storedPrivateKey);
-        }
-        setPreviousUsername(profile.username);
-      } else {
-        await logout();
-        navigate("/login");
+    // 2) If we have an encrypted private key, prompt for password
+    const storedPrivateKey: CryptoKey | null =
+      await localforage.getItem("privateKey");
+    // We can't compare CryptoKey objects directly because they are
+    // opaque, so instaed just check if the user's username changed,
+    // which likely means that they logged in with a different account
+    // and therefore have a different private key. We need to do this
+    // to prevent `refreshProfile` calls transitively calling `fetchFiles`
+    if (storedPrivateKey != null) {
+      if (previousUsername !== profile.username) {
+        setPrivateKey(storedPrivateKey);
       }
-    } catch (err) {
-      console.error("Error fetching profile or decrypting key:", err);
+      setPreviousUsername(profile.username);
+    } else {
+      await logout();
+      navigate("/login");
     }
   }
 
@@ -689,7 +684,7 @@ export default function FileExplorer(
             // or parent id is not null)
             if (!key) {
               if (!unwrapKey) {
-                console.error("Could not get parent key");
+                showError("Unexpected error. Could not get parent key");
                 return;
               }
               key = await unwrapAESKey(
@@ -819,8 +814,7 @@ export default function FileExplorer(
       refreshProfile();
       fetchFiles();
     } catch (err) {
-      console.error("Error deleting file:", err);
-      showError("Error deleting file");
+      showError("Error deleting file", err);
     }
   };
 
@@ -869,7 +863,7 @@ export default function FileExplorer(
         if (files[parentId].key) {
           parentKey = files[parentId].key;
         } else {
-          console.error("Could not find folder parent key");
+          showError("Error creating folder. Could not find folder parent key");
           return;
         }
         keyNonce = generateNonce();
@@ -908,8 +902,7 @@ export default function FileExplorer(
       refreshProfile();
       fetchFiles();
     } catch (err) {
-      console.error("Error creating folder:", err);
-      showError("Error creating folder");
+      showError("Error creating folder", err);
     }
   };
 

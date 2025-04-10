@@ -10,6 +10,7 @@ import {
   Grid,
   Avatar,
   Divider,
+  Tooltip,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import { FileMetadata } from "../types";
@@ -160,7 +161,11 @@ function FileInfoModal({
                   <Typography variant="caption" color="text.secondary">
                     Type
                   </Typography>
-                  <Typography variant="body2">{mimeType}</Typography>
+                  <Tooltip title={mimeType} placement="bottom">
+                    <Typography variant="body2" noWrap>
+                      {mimeType}
+                    </Typography>
+                  </Tooltip>
                 </Box>
               </Box>
             </Grid>

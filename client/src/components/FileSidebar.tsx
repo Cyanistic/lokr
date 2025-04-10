@@ -27,13 +27,12 @@ import {
 } from "@mui/material";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import FolderIcon from "@mui/icons-material/Folder";
-import DeleteIcon from "@mui/icons-material/Delete";
 import PeopleAltIcon from "@mui/icons-material/PeopleAlt";
-import { ChevronLeft, Logout, Settings } from "@mui/icons-material";
+import { ChevronLeft, Key, Logout, Settings } from "@mui/icons-material";
 import DefaultProfile from "/default-profile.webp";
 import { BASE_URL, formatBytes, logout } from "../utils";
 import { SessionUser } from "../myApi";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import CreateNewFolderIcon from "@mui/icons-material/CreateNewFolder";
 
 interface SidebarProps {
@@ -58,6 +57,7 @@ export function FileSidebar({
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const open = Boolean(anchorEl);
   const sidebarRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
 
   // Used for keeping query params across page navigations
   const searchParams = new URLSearchParams(location.search);
@@ -88,10 +88,18 @@ export function FileSidebar({
     handleCloseNewFolderDialog();
   };
 
+  const handleSignIn = () => {
+    const params = new URLSearchParams({
+      redirect: location.pathname + location.search + location.hash,
+    });
+    navigate(`/login?${params}`);
+  };
+
   const navItems = [
     { icon: FolderIcon, label: "My Files", link: "/files" },
     { icon: PeopleAltIcon, label: "Shared with me", link: "/shared" },
-    { icon: DeleteIcon, label: "Trash", link: "/recent" },
+    // Maybe add this if we have time
+    // { icon: DeleteIcon, label: "Trash", link: "/recent" },
   ];
 
   const handleOpenMenu = (event: React.MouseEvent<HTMLElement>) => {
@@ -259,43 +267,60 @@ export function FileSidebar({
               )}
             </Box>
             {navItems.map((item, index) => (
-              <Link key={index} to={`${item.link}?${searchParams.toString()}`}>
-                <ListItem disablePadding sx={{ mb: 0.5 }}>
-                  <ListItemButton
-                    sx={{
-                      borderRadius: 1,
-                      bgcolor: item.link.endsWith(current)
-                        ? "action.selected"
-                        : "transparent",
-                      justifyContent: collapsed ? "center" : "flex-start",
-                      px: collapsed ? 1 : 2,
-                      py: 1,
-                    }}
-                  >
-                    <ListItemIcon
+              <Link
+                key={index}
+                // I couldn't find a better way to disable the link
+                // component so it just redirects you to the same
+                // page instead of being disabled. Same thing right?
+                to={
+                  user
+                    ? `${item.link}?${searchParams.toString()}`
+                    : location.href
+                }
+              >
+                <Tooltip
+                  title={user ? item.label : "You must sign in to access"}
+                >
+                  <ListItem disablePadding sx={{ mb: 0.5 }}>
+                    <ListItemButton
+                      disabled={!user}
                       sx={{
-                        minWidth: collapsed ? 0 : 36,
-                        color: item.link.endsWith(current)
-                          ? "primary.main"
-                          : "text.secondary",
-                        mr: collapsed ? 0 : 1,
+                        borderRadius: 1,
+                        bgcolor: item.link.endsWith(current)
+                          ? "action.selected"
+                          : "transparent",
+                        justifyContent: collapsed ? "center" : "flex-start",
+                        px: collapsed ? 1 : 2,
+                        py: 1,
                       }}
                     >
-                      <item.icon style={{ height: 20, width: 20 }} />
-                    </ListItemIcon>
-                    {!collapsed && (
-                      <ListItemText
-                        primary={item.label}
+                      <ListItemIcon
                         sx={{
-                          m: 0,
-                          "& .MuiTypography-root": {
-                            fontWeight: item.link.endsWith(current) ? 500 : 400,
-                          },
+                          minWidth: collapsed ? 0 : 36,
+                          color: item.link.endsWith(current)
+                            ? "primary.main"
+                            : "text.secondary",
+                          mr: collapsed ? 0 : 1,
                         }}
-                      />
-                    )}
-                  </ListItemButton>
-                </ListItem>
+                      >
+                        <item.icon style={{ height: 20, width: 20 }} />
+                      </ListItemIcon>
+                      {!collapsed && (
+                        <ListItemText
+                          primary={item.label}
+                          sx={{
+                            m: 0,
+                            "& .MuiTypography-root": {
+                              fontWeight: item.link.endsWith(current)
+                                ? 800
+                                : 400,
+                            },
+                          }}
+                        />
+                      )}
+                    </ListItemButton>
+                  </ListItem>
+                </Tooltip>
               </Link>
             ))}
           </List>
@@ -303,28 +328,28 @@ export function FileSidebar({
         <Divider sx={{ my: 2 }} />
 
         <Box sx={{ px: 2, pb: 2 }}>
-          <Typography
-            variant="caption"
-            sx={{
-              display: "block",
-              mb: 1,
-              px: 1,
-              color: "text.secondary",
-              fontWeight: 600,
-              visibility: collapsed ? "hidden" : "visible",
-            }}
-          >
-            Storage
-          </Typography>
-          <Box
-            sx={{
-              px: 1,
-              mb: 1,
-              visibility: collapsed ? "hidden" : "visible",
-            }}
-          >
-            {user && (
-              <>
+          {user && (
+            <>
+              <Typography
+                variant="caption"
+                sx={{
+                  display: "block",
+                  mb: 1,
+                  px: 1,
+                  color: "text.secondary",
+                  fontWeight: 600,
+                  visibility: collapsed ? "hidden" : "visible",
+                }}
+              >
+                Storage
+              </Typography>
+              <Box
+                sx={{
+                  px: 1,
+                  mb: 1,
+                  visibility: collapsed ? "hidden" : "visible",
+                }}
+              >
                 <Box
                   sx={{
                     mb: 0.5,
@@ -354,104 +379,141 @@ export function FileSidebar({
                     }}
                   />
                 </Box>
-              </>
-            )}
-          </Box>
+              </Box>
+            </>
+          )}
         </Box>
 
-        <Box
-          sx={{
-            borderTop: "1px solid",
-            borderColor: "divider",
-            p: 2,
-          }}
-        >
-          <Button
-            variant="text"
-            fullWidth
-            onClick={handleOpenMenu}
+        {user ? (
+          <Box
             sx={{
-              justifyContent: "flex-start",
-              p: 1,
-              textTransform: "none",
-              color: "text.primary",
+              borderTop: "1px solid",
+              borderColor: "divider",
+              p: 2,
             }}
           >
-            {user && (
-              <>
-                <Avatar
-                  src={
-                    user.avatarExtension
-                      ? `${BASE_URL}/api/avatars/${user.id}.${user.avatarExtension}`
-                      : DefaultProfile
-                  }
-                  alt={user.username}
-                  sx={{ width: 32, height: 32 }}
-                >
-                  {user.username}
-                </Avatar>
-                {!collapsed && (
-                  <Box sx={{ ml: 1, textAlign: "left" }}>
-                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                      {user.username}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {user.email}
-                    </Typography>
-                  </Box>
-                )}
-              </>
-            )}
-          </Button>
-          <Menu
-            anchorEl={anchorEl}
-            open={open}
-            onClose={handleCloseMenu}
-            anchorOrigin={{
-              vertical: "top",
-              horizontal: "right",
-            }}
-            transformOrigin={{
-              vertical: "bottom",
-              horizontal: "right",
-            }}
-          >
-            <MenuItem sx={{ py: 1, px: 2 }}>
-              <Typography variant="subtitle2">My Account</Typography>
-            </MenuItem>
-            <Divider />
-            <Link to="/profile">
-              <MenuItem onClick={handleCloseMenu}>
-                <ListItemIcon sx={{ minWidth: 36 }}>
-                  <AccountCircleIcon style={{ height: 16, width: 16 }} />
-                </ListItemIcon>
-                <Typography variant="body2">Profile</Typography>
-              </MenuItem>
-            </Link>
-            <MenuItem onClick={handleCloseMenu}>
-              <ListItemIcon sx={{ minWidth: 36 }}>
-                <Settings style={{ height: 16, width: 16 }} />
-              </ListItemIcon>
-              <Typography variant="body2">Preferences</Typography>
-            </MenuItem>
-            <Divider />
-            <Link
-              to="/home"
-              onClick={async (e) => {
-                if (!(await logout())) {
-                  e.preventDefault();
-                }
+            <Button
+              variant="text"
+              fullWidth
+              onClick={handleOpenMenu}
+              sx={{
+                justifyContent: "flex-start",
+                p: 1,
+                textTransform: "none",
+                color: "text.primary",
               }}
             >
+              <Avatar
+                src={
+                  user.avatarExtension
+                    ? `${BASE_URL}/api/avatars/${user.id}.${user.avatarExtension}`
+                    : DefaultProfile
+                }
+                alt={user.username}
+                sx={{ width: 32, height: 32 }}
+              >
+                {user.username}
+              </Avatar>
+              {!collapsed && (
+                <Box sx={{ ml: 1, textAlign: "left" }}>
+                  <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                    {user.username}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {user.email}
+                  </Typography>
+                </Box>
+              )}
+            </Button>
+            <Menu
+              anchorEl={anchorEl}
+              open={open}
+              onClose={handleCloseMenu}
+              anchorOrigin={{
+                vertical: "top",
+                horizontal: "right",
+              }}
+              transformOrigin={{
+                vertical: "bottom",
+                horizontal: "right",
+              }}
+            >
+              <MenuItem sx={{ py: 1, px: 2 }}>
+                <Typography variant="subtitle2">My Account</Typography>
+              </MenuItem>
+              <Divider />
+              <Link to="/profile">
+                <MenuItem onClick={handleCloseMenu}>
+                  <ListItemIcon sx={{ minWidth: 36 }}>
+                    <AccountCircleIcon style={{ height: 16, width: 16 }} />
+                  </ListItemIcon>
+                  <Typography variant="body2">Profile</Typography>
+                </MenuItem>
+              </Link>
               <MenuItem onClick={handleCloseMenu}>
                 <ListItemIcon sx={{ minWidth: 36 }}>
-                  <Logout style={{ height: 16, width: 16 }} />
+                  <Settings style={{ height: 16, width: 16 }} />
                 </ListItemIcon>
-                <Typography variant="body2">Log out</Typography>
+                <Typography variant="body2">Preferences</Typography>
               </MenuItem>
-            </Link>
-          </Menu>
-        </Box>
+              <Divider />
+              <Link
+                to="/home"
+                onClick={async (e) => {
+                  if (!(await logout())) {
+                    e.preventDefault();
+                  }
+                }}
+              >
+                <MenuItem onClick={handleCloseMenu}>
+                  <ListItemIcon sx={{ minWidth: 36 }}>
+                    <Logout style={{ height: 16, width: 16 }} />
+                  </ListItemIcon>
+                  <Typography variant="body2">Log out</Typography>
+                </MenuItem>
+              </Link>
+            </Menu>
+          </Box>
+        ) : (
+          <Box
+            sx={{
+              pb: 2,
+              display: "flex",
+              justifyContent: "center",
+              px: 1,
+              width: "100%",
+            }}
+          >
+            {collapsed ? (
+              <Tooltip title="Sign In">
+                <Fab
+                  color="primary"
+                  size="small"
+                  onClick={handleSignIn}
+                  sx={{ boxShadow: 2 }}
+                >
+                  <Key sx={{ fontSize: 20 }} />
+                </Fab>
+              </Tooltip>
+            ) : (
+              <Tooltip title="Sign In">
+                <Button
+                  variant="contained"
+                  startIcon={<Key sx={{ fontSize: 18 }} />}
+                  onClick={handleSignIn}
+                  fullWidth
+                  sx={{
+                    boxShadow: 2,
+                    textTransform: "none",
+                    fontWeight: 500,
+                  }}
+                >
+                  Sign In
+                </Button>
+              </Tooltip>
+            )}
+          </Box>
+        )}
       </Box>
 
       {/* New Folder Dialog */}
