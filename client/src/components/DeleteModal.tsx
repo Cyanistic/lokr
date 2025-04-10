@@ -7,7 +7,6 @@ import {
   Typography,
   CircularProgress,
   Box,
-  Tooltip,
 } from "@mui/material";
 import { FileMetadata } from "../types";
 import { useState } from "react";

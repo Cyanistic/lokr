@@ -215,10 +215,14 @@ export default function FileExplorer(
   const [passwordOpen, setPasswordOpen] = useState<boolean>(false);
   const [deleteOpen, setDeleteOpen] = useState<boolean>(false);
   const [renameOpen, setRenameOpen] = useState<boolean>(false);
-  const [selectedFile, setSelectedFile] = useState<FileMetadata>(undefined);
+  const [selectedFile, setSelectedFile] = useState<FileMetadata | undefined>(
+    undefined,
+  );
   const [linkPassword, setLinkPassword] = useState<string | null>(null);
   const [linkError, setLinkError] = useState<string | undefined>(undefined);
   const [linkKey, setLinkKey] = useState<CryptoKey | null>(null);
+  // Used to determine if we should use a new private key
+  const [previousUsername, setPreviousUsername] = useState<string | null>(null);
 
   useEffect(() => {
     async function importLinkKey() {
@@ -267,11 +271,12 @@ export default function FileExplorer(
     }
   }
 
-  // Whenever currentDir or privateKey changes, fetch the files
+  // Refetch files if any of the necessessary function params change
   useEffect(() => {
     if (!privateKey && !linkKey) {
       return;
     }
+    console.log(parentId, privateKey, linkKey, linkPassword);
     fetchFiles();
   }, [parentId, privateKey, linkKey, linkPassword]);
 
@@ -319,7 +324,6 @@ export default function FileExplorer(
     }
   }, [dirStack, loading]);
 
-  /** Download raw data from the server (not decrypted). */
   const handleDownload = async (file: FileMetadata) => {
     try {
       if (file.isDirectory) {
@@ -453,8 +457,16 @@ export default function FileExplorer(
       // 2) If we have an encrypted private key, prompt for password
       const storedPrivateKey: CryptoKey | null =
         await localforage.getItem("privateKey");
+      // We can't compare CryptoKey objects directly because they are
+      // opaque, so instaed just check if the user's username changed,
+      // which likely means that they logged in with a different account
+      // and therefore have a different private key. We need to do this
+      // to prevent `refreshProfile` calls transitively calling `fetchFiles`
       if (storedPrivateKey != null) {
-        setPrivateKey(storedPrivateKey);
+        if (previousUsername !== profile.username) {
+          setPrivateKey(storedPrivateKey);
+        }
+        setPreviousUsername(profile.username);
       } else {
         await logout();
         navigate("/login");
@@ -781,7 +793,7 @@ export default function FileExplorer(
         setInfoOpen(true);
         break;
       case "download":
-        handleDownload(selectedFile);
+        handleDownload(selectedFile!);
         break;
       case "rename":
         setRenameOpen(true);
@@ -1255,7 +1267,9 @@ export default function FileExplorer(
         file={selectedFile}
         open={renameOpen}
         onClose={() => setRenameOpen(false)}
-        onConfirm={async (newName) => await handleRename(selectedFile, newName)}
+        onConfirm={async (newName) =>
+          await handleRename(selectedFile!, newName)
+        }
       />
 
       {/* File move dialog */}

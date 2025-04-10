@@ -4,7 +4,7 @@
   -- (x) Style register
   -- (x) Style login
   -- ( ) Style profile
-  -- ( ) Style about us
+  -- (x) Style about us
   -- (x) Style file page
   -- ( ) Add logo/branding
   -- (x) Add colors
@@ -40,7 +40,7 @@
   --- (x) Viewing files shared directly
   - (x) Add proper login screen for totp verification
   - (x) Add preferences menu
-  - ( ) Add file renaming modal
+  - (x) Add file renaming modal
   - (x) Add file deletion modal
   - ( ) Properly handle anonymous uploads
   -- (x) Do not show an error on home page when the user is not logged in
@@ -49,7 +49,7 @@
   - (x) Grid view
   -- (x) Add context menu to grid view
   -- (x) Add file previews to grid view
-  -- ( ) Add virtualization to grid previews
+  -- (x) Add virtualization to grid previews
   - (x) Support for persistent settings
   -- (x) Dark/Light theme customization
   -- (x) Grid/List view by default

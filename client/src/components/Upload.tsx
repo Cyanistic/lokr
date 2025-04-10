@@ -1,5 +1,4 @@
 import { API } from "../utils";
-import { FileMetadata } from "../types";
 import { UploadMetadata } from "../myApi";
 import {
   encryptAESKeyWithParentKey,
@@ -17,7 +16,7 @@ import { useProfile } from "./ProfileProvider";
 interface Props {
   parentId?: string | null;
   parentKey?: CryptoKey | null;
-  onUpload?: (file: FileMetadata) => void;
+  onUpload?: () => Promise<void>;
   isOverlay?: boolean;
   onClose?: () => void;
   linkId?: string | null;
@@ -28,6 +27,7 @@ export default function Upload({
   parentKey,
   isOverlay = false,
   onClose,
+  onUpload,
   linkId,
 }: Props) {
   interface FileMetadata {
@@ -279,6 +279,8 @@ export default function Upload({
       );
       showError(`${errorCount} files failed to upload.`);
     }
+
+    await onUpload?.();
   };
 
   const { getRootProps, getInputProps } = useDropzone({
@@ -302,11 +304,11 @@ export default function Upload({
         onClose?.();
       }
     };
-  
+
     if (isOverlay) {
       document.addEventListener("mousedown", handleClickOutside);
     }
-  
+
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
@@ -322,7 +324,10 @@ export default function Upload({
       ref={overlayRef}
       className={isOverlay ? "upload-overlay" : "file-upload-container"}
     >
-      <div ref={isOverlay ? modalBoxRef : null} className={isOverlay ? "upload-modal-box" : "upload-content"}>
+      <div
+        ref={isOverlay ? modalBoxRef : null}
+        className={isOverlay ? "upload-modal-box" : "upload-content"}
+      >
         {isOverlay && (
           <button className="close-button" onClick={() => onClose?.()}>
             X
