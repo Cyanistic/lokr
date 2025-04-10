@@ -4,7 +4,18 @@ use anyhow::Result;
 use sqlx::{QueryBuilder, Sqlite, SqlitePool};
 use uuid::Uuid;
 
-use crate::{error::AppError, upload::FileMetadata, users::PublicUser};
+use crate::{upload::FileMetadata, users::PublicUser, UPLOAD_DIR};
+
+macro_rules! log_err {
+    ($inner:expr) => {{
+        if let Err(e) = ($inner) {
+            ::tracing::error!(
+                "Error cleaning up database: {}",
+                $crate::error::AppError::from(e)
+            );
+        }
+    }};
+}
 
 pub fn levenshtien(a: &str, b: &str) -> usize {
     let len_a = a.chars().count();
@@ -93,14 +104,39 @@ impl<T: Iterator<Item = FileMetadata>> Normalize for T {
 }
 
 /// Clean up the database by removing expired sessions and share links
-pub async fn clean_up(pool: &SqlitePool) -> Result<(), AppError> {
+pub async fn clean_up(pool: &SqlitePool) {
+    // Use log_err! to log errors without returning them to the caller
+    log_err!(
     sqlx::query!("DELETE FROM session WHERE DATETIME(last_used_at, '+' || idle_duration || ' seconds' ) < CURRENT_TIMESTAMP")
         .execute(pool)
-        .await?;
-    sqlx::query!("DELETE FROM share_link WHERE DATETIME(expires_at) < CURRENT_TIMESTAMP")
-        .execute(pool)
-        .await?;
-    Ok(())
+        .await);
+    log_err!(
+        sqlx::query!("DELETE FROM share_link WHERE DATETIME(expires_at) < CURRENT_TIMESTAMP")
+            .execute(pool)
+            .await
+    );
+    // Delete all files that are not owned by a user and are not shared
+    log_err!('e: {
+        let deleted_files = match sqlx::query!(
+            r#"
+        DELETE FROM file
+        WHERE owner_id IS NULL
+        AND id NOT IN
+        (SELECT file_id FROM share_link WHERE DATETIME(expires_at) >= CURRENT_TIMESTAMP)
+        RETURNING id AS "id: Uuid"
+        "#
+        )
+        .fetch_all(pool)
+        .await
+        {
+            Ok(k) => k,
+            Err(e) => break 'e Err(e),
+        };
+        for file in deleted_files {
+            log_err!(std::fs::remove_file(&*UPLOAD_DIR.join(file.id.to_string())));
+        }
+        Ok(())
+    });
 }
 
 /// Get the user ids referenced by a map of files

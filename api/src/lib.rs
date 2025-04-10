@@ -20,7 +20,7 @@ use tower_http::{
     trace::{DefaultMakeSpan, DefaultOnRequest, DefaultOnResponse, TraceLayer},
     LatencyUnit, ServiceBuilderExt,
 };
-use tracing::{error, info, warn, Level};
+use tracing::{info, warn, Level};
 use upload::serve_auth;
 use url::Url;
 use utoipa::{
@@ -344,9 +344,7 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
         async move {
             loop {
                 tokio::time::sleep(Duration::from_secs(300)).await;
-                if let Err(e) = utils::clean_up(&pool).await {
-                    error!("Error cleaning up database: {}", e);
-                }
+                utils::clean_up(&pool).await;
             }
         }
     });

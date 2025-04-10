@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        DELETE FROM file\n        WHERE owner_id IS NULL\n        AND id NOT IN\n        (SELECT file_id FROM share_link WHERE DATETIME(expires_at) >= CURRENT_TIMESTAMP)\n        RETURNING id AS \"id: Uuid\"\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id: Uuid",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "e3ce387d99634b9c620236781d83433899d6ee5a9f7e2ce2ef1cff769f4278e9"
+}

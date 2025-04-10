@@ -1229,7 +1229,7 @@ pub async fn serve_auth(
     // that didn't work because ServeDir doesn't use path params
     // so I just had to use this hack instead
     let path = uri.path();
-    let last_segment = path.split('/').last().unwrap_or_default();
+    let last_segment = path.split('/').next_back().unwrap_or_default();
     let Ok(id) = Uuid::try_parse(last_segment) else {
         return Err(AppError::UserError((
             StatusCode::BAD_REQUEST,
