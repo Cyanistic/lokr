@@ -323,48 +323,35 @@ async fn process_upload_transaction(
     };
 
     // Check if the owner has enough space to upload the file
-    // If the owner is None, then that means the owner is anonymous
-    // in this case we should generate a share link instead of checking
-    // for space.
-    let link: Option<ShareResponse> = match owner_id {
-        Some(owner_id) => {
-            let owner = sqlx::query!(
-                "SELECT total_space, used_space FROM user WHERE id = ?",
-                owner_id
-            )
-            .fetch_one(&mut *tx)
-            .await?;
-            let row_space = metadata.file_nonce.as_ref().map(|f| f.len()).unwrap_or(1)
-                + metadata.key_nonce.as_ref().map(|k| k.len()).unwrap_or(1)
-                + metadata.name_nonce.len()
-                + metadata
-                    .mime_type_nonce
-                    .as_ref()
-                    .map(|m| m.len())
-                    .unwrap_or(1)
-                + metadata.encrypted_key.len()
-                + metadata.encrypted_file_name.len()
-                + metadata
-                    .encrypted_mime_type
-                    .as_ref()
-                    .map(|e| e.len())
-                    .unwrap_or(1);
-            if owner.used_space + row_space as i64 + file_size > owner.total_space {
-                return Err(AppError::UserError((
-                    StatusCode::PAYMENT_REQUIRED,
-                    "File owner does not have enough free space".into(),
-                )));
-            }
-            None
+    if let Some(owner_id) = owner_id {
+        let owner = sqlx::query!(
+            "SELECT total_space, used_space FROM user WHERE id = ?",
+            owner_id
+        )
+        .fetch_one(&mut *tx)
+        .await?;
+        let row_space = metadata.file_nonce.as_ref().map(|f| f.len()).unwrap_or(1)
+            + metadata.key_nonce.as_ref().map(|k| k.len()).unwrap_or(1)
+            + metadata.name_nonce.len()
+            + metadata
+                .mime_type_nonce
+                .as_ref()
+                .map(|m| m.len())
+                .unwrap_or(1)
+            + metadata.encrypted_key.len()
+            + metadata.encrypted_file_name.len()
+            + metadata
+                .encrypted_mime_type
+                .as_ref()
+                .map(|e| e.len())
+                .unwrap_or(1);
+        if owner.used_space + row_space as i64 + file_size > owner.total_space {
+            return Err(AppError::UserError((
+                StatusCode::PAYMENT_REQUIRED,
+                "File owner does not have enough free space".into(),
+            )));
         }
-        None => {
-            // Create a share link without edit permissions so we don't have to deal with
-            // anonymous users filling up a bunch of space.
-            // Might add ability to password protect in the future, keeping things simple for now.
-            // Will probably prevent abuse in the future using some kind of captcha or cloudflare
-            Some(share_with_link(state, &mut *tx, file_id, *uuid, 60 * 60 * 24, None, false).await?)
-        }
-    };
+    }
 
     match sqlx::query!(
         r#"
@@ -405,6 +392,19 @@ async fn process_upload_transaction(
         Err(e) => return Err(e.into()),
         _ => {}
     }
+
+    // If the owner is None, then that means the owner is anonymous
+    // in this case we should generate a share link instead of checking
+    // for space.
+    let link: Option<ShareResponse> = if owner_id.is_none() && metadata.parent_id.is_none() {
+        // Create a share link without edit permissions so we don't have to deal with
+        // anonymous users filling up a bunch of space.
+        // Might add ability to password protect in the future, keeping things simple for now.
+        // Will probably prevent abuse in the future using some kind of captcha or cloudflare
+        Some(share_with_link(state, &mut *tx, file_id, *uuid, 60 * 60 * 24, None, false).await?)
+    } else {
+        None
+    };
 
     // Everything went well, commit the transaction
     tx.commit().await?;
