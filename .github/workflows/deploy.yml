@@ -17,15 +17,18 @@ jobs:
 
       - name: Build Rust backend
         working-directory: ./api
-        run: cargo b -r
+        run: |
+          cargo b -r
+          mkdir api
+          mv ./target/release/lokr-api ./api
       - name: Transfer Backend
         uses: RowenTey/cloudflared-scp-action@6704878e1b42c1d31e876f75c29d344d291168b5
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USERNAME }}
           private_key: ${{ secrets.PRIVATE_KEY }}
-          from: ./api/target/release/lokr-api
-          to: /home/${{ secrets.SSH_USERNAME }}/lokr/api
+          from: ./api/api
+          to: /home/${{ secrets.SSH_USERNAME }}/lokr
 
   frontend:
     runs-on: ubuntu-latest

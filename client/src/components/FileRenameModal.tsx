@@ -50,7 +50,7 @@ export function RenameModal({
       maxWidth="xs"
     >
       <DialogTitle title={file?.name || ""} noWrap>
-        Renaming {file?.name ? `: ${file.name}` : ""}
+        Renaming{file?.name ? `: ${file.name}` : ""}
       </DialogTitle>
       <DialogContent sx={{ mb: -2 }}>
         <TextField

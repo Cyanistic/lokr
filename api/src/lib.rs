@@ -110,6 +110,10 @@ pub static AVATAR_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
     path
 });
 
+/// Website host
+pub static HOST: LazyLock<String> =
+    LazyLock::new(|| std::env::var("LOKR_HOST").unwrap_or("lokr.cyanistic.com".to_string()));
+
 #[derive(OpenApi)]
 #[openapi(
         modifiers(&SecurityAddon),

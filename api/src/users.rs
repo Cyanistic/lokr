@@ -31,7 +31,7 @@ use crate::{
     state::AppState,
     success,
     utils::levenshtien,
-    SuccessResponse, AVATAR_DIR,
+    SuccessResponse, AVATAR_DIR, HOST,
 };
 
 pub const MIN_PASSWORD_LENGTH: u64 = 8;
@@ -340,7 +340,7 @@ pub async fn authenticate_user(
             db_user
                 .email
                 .clone()
-                .unwrap_or_else(|| format!("{}@lokr.com", user.username)),
+                .unwrap_or_else(|| format!("{}@{}", user.username, *HOST)),
         );
         if !totp.check_current(&totp_code)? {
             return Err(AppError::UserError((
@@ -974,7 +974,7 @@ pub async fn update_totp(
                 Some("Lokr".to_string()),
                 user.email
                     .clone()
-                    .unwrap_or_else(|| format!("{}@lokr.com", user.username)),
+                    .unwrap_or_else(|| format!("{}@{}", user.username, *HOST)),
             );
             sqlx::query!(
                 "UPDATE user SET totp_secret = ?, totp_verified = false WHERE id = ?",
@@ -1013,7 +1013,7 @@ pub async fn update_totp(
                 Some("Lokr".to_string()),
                 user.email
                     .clone()
-                    .unwrap_or_else(|| format!("{}@lokr.com", user.username)),
+                    .unwrap_or_else(|| format!("{}@{}", user.username, *HOST)),
             );
             // Check the TOTP code provided by the user at the current time
             if !totp.check_current(&code)? {
@@ -1119,7 +1119,7 @@ pub async fn search_users(
     let mut best_matches = all_users
         .into_iter()
         .skip(params.offset as usize * params.limit as usize)
-        .take(10)
+        .take(params.limit as usize)
         .collect::<Vec<_>>();
     // Sort the best matches based on the sort order
     match params.sort {
