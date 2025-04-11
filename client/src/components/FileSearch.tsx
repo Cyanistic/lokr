@@ -64,7 +64,6 @@ export default function FileSearch({
     event: React.MouseEvent<HTMLElement>,
     path?: string | null,
   ) => {
-    console.log("newValue");
     event.stopPropagation(); // Prevent the autocomplete item from being selected
     onNavigateToPath(path);
     setOpen(false);

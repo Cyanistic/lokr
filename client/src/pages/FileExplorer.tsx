@@ -782,15 +782,17 @@ export default function FileExplorer(
     action: string,
     fileId: string | FileMetadata,
   ) {
+    let file;
     if (typeof fileId === "string") {
       if (!files[fileId]) {
         showError("Unexpected error encountered. File not found...", fileId);
         return;
       }
-      setSelectedFile(files[fileId]);
+      file = files[fileId];
     } else {
-      setSelectedFile(fileId);
+      file = fileId;
     }
+    setSelectedFile(file);
     switch (action) {
       case "delete":
         setDeleteOpen(true);
@@ -799,7 +801,7 @@ export default function FileExplorer(
         setInfoOpen(true);
         break;
       case "download":
-        handleDownload(selectedFile!);
+        handleDownload(file);
         break;
       case "rename":
         setRenameOpen(true);
@@ -1262,6 +1264,7 @@ export default function FileExplorer(
 
       {/* File renaming modal */}
       <RenameModal
+        key={`${selectedFile?.id}-rename`}
         file={selectedFile}
         open={renameOpen}
         onClose={() => setRenameOpen(false)}
@@ -1272,6 +1275,7 @@ export default function FileExplorer(
 
       {/* File preview modal */}
       <FilePreviewModal
+        key={`${selectedFile?.id}-preview`}
         open={previewOpen}
         onClose={() => setPreviewOpen(false)}
         file={selectedFile}

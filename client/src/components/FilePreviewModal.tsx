@@ -98,22 +98,6 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
   // PDF document reference for pinch zoom
   const pdfContainerRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    if (open && file) {
-      setScale(1.0);
-      setLoading(true);
-      setFallback(false);
-      setPageNumber(1);
-      setTextContent("");
-      setWordDocContent("");
-      setIsPlaying(false);
-      setCurrentTime(0);
-      setDuration(0);
-      setVolume(1);
-      setIsMuted(false);
-    }
-  }, [open, file]);
-
   // Fetch and decrypt file when component mounts or file changes
   useEffect(() => {
     // Make sure we have all required properties before proceeding
@@ -1449,16 +1433,47 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
       e.preventDefault();
       e.stopPropagation();
 
+      // Get cursor position relative to the image
+      const rect = imageRef.current?.getBoundingClientRect();
+      if (!rect) return;
+
+      // Calculate cursor position relative to the image
+      const cursorX = e.clientX;
+      const cursorY = e.clientY;
+
+      // Vector from image center to cursor
+      const imageCenterX = rect.left + rect.width / 2;
+      const imageCenterY = rect.top + rect.height / 2;
+      const vectorX = cursorX - imageCenterX;
+      const vectorY = cursorY - imageCenterY;
+
+      // Calculate new scale
       const zoomFactor = 0.1;
+      const oldScale = scale;
+      let newScale = oldScale;
+
       if (e.deltaY < 0) {
         // Zoom in
-        setScale((prev) => Math.min(prev + zoomFactor, 5));
+        newScale = Math.min(oldScale + zoomFactor, 5);
       } else {
         // Zoom out
-        setScale((prev) => Math.max(prev - zoomFactor, 0.2));
+        newScale = Math.max(oldScale - zoomFactor, 0.2);
       }
-    };
 
+      // Calculate how much the position needs to be adjusted to zoom at cursor
+      const adjustX = vectorX * (newScale / oldScale - 1);
+      const adjustY = vectorY * (newScale / oldScale - 1);
+
+      // Update scale
+      setScale(newScale);
+
+      // Update translation to keep position under cursor
+      setDragState((prevState) => ({
+        ...prevState,
+        translateX: prevState.translateX - adjustX,
+        translateY: prevState.translateY - adjustY,
+      }));
+    };
     // Handle touch gestures for pinch zoom
     const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
       if (e.touches.length === 2) {
@@ -1467,8 +1482,23 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
           e.touches[0].clientX - e.touches[1].clientX,
           e.touches[0].clientY - e.touches[1].clientY,
         );
+
+        // Store initial pinch information
         setPinchStartDistance(distance);
         setPinchStartScale(scale);
+
+        // Record center point of pinch for reference
+        const centerX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const centerY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+
+        // Update drag state with the center point
+        setDragState({
+          ...dragState,
+          isDragging: true,
+          lastX: centerX,
+          lastY: centerY,
+        });
+
         e.preventDefault();
       } else if (e.touches.length === 1) {
         // Single touch for panning
@@ -1480,23 +1510,74 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
         });
       }
     };
-
     const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
       if (e.touches.length === 2 && pinchStartDistance !== null) {
         // Handle pinch zoom
         e.preventDefault();
         e.stopPropagation();
 
+        // Get touch points
+        const touch1 = e.touches[0];
+        const touch2 = e.touches[1];
+
+        // Calculate center point of the pinch
+        const centerX = (touch1.clientX + touch2.clientX) / 2;
+        const centerY = (touch1.clientY + touch2.clientY) / 2;
+
+        // Calculate distance between fingers
         const distance = Math.hypot(
-          e.touches[0].clientX - e.touches[1].clientX,
-          e.touches[0].clientY - e.touches[1].clientY,
+          touch1.clientX - touch2.clientX,
+          touch1.clientY - touch2.clientY,
         );
 
+        // Calculate scale change
         const scaleFactor = distance / pinchStartDistance;
         const newScale = pinchStartScale * scaleFactor;
+        const oldScale = scale;
 
         // Limit scale to reasonable bounds
-        setScale(Math.min(Math.max(newScale, 0.2), 5));
+        const boundedNewScale = Math.min(Math.max(newScale, 0.2), 5);
+
+        // Get image dimensions and position
+        const imageRect = imageRef.current?.getBoundingClientRect();
+
+        if (imageRect) {
+          // Calculate where the pinch center is relative to the image center
+          const imageCenterX = imageRect.left + imageRect.width / 2;
+          const imageCenterY = imageRect.top + imageRect.height / 2;
+
+          // Calculate the vector from image center to pinch center
+          const vectorX = centerX - imageCenterX;
+          const vectorY = centerY - imageCenterY;
+
+          // Calculate how much this vector should change based on the scale change
+          // The adjustment factor determines how the translation should change to keep
+          // the pinch point stationary under the fingers
+          const adjustX = vectorX * (boundedNewScale / oldScale - 1);
+          const adjustY = vectorY * (boundedNewScale / oldScale - 1);
+
+          // Update scale
+          setScale(boundedNewScale);
+
+          // Update translation to keep the pinch center under the fingers
+          setDragState({
+            ...dragState,
+            lastX: centerX,
+            lastY: centerY,
+            translateX: dragState.translateX - adjustX,
+            translateY: dragState.translateY - adjustY,
+          });
+        } else {
+          // Fallback if we can't get image dimensions
+          setScale(boundedNewScale);
+
+          // Just update the last touch positions to ensure smooth transition
+          setDragState({
+            ...dragState,
+            lastX: centerX,
+            lastY: centerY,
+          });
+        }
       } else if (e.touches.length === 1 && dragState.isDragging) {
         // Handle pan
         e.preventDefault();
@@ -1513,8 +1594,21 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
     };
 
     const handleTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
-      if (e.touches.length < 2) {
-        // Reset pinch zoom tracking when fingers are lifted
+      // When transitioning from pinch-zoom (2 fingers) to single-touch (1 finger)
+      if (e.touches.length === 1 && pinchStartDistance !== null) {
+        // Reset pinch zoom tracking
+        setPinchStartDistance(null);
+
+        // Update the last touch position for the remaining finger to prevent snap
+        setDragState({
+          ...dragState,
+          lastX: e.touches[0].clientX,
+          lastY: e.touches[0].clientY,
+          // Keep isDragging true so we can continue panning with the remaining finger
+          isDragging: true,
+        });
+      } else if (e.touches.length < 2) {
+        // Just reset pinch zoom tracking when fingers are lifted
         setPinchStartDistance(null);
       }
 

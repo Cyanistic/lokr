@@ -28,7 +28,10 @@ export default defineConfig({
           if (id.includes("node_modules")) {
             if (id.includes("@mui")) {
               return "vendor_mui";
-            }
+            } 
+            // else if (id.includes("react")) {
+            //   return "vendor_react";
+            // }
             return "vendor"; // all other package goes here
           }
         },
