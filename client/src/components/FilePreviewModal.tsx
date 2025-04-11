@@ -36,6 +36,7 @@ import { FileMetadata } from "../types";
 import { API, getExtension } from "../utils";
 import { useToast } from "./ToastProvider";
 import { base64ToArrayBuffer } from "../cryptoFunctions";
+import DOMPurify from "dompurify";
 
 pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.js";
 
@@ -1700,7 +1701,9 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
             }}
           >
             <div
-              dangerouslySetInnerHTML={{ __html: wordDocContent }}
+              dangerouslySetInnerHTML={{
+                __html: DOMPurify.sanitize(wordDocContent),
+              }}
               style={{
                 fontFamily: "Arial, sans-serif",
                 lineHeight: "1.5",
