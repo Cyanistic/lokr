@@ -74,7 +74,7 @@ const TestPreviewPage: React.FC = () => {
       </Container>
 
       <FilePreviewModal
-        isOpen={isModalOpen}
+        open={isModalOpen}
         onClose={closeModal}
         file={selectedFile}
       />

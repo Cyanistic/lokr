@@ -32,23 +32,27 @@ import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/esm/Page/AnnotationLayer.css";
 import mammoth from "mammoth";
 import { getFileIcon } from "../pages/FileExplorer";
+import { FileMetadata } from "../types";
+import { API, getExtension } from "../utils";
+import { useToast } from "./ToastProvider";
+import { base64ToArrayBuffer } from "../cryptoFunctions";
 
 pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.js";
 
 interface FilePreviewModalProps {
-  isOpen: boolean;
+  open: boolean;
   onClose: () => void;
-  file: {
-    name: string;
-    type: string;
-    url: string;
-  } | null;
+  file?: FileMetadata;
+  onLoad?: (blobUrl?: string) => void;
+  linkId?: string;
 }
 
 const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
-  isOpen,
+  open,
   onClose,
+  onLoad,
   file,
+  linkId,
 }) => {
   const [numPages, setNumPages] = useState<number | null>(null);
   const [scale, setScale] = useState(1.0);
@@ -67,7 +71,8 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1.0); // Playback speed state
-  const fileExtension = file?.name.split(".").pop()?.toLowerCase();
+  const fileExtension = getExtension(file || "");
+  const { showError } = useToast();
 
   // States for feedback animations
   const [showRewindFeedback, setShowRewindFeedback] = useState(false);
@@ -93,7 +98,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
   const pdfContainerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (isOpen && file) {
+    if (open && file) {
       setScale(1.0);
       setLoading(true);
       setFallback(false);
@@ -106,16 +111,82 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
       setVolume(1);
       setIsMuted(false);
     }
-  }, [isOpen, file]);
+  }, [open, file]);
+
+  // Fetch and decrypt file when component mounts or file changes
+  useEffect(() => {
+    // Make sure we have all required properties before proceeding
+    if (!file || !file.id || !file.key || !file.fileNonce) {
+      return;
+    }
+
+    // Use cached blob URL if available
+    if (file.blobUrl) {
+      setLoading(false);
+      onLoad?.();
+      return;
+    }
+
+    const fetchAndDecryptFile = async () => {
+      setLoading(true);
+
+      try {
+        // Fetch the encrypted file
+        const response = await API.api.getFile(file.id, {
+          linkId: linkId ?? undefined,
+        });
+        if (!response.ok) throw response.error;
+
+        // Convert response to ArrayBuffer
+        const dataBuffer = await response.arrayBuffer();
+
+        // Ensure we have the key and nonce before decrypting
+        if (!file.key) {
+          throw new Error("File encryption key not found");
+        }
+
+        if (!file.fileNonce) {
+          throw new Error("File nonce not found");
+        }
+
+        // TypeScript needs this additional check even though we checked above
+        const key = file.key as CryptoKey;
+        const fileNonceBuffer = base64ToArrayBuffer(file.fileNonce);
+
+        const fileData = await crypto.subtle.decrypt(
+          { name: "AES-GCM", iv: fileNonceBuffer },
+          key,
+          dataBuffer,
+        );
+
+        // Create a blob URL for the decrypted data
+        const blob = new Blob([fileData], { type: file.mimeType });
+        const url = URL.createObjectURL(blob);
+
+        // Store the blob URL in the file metadata (handled at parent level)
+        if (onLoad) {
+          // We can use onLoad as a hook to inform the parent to update the file metadata
+          // Pass the generated blob URL to the parent component
+          onLoad(url);
+        }
+      } catch (err) {
+        showError("Error decrypting file.", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAndDecryptFile();
+  }, [file, onLoad, linkId]);
 
   // Keyboard navigation for video playback
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Only handle keyboard events if a video is being displayed
       if (
-        isOpen &&
+        open &&
         file &&
-        (file.type.startsWith("video/") ||
+        (file?.mimeType?.startsWith("video/") ||
           ["mp4", "mov", "webm"].includes(fileExtension || ""))
       ) {
         switch (e.key) {
@@ -174,48 +245,44 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isOpen, file, fileExtension, duration]);
+  }, [open, file, fileExtension, duration]);
 
   useEffect(() => {
     const loadText = async () => {
       if (
-        isOpen &&
+        open &&
         file &&
-        (file.type === "text/plain" || fileExtension === "txt")
+        (file.mimeType === "text/plain" || fileExtension === "txt") &&
+        file.blobUrl
       ) {
         try {
-          const res = await fetch(file.url);
+          const res = await fetch(file?.blobUrl);
           const text = await res.text();
           setTextContent(text);
           setLoading(false);
         } catch (err) {
-          console.error("Failed to load .txt content:", err);
+          showError("Failed to load text preview content.", err);
           setLoading(false);
         }
       }
     };
 
     loadText();
-  }, [isOpen, file, fileExtension]);
-
-  useEffect(() => {
-    if (file?.type.startsWith("video")) {
-      console.log("🎥 A new video file was selected:", file.name);
-    }
-  }, [file]);
+  }, [open, file, fileExtension]);
 
   useEffect(() => {
     const loadWordDoc = async () => {
       if (
-        isOpen &&
+        open &&
         file &&
-        (file.type ===
+        (file.mimeType ===
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
           fileExtension === "docx" ||
-          fileExtension === "doc")
+          fileExtension === "doc") &&
+        file.blobUrl
       ) {
         try {
-          const res = await fetch(file.url);
+          const res = await fetch(file.blobUrl);
           const blob = await res.blob();
           const arrayBuffer = await blob.arrayBuffer();
 
@@ -223,14 +290,14 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
           setWordDocContent(result.value);
           setLoading(false);
         } catch (err) {
-          console.error("Failed to load Word document:", err);
+          showError("Failed to load Word document.", err);
           setLoading(false);
         }
       }
     };
 
     loadWordDoc();
-  }, [isOpen, file, fileExtension]);
+  }, [open, file, fileExtension]);
 
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
@@ -462,7 +529,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
           onTouchStart={handleUserActivity}
         >
           <iframe
-            src={`${file!.url}#toolbar=0&navpanes=0&scrollbar=0`}
+            src={`${file!.blobUrl}#toolbar=0&navpanes=0&scrollbar=0`}
             title="PDF Preview"
             onLoad={() => setLoading(false)}
             style={{ width: "100%", height: "100%", border: "none" }}
@@ -540,7 +607,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
           }}
         >
           <Document
-            file={file!.url}
+            file={file!.blobUrl}
             onLoadSuccess={onDocumentLoadSuccess}
             onLoadError={(error) => {
               console.error("react-pdf failed, falling back to iframe:", error);
@@ -634,7 +701,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
                 )}
 
                 {/* Play icon in center */}
-                {!isPlaying && !loading && (
+                {!loading && (
                   <Box
                     sx={{
                       position: "absolute",
@@ -647,7 +714,11 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
                       justifyContent: "center",
                     }}
                   >
-                    <PlayArrowIcon sx={{ fontSize: 40, color: "#333" }} />
+                    {isPlaying ? (
+                      <PauseIcon sx={{ fontSize: 40, color: "#333" }} />
+                    ) : (
+                      <PlayArrowIcon sx={{ fontSize: 40, color: "#333" }} />
+                    )}
                   </Box>
                 )}
               </Box>
@@ -656,7 +727,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
 
           <audio
             ref={audioRef}
-            src={file!.url}
+            src={file!.blobUrl}
             onTimeUpdate={handleTimeUpdate}
             onLoadedMetadata={handleLoadedMetadata}
             onEnded={() => setIsPlaying(false)}
@@ -776,11 +847,11 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
     const preventDefaultTouchHandler = (e: TouchEvent) => {
       if (
         e.touches.length > 1 &&
-        (file?.type.startsWith("image/") ||
+        (file?.mimeType?.startsWith("image/") ||
           ["jpg", "jpeg", "png", "gif", "bmp", "webp", "svg"].includes(
             fileExtension || "",
           ) ||
-          file?.type === "application/pdf" ||
+          file?.mimeType === "application/pdf" ||
           fileExtension === "pdf")
       ) {
         e.preventDefault();
@@ -812,7 +883,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
       // Check if we're displaying an image
       if (
         file &&
-        (file.type.startsWith("image/") ||
+        (file?.mimeType?.startsWith("image/") ||
           ["jpg", "jpeg", "png", "gif", "bmp", "webp", "svg"].includes(
             fileExtension || "",
           ))
@@ -975,7 +1046,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
         >
           <video
             ref={videoRef}
-            src={file?.url}
+            src={file?.blobUrl}
             controls={false}
             onTimeUpdate={handleTimeUpdate}
             onLoadedMetadata={(e) => {
@@ -1106,18 +1177,9 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
               zIndex: 10,
               pointerEvents: showControlsBar ? "auto" : "none",
             }}
-            onClick={(e) => {
-              handleUserActivity(); // Reset timer when controls are clicked
-              e.stopPropagation(); // Prevent event bubbling
-            }}
-            onMouseMove={(e) => {
-              handleUserActivity(); // Reset timer when mouse moves over controls
-              e.stopPropagation();
-            }}
-            onTouchStart={(e) => {
-              handleUserActivity(); // Reset timer when touch starts on controls
-              e.stopPropagation();
-            }}
+            onClick={handleUserActivity}
+            onMouseMove={handleUserActivity}
+            onTouchStart={handleUserActivity}
           >
             <Slider
               value={currentTime}
@@ -1338,7 +1400,6 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
   const renderImage = () => {
     // Handle mouse drag for panning images
     const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-      console.log(e);
       e.preventDefault(); // Prevent default behavior
       setDragState({
         ...dragState,
@@ -1348,7 +1409,8 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
       });
     };
 
-    const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const handleMouseMove = (e: React.MouseEvent<HTMLImageElement>) => {
+      handleUserActivity();
       if (!dragState.isDragging) return;
 
       e.preventDefault(); // Prevent default behavior
@@ -1492,15 +1554,17 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
         >
           <img
             ref={imageRef}
-            src={file!.url || "/placeholder.svg"}
+            src={file!.blobUrl || "/placeholder.svg"}
             alt={file!.name}
             onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
+            onMouseMove={(e) => {
+              handleMouseMove(e);
+            }}
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseUp}
             onClick={(e) => {
               handleUserActivity();
-              handleContentBackgroundClick(e); // Close modal when clicking outside image
+              e.stopPropagation();
             }}
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
@@ -1709,11 +1773,11 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
   const renderContent = () => {
     if (!file) return null;
 
-    if (file.type === "application/pdf" || fileExtension === "pdf") {
+    if (file.mimeType === "application/pdf" || fileExtension === "pdf") {
       return renderPdf();
     }
 
-    if (file.type === "text/plain" || fileExtension === "txt") {
+    if (file.mimeType === "text/plain" || fileExtension === "txt") {
       return (
         <Box
           sx={{
@@ -1742,7 +1806,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
     }
 
     if (
-      file.type.startsWith("audio/") ||
+      file?.mimeType?.startsWith("audio/") ||
       fileExtension === "mp3" ||
       fileExtension === "wav" ||
       fileExtension === "m4a"
@@ -1751,7 +1815,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
     }
 
     if (
-      file.type.startsWith("video/") ||
+      file?.mimeType?.startsWith("video/") ||
       fileExtension === "mp4" ||
       fileExtension === "mov" ||
       fileExtension === "webm"
@@ -1760,7 +1824,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
     }
 
     if (
-      file.type.startsWith("image/") ||
+      file?.mimeType?.startsWith("image/") ||
       ["jpg", "jpeg", "png", "gif", "bmp", "webp", "svg"].includes(
         fileExtension || "",
       )
@@ -1769,7 +1833,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
     }
 
     if (
-      file.type ===
+      file.mimeType ===
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
       fileExtension === "doc" ||
       fileExtension === "docx"
@@ -1777,7 +1841,65 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
       return renderWordDoc();
     }
 
-    return <Typography>Unsupported file type</Typography>;
+    return (
+      <Box
+        sx={{
+          width: "100%",
+          height: "100%",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: "transparent",
+        }}
+        onClick={onClose}
+      >
+        <Box
+          sx={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: "rgba(255, 255, 255, 0.1)",
+            backdropFilter: "blur(10px)",
+            borderRadius: 4,
+            padding: 4,
+            width: { xs: "80%", sm: "60%", md: "40%" },
+            maxWidth: 400,
+          }}
+        >
+          <Box
+            sx={{
+              backgroundColor: "rgba(0, 0, 0, 0.1)",
+              borderRadius: "50%",
+              width: 120,
+              height: 120,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              mb: 3,
+            }}
+          >
+            {getFileIcon(file?.mimeType, 64, 64)}
+          </Box>
+          <Typography
+            variant="h6"
+            align="center"
+            sx={{ color: "white", mb: 1 }}
+          >
+            Unsupported File Type
+          </Typography>
+          <Typography
+            variant="body2"
+            align="center"
+            sx={{ color: "rgba(255, 255, 255, 0.7)" }}
+          >
+            Preview is not available for{" "}
+            {fileExtension ? `.${fileExtension} files` : "this file"}
+          </Typography>
+        </Box>
+      </Box>
+    );
   };
 
   if (!file) return null;
@@ -1802,24 +1924,28 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
 
   return (
     <Dialog
-      open={isOpen}
+      open={open}
       onClose={onClose}
       fullWidth
       maxWidth={false}
-      PaperProps={{
-        sx: {
-          width: "100dvw",
-          height: "100dvh",
-          maxWidth: "100dvw",
-          maxHeight: "100dvh",
-          borderRadius: 0,
-          overflow: "hidden",
-          backgroundColor: "rgba(0, 0, 0, 0.5)",
-          m: 0,
-          // Add meta viewport tag for proper mobile scaling
-          "&::before": {
-            content: '""',
-            height: 0,
+      slotProps={{
+        paper: {
+          sx: {
+            width: "100dvw",
+            height: "100dvh",
+            maxWidth: "100dvw",
+            maxHeight: "100dvh",
+            borderRadius: 0,
+            overflow: "hidden",
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            m: 0,
+            // Fix gray background
+            backgroundImage: "none",
+            // Add meta viewport tag for proper mobile scaling
+            "&::before": {
+              content: '""',
+              height: 0,
+            },
           },
         },
       }}
@@ -1879,7 +2005,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
                   height: 24,
                 }}
               >
-                {getFileIcon(file?.type)}
+                {getFileIcon(file?.mimeType)}
               </Box>
 
               {/* File name */}
@@ -1895,7 +2021,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
                   maxWidth: { xs: "200px", sm: "300px", md: "400px" },
                 }}
               >
-                {file ? decodeURIComponent(file.name) : ""}
+                {file?.name ? file.name : "Encrypted File"}
               </Typography>
             </Box>
           </Box>
@@ -1904,7 +2030,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
             {/* Download button */}
             <Tooltip title="Download">
               <IconButton
-                href={file?.url}
+                href={file?.blobUrl || ""}
                 download={file?.name}
                 sx={{ color: "#e8eaed" }}
                 aria-label="Download"
@@ -1923,7 +2049,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
           position: "relative",
           display: "flex",
           flexDirection: "column",
-          bgcolor: "transparent",
+          backgroundColor: "transparent",
           border: "none",
           boxSizing: "border-box",
           touchAction: "none", // Disable default browser touch actions to prevent conflicts with our pinch zoom
@@ -1941,6 +2067,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
             overflow: "auto",
             width: "100%",
             height: "100%", // Ensure full height
+            background: "transparent",
             "& .react-pdf__Document": {
               display: "flex",
               flexDirection: "column",
@@ -1953,7 +2080,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
             // Check if we're displaying an image
             if (
               file &&
-              (file.type.startsWith("image/") ||
+              (file?.mimeType?.startsWith("image/") ||
                 ["jpg", "jpeg", "png", "gif", "bmp", "webp", "svg"].includes(
                   fileExtension || "",
                 ))
@@ -1979,11 +2106,11 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
             // Handle PDF and image pinch zooms at container level
             if (
               e.touches.length === 2 &&
-              (file?.type.startsWith("image/") ||
+              (file?.mimeType?.startsWith("image/") ||
                 ["jpg", "jpeg", "png", "gif", "bmp", "webp", "svg"].includes(
                   fileExtension || "",
                 ) ||
-                file?.type === "application/pdf" ||
+                file?.mimeType === "application/pdf" ||
                 fileExtension === "pdf")
             ) {
               const distance = Math.hypot(
@@ -1999,11 +2126,11 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
             if (
               e.touches.length === 2 &&
               pinchStartDistance !== null &&
-              (file?.type.startsWith("image/") ||
+              (file?.mimeType?.startsWith("image/") ||
                 ["jpg", "jpeg", "png", "gif", "bmp", "webp", "svg"].includes(
                   fileExtension || "",
                 ) ||
-                file?.type === "application/pdf" ||
+                file?.mimeType === "application/pdf" ||
                 fileExtension === "pdf")
             ) {
               e.preventDefault();
@@ -2030,7 +2157,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
         {/* Bottom Bar for PDFs */}
         {!fallback &&
           numPages &&
-          (file.type === "application/pdf" || fileExtension === "pdf") && (
+          (file.mimeType === "application/pdf" || fileExtension === "pdf") && (
             <Box
               sx={{
                 position: "absolute",

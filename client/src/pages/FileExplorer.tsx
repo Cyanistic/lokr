@@ -69,6 +69,7 @@ import { DeleteModal } from "../components/DeleteModal";
 import { useProfile } from "../components/ProfileProvider";
 import { useNavbar } from "../components/NavbarContext";
 import { RenameModal } from "../components/FileRenameModal";
+import FilePreviewModal from "../components/FilePreviewModal";
 
 /** Return an icon based on file extension. */
 export function getFileIcon(
@@ -215,6 +216,7 @@ export default function FileExplorer(
   const [passwordOpen, setPasswordOpen] = useState<boolean>(false);
   const [deleteOpen, setDeleteOpen] = useState<boolean>(false);
   const [renameOpen, setRenameOpen] = useState<boolean>(false);
+  const [previewOpen, setPreviewOpen] = useState<boolean>(false);
   const [selectedFile, setSelectedFile] = useState<FileMetadata | undefined>(
     undefined,
   );
@@ -765,20 +767,29 @@ export default function FileExplorer(
   }, []);
 
   /** Directory navigation. */
-  const handleOpenFolder = (folder: FileMetadata) => {
-    if (folder.isDirectory) {
+  const handleOpenFile = (file: FileMetadata) => {
+    if (file.isDirectory) {
       setParams((params) => {
-        params.set("parentId", folder.id);
+        params.set("parentId", file.id);
         return params;
       });
+    } else {
+      handleFileAction("preview", file);
     }
   };
 
-  async function handleFileAction(action: string, fileId: string) {
-    setSelectedFile(files[fileId]);
-    if (!files[fileId]) {
-      showError("Unexpected error encountered. File not found...", fileId);
-      return;
+  async function handleFileAction(
+    action: string,
+    fileId: string | FileMetadata,
+  ) {
+    if (typeof fileId === "string") {
+      if (!files[fileId]) {
+        showError("Unexpected error encountered. File not found...", fileId);
+        return;
+      }
+      setSelectedFile(files[fileId]);
+    } else {
+      setSelectedFile(fileId);
     }
     switch (action) {
       case "delete":
@@ -798,6 +809,9 @@ export default function FileExplorer(
         break;
       case "move":
         setMoveOpen(true);
+        break;
+      case "preview":
+        setPreviewOpen(true);
         break;
       default:
         showError(`Unsupported case encountered in handleAction! ${action}`);
@@ -963,16 +977,7 @@ export default function FileExplorer(
                 loading={loading}
                 files={files}
                 onOpen={throttledFetchFiles}
-                onFileSelected={(file) => {
-                  if (file.isDirectory) {
-                    setParams((params) => {
-                      params.set("parentId", file.id);
-                      return params;
-                    });
-                  } else {
-                    // TODO: Handle showing file previews here
-                  }
-                }}
+                onFileSelected={handleOpenFile}
                 onNavigateToPath={(path) => {
                   setParams((params) => {
                     if (path) {
@@ -1166,7 +1171,7 @@ export default function FileExplorer(
               <FileList
                 onRowClick={(fileId) => {
                   const file = files[fileId]!;
-                  handleOpenFolder(file);
+                  handleOpenFile(file);
                 }}
                 onSortModelChange={(model) => {
                   const value = model[0];
@@ -1198,7 +1203,7 @@ export default function FileExplorer(
                 users={users}
                 onNavigate={(fileId) => {
                   const file = files[fileId]!;
-                  handleOpenFolder(file);
+                  handleOpenFile(file);
                 }}
                 onAction={handleFileAction}
                 loading={loading}
@@ -1263,6 +1268,25 @@ export default function FileExplorer(
         onConfirm={async (newName) =>
           await handleRename(selectedFile!, newName)
         }
+      />
+
+      {/* File preview modal */}
+      <FilePreviewModal
+        open={previewOpen}
+        onClose={() => setPreviewOpen(false)}
+        file={selectedFile}
+        onLoad={(blobUrl) => {
+          if (blobUrl) {
+            setFiles((prevFiles) => ({
+              ...prevFiles,
+              [selectedFile!.id]: {
+                ...prevFiles[selectedFile!.id],
+                blobUrl,
+              },
+            }));
+            setSelectedFile({ ...selectedFile!, blobUrl });
+          }
+        }}
       />
 
       {/* File move dialog */}
