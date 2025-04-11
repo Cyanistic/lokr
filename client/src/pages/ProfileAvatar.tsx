@@ -61,7 +61,7 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({
         alt="Avatar"
         width={256}
         height={256}
-        style={{ marginBottom: "20px" }} // Add space below the image
+        style={{ display: "none", marginBottom: "20px" }} // Hide the square image
       />
       <div style={{ marginBottom: "20px" }}>
         <input

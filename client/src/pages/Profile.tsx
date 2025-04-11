@@ -10,7 +10,7 @@ import {
 } from "../cryptoFunctions";
 import localforage from "localforage";
 import { useSearchParams } from "react-router-dom";
-import { FileSortOrder, Theme, UserUpdate } from "../myApi";
+import { FileSortOrder, UserUpdate } from "../myApi";
 import { useToast } from "../components/ToastProvider";
 import "./Profile.css";
 import { useProfile } from "../components/ProfileProvider";
@@ -20,7 +20,8 @@ import {
   DialogContent,
   DialogActions,
 } from "@mui/material";
-import { Button, Typography } from "@mui/material";
+import { Button, Typography, Avatar } from "@mui/material";
+import { useMuiTheme } from "../components/MuiThemeProvider";
 
 // Valid profile sections
 const Sections = ["profile", "security", "notifications"] as const;
@@ -56,8 +57,7 @@ function Profile() {
   const [totpInputCode, setTOTPInputCode] = useState("");
   const [totpVerified, setTOTPVerified] = useState(false);
 
-  // New state for theme and sort order preferences
-  const [selectedTheme, setSelectedTheme] = useState<Theme>("system");
+  const { mode, toggleTheme } = useMuiTheme();
   const [selectedSortOrder, setSelectedSortOrder] =
     useState<FileSortOrder>("name");
 
@@ -69,8 +69,8 @@ function Profile() {
         setAvatarUrl(
           `${getAvatarUrl({
             id: profile.id,
-            avatarExtension: profile?.avatarExtension,
-          })}/?q=${Math.random()}`,
+            avatarExtension: profile.avatarExtension,
+          })}/?q=${Math.random()}`
         );
       }
     };
@@ -87,7 +87,6 @@ function Profile() {
   // Update selected preferences when profile data changes
   useEffect(() => {
     if (profile) {
-      setSelectedTheme(profile.theme || "system");
       setSelectedSortOrder(profile.sortOrder || "name");
     }
   }, [profile]);
@@ -253,14 +252,13 @@ function Profile() {
   // Save edit to backend
   const handleSave = async (field: "username" | "password" | "email") => {
     try {
-      const passwordSalt: Uint8Array | null = (await localforage.getItem(
-        "passwordSalt",
-      )) as Uint8Array | null;
+      const passwordSalt: Uint8Array | null = (await localforage.getItem("passwordSalt")) as Uint8Array | null;
       const password = prompt("Enter your current password to confirm change");
-      let requestBody: UserUpdate;
       if (!password) {
         throw new Error("Password confirmation is required.");
       }
+
+      let requestBody: UserUpdate;
       if (field === "username") {
         if (updatedValue.length < 3 || updatedValue.length > 20) {
           throw new Error("Username must be 3-20 characters long.");
@@ -270,6 +268,7 @@ function Profile() {
           throw new Error("Password must be at least 8 characters long.");
         }
       }
+
       if (field === "password") {
         requestBody = {
           type: "password",
@@ -277,11 +276,10 @@ function Profile() {
           password: await hashPassword(password, passwordSalt),
           encryptedPrivateKey: "",
         };
-        const salt: string | undefined | null =
-          await localforage.getItem("salt");
-        const privateKey: CryptoKey | undefined | null =
-          await localforage.getItem("privateKey");
-        const iv: string | undefined | null = await localforage.getItem("iv");
+        const salt: string | null = await localforage.getItem("salt");
+        const privateKey: CryptoKey | null = await localforage.getItem("privateKey");
+        const iv: string | null = await localforage.getItem("iv");
+
         if (!salt) {
           throw new Error("Could not find master key salt");
         }
@@ -291,6 +289,7 @@ function Profile() {
         if (!iv) {
           throw new Error("Could not find iv");
         }
+
         const masterKey = await deriveKeyFromPassword(updatedValue, salt);
         const { encrypted: encryptedPrivateKey } = await encryptPrivateKey(
           privateKey,
@@ -320,6 +319,7 @@ function Profile() {
           `Failed to update ${field}: ${errorData.message || response.statusText}`,
         );
       }
+
       if (field === "email") {
         await refreshProfile();
         console.log("Disabling TOTP in UI due to email change");
@@ -342,13 +342,12 @@ function Profile() {
   const toggleGridView = async () => {
     if (!profile) return;
     const newView = !profile.gridView;
-    const currentTheme = profile.theme || "system";
-    const currentSortOrder = profile.sortOrder || "name";
+    const currentSortOrder = selectedSortOrder;
     try {
       const response = await API.api.updatePreferences({
         gridView: newView,
-        theme: currentTheme,
         sortOrder: currentSortOrder,
+        theme: mode,
       });
       if (!response.ok) throw response.error;
       refreshProfile();
@@ -357,14 +356,13 @@ function Profile() {
     }
   };
 
-  // Update theme and sort order preferences
   const updatePreferences = async () => {
     if (!profile) return;
     try {
       const response = await API.api.updatePreferences({
         sortOrder: selectedSortOrder,
         gridView: profile.gridView,
-        theme: selectedTheme,
+        theme: mode,
       });
       if (!response.ok) throw response.error;
       refreshProfile();
@@ -373,23 +371,20 @@ function Profile() {
     }
   };
 
-  // Reorganize columns for profile section (avatar remains on right)
   const renderContent = () => {
     switch (activeSection) {
       case "profile":
         if (loading) {
           return (
             <div className="profileInfo">
-              <h3>Profile Information</h3>
+              <h3>Preferences</h3>
               <p>Loading user data...</p>
             </div>
           );
         }
         return (
           <div className="profileInfo">
-            <h3>Profile Information</h3>
-
-            {/* Two-column container */}
+            <h3>Preferences</h3>
             <div className="profile-columns">
               {/* Left column: username, email, theme, view mode, sort order */}
               <div className="profile-left">
@@ -402,10 +397,7 @@ function Profile() {
                         value={updatedValue}
                         onChange={(e) => setUpdatedValue(e.target.value)}
                       />
-                      <button
-                        className="b1"
-                        onClick={() => handleSave("username")}
-                      >
+                      <button className="b1" onClick={() => handleSave("username")}>
                         Save
                       </button>
                     </>
@@ -414,9 +406,7 @@ function Profile() {
                       {profile!.username}{" "}
                       <button
                         className="b1"
-                        onClick={() =>
-                          handleEdit("username", profile!.username)
-                        }
+                        onClick={() => handleEdit("username", profile!.username)}
                       >
                         Edit
                       </button>
@@ -424,15 +414,10 @@ function Profile() {
                   )}
                 </p>
                 <p>
-                  <strong>Theme:</strong>{" "}
-                  <select
-                    value={selectedTheme}
-                    onChange={(e) => setSelectedTheme(e.target.value as Theme)}
-                  >
-                    <option value="system">System</option>
-                    <option value="light">Light</option>
-                    <option value="dark">Dark</option>
-                  </select>
+                  <strong>Theme:</strong> {mode === "light" ? "Light" : "Dark"}{" "}
+                  <button className="b1" onClick={toggleTheme}>
+                    Toggle
+                  </button>
                 </p>
                 <p>
                   <strong>View Mode:</strong>{" "}
@@ -465,7 +450,12 @@ function Profile() {
 
               {/* Right column: avatar */}
               <div className="profile-right">
-                <h3>Upload your avatar</h3>
+                <h3>Avatar</h3>
+                <Avatar
+                  src={avatarUrl}
+                  alt="Profile Avatar"
+                  sx={{ width: 250, height: 250, marginBottom: 1 }}
+                />
                 <AvatarUpload
                   avatarUrl={avatarUrl}
                   onAvatarChange={() => {
@@ -505,10 +495,7 @@ function Profile() {
               ) : (
                 <>
                   ••••••••{" "}
-                  <button
-                    className="b1"
-                    onClick={() => handleEdit("password", "")}
-                  >
+                  <button className="b1" onClick={() => handleEdit("password", "")}>
                     Change Password
                   </button>
                 </>
@@ -653,7 +640,7 @@ function Profile() {
       case "notifications":
         return <div>Notifications Settings</div>;
       default:
-        return <div>Profile Information</div>;
+        return <div>Preferences</div>;
     }
   };
 
@@ -692,7 +679,7 @@ function Profile() {
               })
             }
           >
-            Profile Information
+            Preferences
           </button>
           <button
             className={`profile-button ${
