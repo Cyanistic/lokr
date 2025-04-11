@@ -1,5 +1,5 @@
 import { API } from "../utils";
-import { UploadMetadata } from "../myApi";
+import { ErrorResponse, ShareResponse, UploadMetadata } from "../myApi";
 import {
   encryptAESKeyWithParentKey,
   encryptText,
@@ -12,14 +12,17 @@ import { useDropzone } from "react-dropzone";
 import "./Upload.css";
 import { GrUploadOption } from "react-icons/gr";
 import { useProfile } from "./ProfileProvider";
+import { isAuthenticated } from "../utils.ts";
+import { FileMetadata } from "../types.ts";
 
 interface Props {
   parentId?: string | null;
   parentKey?: CryptoKey | null;
-  onUpload?: () => Promise<void>;
+  onFinish?: () => Promise<void>;
   isOverlay?: boolean;
   onClose?: () => void;
   linkId?: string | null;
+  onUpload?: (fileName: string | FileMetadata, result: ShareResponse | ErrorResponse) => void;
 }
 
 export default function Upload({
@@ -27,6 +30,7 @@ export default function Upload({
   parentKey,
   isOverlay = false,
   onClose,
+  onFinish,
   onUpload,
   linkId,
 }: Props) {
@@ -190,7 +194,7 @@ export default function Upload({
             algorithm,
           );
 
-          const metadata: UploadMetadata = {
+          const metadata = {
             encryptedFileName: btoa(String.fromCharCode(...encryptedFileName)),
             encryptedKey: btoa(String.fromCharCode(...encryptedAESKey)),
             encryptedMimeType: btoa(String.fromCharCode(...encryptedMimeType)),
@@ -227,6 +231,7 @@ export default function Upload({
                 message: "Not enough storage space",
               },
             }));
+            onUpload?.(file.name, response.error);
             errorCount++;
             return;
           } else if (response.status === 405) {
@@ -237,9 +242,11 @@ export default function Upload({
                 message: "File is too large",
               },
             }));
+            onUpload?.(file.name, response.error);
             errorCount++;
             return;
           } else if (!response.ok) {
+            onUpload?.(file.name, response.error );
             throw response.error;
           }
 
@@ -248,6 +255,22 @@ export default function Upload({
             ...prev,
             [file.name]: { status: "success" },
           }));
+          const createdAtDate = new Date();
+          const modifiedAtDate = new Date();
+          onUpload?.(
+            {
+              ...metadata,
+              createdAtDate,
+              modifiedAtDate,
+              id: response.data.id,
+              createdAt: createdAtDate.toDateString(),
+              modifiedAt: modifiedAtDate.toDateString(),
+              key: aesKey,
+              name: file.name,
+              mimeType: file.type,
+              size: response.data.size
+            }, 
+              response.data.link!)
           successCount++;
         } catch (error) {
           setFileStatuses((prev) => ({
@@ -263,7 +286,9 @@ export default function Upload({
     );
 
     // Update profile to reflect storage changes
-    refreshProfile();
+    if (isAuthenticated()) {
+      refreshProfile();
+    }
 
     // Set overall status
     if (errorCount === 0) {
@@ -280,7 +305,7 @@ export default function Upload({
       showError(`${errorCount} files failed to upload.`);
     }
 
-    await onUpload?.();
+    await onFinish?.();
   };
 
   const { getRootProps, getInputProps } = useDropzone({

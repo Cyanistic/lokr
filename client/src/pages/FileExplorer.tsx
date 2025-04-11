@@ -1032,7 +1032,7 @@ export default function FileExplorer(
                   parentId={parentId}
                   parentKey={parentId ? files[parentId]?.key : null}
                   linkId={linkId}
-                  onUpload={async () => {
+                  onFinish={async () => {
                     await fetchFiles();
                   }}
                   onClose={() => setShowUpload(false)}

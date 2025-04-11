@@ -17,8 +17,13 @@ import {
 } from "@mui/material";
 import Upload from "../components/Upload";
 import "../SecurityFeatures.css";
+import { useState } from "react";
+import { FileMetadata } from "../types";
+import { ErrorResponse, ShareResponse } from "../myApi";
 
 export function Home() {
+
+  const [uploadResults, setUploadResults] = useState<{file: string | FileMetadata, result: ShareResponse | ErrorResponse}[]>([])
   const features = [
     {
       icon: <LinkIcon fontSize="medium" />,
@@ -113,7 +118,7 @@ export function Home() {
         </Box>
 
         <Box className="right-home-box">
-          <Upload />
+          <Upload onUpload={(file, result) => setUploadResults([...uploadResults, {file, result}])}/>
         </Box>
       </Box>
 

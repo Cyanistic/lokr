@@ -230,6 +230,7 @@ export const darkMuiTheme = createTheme({
   palette: {
     ...muiTheme.palette,
     mode: "dark",
+    divider: alpha("#FFFFFF", 0.12),
     background: {
       default: colors.darkBlue.dark,
       paper: colors.darkBlue.main,
