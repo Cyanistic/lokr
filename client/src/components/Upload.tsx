@@ -22,7 +22,7 @@ interface Props {
   isOverlay?: boolean;
   onClose?: () => void;
   linkId?: string | null;
-  onUpload?: (fileName: string | FileMetadata, result: ShareResponse | ErrorResponse) => void;
+  onUpload?: (fileName: string | FileMetadata, result: ShareResponse | ErrorResponse) => Promise<void>;
 }
 
 export default function Upload({
@@ -231,7 +231,7 @@ export default function Upload({
                 message: "Not enough storage space",
               },
             }));
-            onUpload?.(file.name, response.error);
+            await onUpload?.(file.name, response.error);
             errorCount++;
             return;
           } else if (response.status === 405) {
@@ -242,11 +242,11 @@ export default function Upload({
                 message: "File is too large",
               },
             }));
-            onUpload?.(file.name, response.error);
+            await onUpload?.(file.name, response.error);
             errorCount++;
             return;
           } else if (!response.ok) {
-            onUpload?.(file.name, response.error );
+            await onUpload?.(file.name, response.error );
             throw response.error;
           }
 
@@ -257,7 +257,7 @@ export default function Upload({
           }));
           const createdAtDate = new Date();
           const modifiedAtDate = new Date();
-          onUpload?.(
+          await onUpload?.(
             {
               ...metadata,
               createdAtDate,

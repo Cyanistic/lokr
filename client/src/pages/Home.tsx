@@ -14,16 +14,25 @@ import {
   Divider,
   Stack,
   Grid,
+  Link as MuiLink,
+  Alert,
+  Paper,
 } from "@mui/material";
 import Upload from "../components/Upload";
 import "../SecurityFeatures.css";
 import { useState } from "react";
 import { FileMetadata } from "../types";
 import { ErrorResponse, ShareResponse } from "../myApi";
+import { isAuthenticated } from "../utils";
+import { bufferToBase64 } from "../cryptoFunctions"
 
 export function Home() {
 
-  const [uploadResults, setUploadResults] = useState<{file: string | FileMetadata, result: ShareResponse | ErrorResponse}[]>([])
+  const [uploadResults, setUploadResults] = useState<{file: string | FileMetadata, result: ShareResponse | ErrorResponse, base64Key?: string}[]>([])
+  async function encode64(key: CryptoKey) {
+
+    return bufferToBase64(await crypto.subtle.exportKey("raw", key))
+  }
   const features = [
     {
       icon: <LinkIcon fontSize="medium" />,
@@ -117,8 +126,61 @@ export function Home() {
           </Box>
         </Box>
 
-        <Box className="right-home-box">
-          <Upload onUpload={(file, result) => setUploadResults([...uploadResults, {file, result}])}/>
+        <Box className="right-home-box" sx={{gap: 2}} >
+          <Upload onUpload={async (file: string | FileMetadata, result: ShareResponse | ErrorResponse) => {
+            console.log(file)
+            console.log(result)
+            console.log(uploadResults)
+            setUploadResults([...uploadResults, {file, result, base64Key: typeof file === "string" ? undefined : await encode64(file.key!)}])
+            }}/>
+          {!isAuthenticated() && uploadResults.length > 0 && (
+            <Box 
+              component={Paper}
+              elevation={3}
+              sx={{
+                p: 2,
+                width: 350,
+                maxHeight: 500, // Set max height
+                overflow: "auto", // Enable scrolling
+                display: "flex",
+                flexDirection: "column",
+                gap: 1,
+                }}
+            >
+              <Typography variant="h6" gutterBottom>
+                Upload Results
+              </Typography>
+              <Divider sx={{ mb: 2 }} />
+              {uploadResults.map( ({ file, result, base64Key }, index) => {
+                const displayName =
+                  typeof file === "string" ? file : file.name;
+
+                if ("linkId" in result) {
+                  const shareUrl = `${window.location.protocol}//${window.location.host}/share?linkId=${result.linkId}${base64Key ? `#${base64Key}` : ""}`;
+
+                  return (
+                    <Box key={index} sx={{ mb: 2 }}>
+                      <Typography variant="body1" fontWeight="bold">
+                        {displayName}
+                      </Typography>
+                      <MuiLink href={shareUrl} target="_blank" rel="noopener noreferrer">
+                        {shareUrl}
+                      </MuiLink>
+                    </Box>
+                  );
+                } else {
+                  return (
+                    <Alert key={index} severity="error" sx={{ mb: 2 }}>
+                      <Typography variant="body1" fontWeight="bold">
+                        {displayName}
+                      </Typography>
+                      <Typography variant="body2">{(result as ErrorResponse).message}</Typography>
+                    </Alert>
+                  );
+                }
+              })}
+            </Box>
+          )}
         </Box>
       </Box>
 
