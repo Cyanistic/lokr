@@ -13,9 +13,8 @@ import { FileContextMenu } from "./FileMenu";
 import { getFileIcon } from "../pages/FileExplorer";
 import { useTheme } from "@emotion/react";
 import { useMemo, useState, useRef, useCallback } from "react";
-import { FileSortOrder, PublicUser } from "../myApi";
+import { PublicUser } from "../myApi";
 import FileGridPreviewAttachment from "./FileGridPreview";
-import { getExtension } from "../utils";
 import { FixedSizeGrid } from "react-window";
 
 interface FileGridViewProps {
@@ -25,8 +24,6 @@ interface FileGridViewProps {
   onAction: (action: string, fileId: string) => void;
   loading?: boolean;
   owner: boolean;
-  sortBy: FileSortOrder;
-  sortOrder?: "asc" | "desc"; // Optional, for sorting
   onPreviewLoad?: (fileId: string, blobUrl?: string) => void; // Optional callback for preview load
 }
 
@@ -35,9 +32,6 @@ export function FileGridView({
   onNavigate,
   onAction,
   owner,
-  sortBy,
-  sortOrder,
-  users,
   loading = false,
   onPreviewLoad,
 }: FileGridViewProps) {
@@ -63,75 +57,6 @@ export function FileGridView({
     setContextMenu(null);
   };
 
-  const sortedFiles = useMemo(() => {
-    if (!sortOrder || !sortBy || loading) {
-      return [...files];
-    }
-
-    const direction = sortOrder === "asc" ? 1 : -1;
-
-    return [...files].sort((a, b) => {
-      switch (sortBy) {
-        case "name":
-          return (
-            direction *
-            (a.name ?? a.encryptedFileName).localeCompare(
-              b.name ?? b.encryptedFileName,
-            )
-          );
-
-        case "created": {
-          const aCreated = a.createdAtDate!.getTime();
-          const bCreated = b.createdAtDate!.getTime();
-          return direction * (aCreated - bCreated);
-        }
-
-        case "modified": {
-          const aModified = a.modifiedAtDate!.getTime();
-          const bModified = b.modifiedAtDate!.getTime();
-          return direction * (aModified - bModified);
-        }
-
-        case "size":
-          return direction * ((a.size || 0) - (b.size || 0));
-
-        case "owner":
-          return (
-            direction *
-            (a.ownerId ? users[a.ownerId].username : "Anonymous").localeCompare(
-              b.ownerId ? users[b.ownerId].username : "Anonymous",
-            )
-          );
-
-        case "uploader":
-          return (
-            direction *
-            (a.uploaderId
-              ? users[a.uploaderId].username
-              : "Anonymous"
-            ).localeCompare(
-              b.uploaderId ? users[b.uploaderId].username : "Anonymous",
-            )
-          );
-
-        case "extension": {
-          const aExt = getExtension(a);
-          const bExt = getExtension(b);
-
-          return direction * aExt.localeCompare(bExt);
-        }
-
-        default:
-          return (
-            direction *
-            (a.name ?? a.encryptedFileName).localeCompare(
-              b.name ?? b.encryptedFileName,
-            )
-          );
-      }
-    });
-  }, [loading, files, sortBy, sortOrder, users]);
-
   const gridRef = useRef<HTMLDivElement>(null);
   const [gridDimensions, setGridDimensions] = useState({
     width: 0,
@@ -140,10 +65,10 @@ export function FileGridView({
 
   // Calculate number of columns based on screen size
   const columnCount = useMemo(() => {
-    if (gridDimensions.width < 600) return 2; 
-    if (gridDimensions.width < 900) return 3; 
+    if (gridDimensions.width < 600) return 2;
+    if (gridDimensions.width < 900) return 3;
     if (gridDimensions.width < 1100) return 4;
-    if (gridDimensions.width < 1600) return 6; 
+    if (gridDimensions.width < 1600) return 6;
     return 6;
   }, [gridDimensions.width]);
 
@@ -161,8 +86,8 @@ export function FileGridView({
 
   // Calculate row count based on number of files and columns
   const rowCount = useMemo(() => {
-    return Math.ceil(sortedFiles.length / columnCount);
-  }, [sortedFiles.length, columnCount]);
+    return Math.ceil(files.length / columnCount);
+  }, [files.length, columnCount]);
 
   // Update grid dimensions when container size changes
   const gridRefCallback = useCallback((node: HTMLDivElement) => {
@@ -246,7 +171,7 @@ export function FileGridView({
   }
 
   // If no files to display, show a message
-  if (sortedFiles.length === 0 && !loading) {
+  if (files.length === 0 && !loading) {
     return (
       <Box
         sx={{
@@ -289,11 +214,11 @@ export function FileGridView({
     const index = rowIndex * columnCount + columnIndex;
 
     // Return empty cell if index is out of bounds
-    if (index >= sortedFiles.length) {
+    if (index >= files.length) {
       return null;
     }
 
-    const file = sortedFiles[index];
+    const file = files[index];
 
     return (
       <div
@@ -328,7 +253,7 @@ export function FileGridView({
         height: "100%",
         flexGrow: 1,
         pl: 1, // Horizontal padding (left and right)
-        pb: 1,  // Bottom padding
+        pb: 1, // Bottom padding
         borderRadius: 1,
       }}
     >
@@ -340,7 +265,7 @@ export function FileGridView({
           rowCount={rowCount}
           rowHeight={cellHeight + 16} // Add padding for spacing
           width={gridDimensions.width}
-          itemData={sortedFiles}
+          itemData={files}
           overscanRowCount={5}
         >
           {Cell}

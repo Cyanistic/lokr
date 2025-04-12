@@ -1,6 +1,6 @@
 import { Select, MenuItem } from "@mui/material";
 import type React from "react";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, Fragment } from "react";
 import {
   Dialog,
   DialogContent,
@@ -40,12 +40,79 @@ import DOMPurify from "dompurify";
 
 pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.js";
 
+// Define file types as a union type for better type safety
+type FileType =
+  | "pdf"
+  | "text"
+  | "image"
+  | "audio"
+  | "video"
+  | "word"
+  | "unknown";
+
+// Utility function to determine file type from mimeType and extension
+const getFileType = (file: FileMetadata | undefined): FileType => {
+  if (!file) return "unknown";
+
+  const extension = getExtension(file);
+  const mimeType = file.mimeType;
+
+  // Check for PDF files
+  if (mimeType === "application/pdf" || extension === "pdf") {
+    return "pdf";
+  }
+
+  // Check for text files
+  if (mimeType === "text/plain" || extension === "txt") {
+    return "text";
+  }
+
+  // Check for audio files
+  if (
+    mimeType?.startsWith("audio/") ||
+    ["mp3", "wav", "m4a"].includes(extension)
+  ) {
+    return "audio";
+  }
+
+  // Check for video files
+  if (
+    mimeType?.startsWith("video/") ||
+    ["mp4", "mov", "webm"].includes(extension)
+  ) {
+    return "video";
+  }
+
+  // Check for image files
+  if (
+    mimeType?.startsWith("image/") ||
+    ["jpg", "jpeg", "png", "gif", "bmp", "webp", "svg"].includes(extension)
+  ) {
+    return "image";
+  }
+
+  // Check for Word documents
+  if (
+    mimeType ===
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+    ["doc", "docx"].includes(extension)
+  ) {
+    return "word";
+  }
+
+  return "unknown";
+};
+
 interface FilePreviewModalProps {
   open: boolean;
   onClose: () => void;
   file?: FileMetadata;
   onLoad?: (blobUrl?: string) => void;
   linkId?: string;
+  // The number of files in the surrounding list (for navigation)
+  listIndex?: number;
+  onCycle?: (index: number) => void;
+  listLength?: number;
 }
 
 const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
@@ -54,7 +121,12 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
   onLoad,
   file,
   linkId,
+  listIndex,
+  listLength,
+  onCycle,
 }) => {
+  // Determine file type once and reuse throughout component
+  const fileType = getFileType(file);
   const [numPages, setNumPages] = useState<number | null>(null);
   const [scale, setScale] = useState(1.0);
   const [loading, setLoading] = useState(true);
@@ -168,12 +240,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Only handle keyboard events if a video is being displayed
-      if (
-        open &&
-        file &&
-        (file?.mimeType?.startsWith("video/") ||
-          ["mp4", "mov", "webm"].includes(fileExtension || ""))
-      ) {
+      if (open && file && fileType === "video") {
         switch (e.key) {
           case "ArrowLeft":
             // Left arrow - rewind 10 seconds
@@ -234,12 +301,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
 
   useEffect(() => {
     const loadText = async () => {
-      if (
-        open &&
-        file &&
-        (file.mimeType === "text/plain" || fileExtension === "txt") &&
-        file.blobUrl
-      ) {
+      if (open && file && fileType === "text" && file.blobUrl) {
         try {
           const res = await fetch(file?.blobUrl);
           const text = await res.text();
@@ -253,19 +315,11 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
     };
 
     loadText();
-  }, [open, file, fileExtension]);
+  }, [open, file, fileType]);
 
   useEffect(() => {
     const loadWordDoc = async () => {
-      if (
-        open &&
-        file &&
-        (file.mimeType ===
-          "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
-          fileExtension === "docx" ||
-          fileExtension === "doc") &&
-        file.blobUrl
-      ) {
+      if (open && file && fileType === "word" && file.blobUrl) {
         try {
           const res = await fetch(file.blobUrl);
           const blob = await res.blob();
@@ -282,7 +336,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
     };
 
     loadWordDoc();
-  }, [open, file, fileExtension]);
+  }, [open, file, fileType]);
 
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
@@ -525,7 +579,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
 
     // Touch handlers for PDF pinch zoom
     const handlePdfTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
-      if (e.touches.length === 2) {
+      if (e.touches.length === 2 && fileType === "pdf") {
         // Pinch gesture detected
         const distance = Math.hypot(
           e.touches[0].clientX - e.touches[1].clientX,
@@ -821,6 +875,38 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
     null,
   );
 
+  // Add keyboard navigation for file cycling
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (open && typeof listIndex !== "undefined" && onCycle) {
+        switch (e.key) {
+          case "ArrowLeft":
+            // Only handle if not interacting with video controls
+            if (fileType !== "video") {
+              onCycle(listIndex - 1);
+              handleUserActivity();
+              e.preventDefault();
+            }
+            break;
+          case "ArrowRight":
+            // Only handle if not interacting with video controls
+            if (fileType !== "video") {
+              onCycle(listIndex + 1);
+              handleUserActivity();
+              e.preventDefault();
+            }
+            break;
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open, listIndex, onCycle, file, fileExtension]);
+
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -866,13 +952,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
     // Add wheel event listener for image zooming
     const wheelHandler = (e: WheelEvent) => {
       // Check if we're displaying an image
-      if (
-        file &&
-        (file?.mimeType?.startsWith("image/") ||
-          ["jpg", "jpeg", "png", "gif", "bmp", "webp", "svg"].includes(
-            fileExtension || "",
-          ))
-      ) {
+      if (file && fileType === "image") {
         // Force preventDefault to stop scrolling behavior
         e.preventDefault();
         e.stopPropagation();
@@ -1022,7 +1102,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
             marginTop: "auto", // Push down from top
             marginBottom: "auto", // Push up from bottom
             overflow: "hidden", // Ensure controls don't overflow
-            width: "calc(100% - 34px)", // Adjust width to account for padding
+            width: "calc(100% - 128px)", // Adjust width to account for padding
             maxHeight: "calc(100% - 128px)",
           }}
           onMouseMove={handleUserActivity}
@@ -1870,133 +1950,105 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
   const renderContent = () => {
     if (!file) return null;
 
-    if (file.mimeType === "application/pdf" || fileExtension === "pdf") {
-      return renderPdf();
-    }
-
-    if (file.mimeType === "text/plain" || fileExtension === "txt") {
-      return (
-        <Box
-          sx={{
-            width: "100%",
-            height: "100%",
-            padding: 2,
-            overflow: "auto",
-            backgroundColor: "white",
-            color: "#000",
-            border: "1px solid #e0e0e0",
-            borderRadius: 1,
-            whiteSpace: "pre-wrap",
-            fontFamily: "monospace",
-          }}
-          onClick={(e) => {
-            // Only close if clicking directly on the container background (not the text itself)
-            if (e.target === e.currentTarget) {
-              onClose();
-            }
-            e.stopPropagation();
-          }}
-        >
-          {textContent}
-        </Box>
-      );
-    }
-
-    if (
-      file?.mimeType?.startsWith("audio/") ||
-      fileExtension === "mp3" ||
-      fileExtension === "wav" ||
-      fileExtension === "m4a"
-    ) {
-      return renderAudio();
-    }
-
-    if (
-      file?.mimeType?.startsWith("video/") ||
-      fileExtension === "mp4" ||
-      fileExtension === "mov" ||
-      fileExtension === "webm"
-    ) {
-      return renderVideo();
-    }
-
-    if (
-      file?.mimeType?.startsWith("image/") ||
-      ["jpg", "jpeg", "png", "gif", "bmp", "webp", "svg"].includes(
-        fileExtension || "",
-      )
-    ) {
-      return renderImage();
-    }
-
-    if (
-      file.mimeType ===
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
-      fileExtension === "doc" ||
-      fileExtension === "docx"
-    ) {
-      return renderWordDoc();
-    }
-
-    return (
-      <Box
-        sx={{
-          width: "100%",
-          height: "100%",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: "transparent",
-        }}
-        onClick={onClose}
-      >
-        <Box
-          sx={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: "rgba(255, 255, 255, 0.1)",
-            backdropFilter: "blur(10px)",
-            borderRadius: 4,
-            padding: 4,
-            width: { xs: "80%", sm: "60%", md: "40%" },
-            maxWidth: 400,
-          }}
-        >
+    switch (fileType) {
+      case "pdf":
+        return renderPdf();
+      case "text":
+        return (
           <Box
             sx={{
-              backgroundColor: "rgba(0, 0, 0, 0.1)",
-              borderRadius: "50%",
-              width: 120,
-              height: 120,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              mb: 3,
+              width: "100%",
+              height: "100%",
+              padding: 2,
+              overflow: "auto",
+              backgroundColor: "white",
+              color: "#000",
+              border: "1px solid #e0e0e0",
+              borderRadius: 1,
+              whiteSpace: "pre-wrap",
+              fontFamily: "monospace",
+            }}
+            onClick={(e) => {
+              // Only close if clicking directly on the container background (not the text itself)
+              if (e.target === e.currentTarget) {
+                onClose();
+              }
+              e.stopPropagation();
             }}
           >
-            {getFileIcon(file?.mimeType, 64, 64)}
+            {textContent}
           </Box>
-          <Typography
-            variant="h6"
-            align="center"
-            sx={{ color: "white", mb: 1 }}
+        );
+      case "audio":
+        return renderAudio();
+      case "video":
+        return renderVideo();
+      case "image":
+        return renderImage();
+      case "word":
+        return renderWordDoc();
+      default:
+        // Default case for unknown file types
+        return (
+          <Box
+            sx={{
+              width: "100%",
+              height: "100%",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: "transparent",
+            }}
+            onClick={onClose}
           >
-            Unsupported File Type
-          </Typography>
-          <Typography
-            variant="body2"
-            align="center"
-            sx={{ color: "rgba(255, 255, 255, 0.7)" }}
-          >
-            Preview is not available for{" "}
-            {fileExtension ? `.${fileExtension} files` : "this file"}
-          </Typography>
-        </Box>
-      </Box>
-    );
+            <Box
+              sx={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: "rgba(255, 255, 255, 0.1)",
+                backdropFilter: "blur(10px)",
+                borderRadius: 4,
+                padding: 4,
+                width: { xs: "80%", sm: "60%", md: "40%" },
+                maxWidth: 400,
+              }}
+            >
+              <Box
+                sx={{
+                  backgroundColor: "rgba(0, 0, 0, 0.1)",
+                  borderRadius: "50%",
+                  width: 120,
+                  height: 120,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  mb: 3,
+                }}
+              >
+                {getFileIcon(file?.mimeType, 64, 64)}
+              </Box>
+              <Typography
+                variant="h6"
+                align="center"
+                sx={{ color: "white", mb: 1 }}
+              >
+                Unsupported File Type
+              </Typography>
+              <Typography
+                variant="body2"
+                align="center"
+                sx={{ color: "rgba(255, 255, 255, 0.7)" }}
+              >
+                Preview is not available for{" "}
+                {fileExtension ? `.${fileExtension} files` : "this file"}
+              </Typography>
+            </Box>
+          </Box>
+        );
+    }
   };
 
   if (!file) return null;
@@ -2053,7 +2105,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
         onClick: handleBackdropClick,
       }}
     >
-      {
+      <Fragment key={`${file?.id}-preview`}>
         <Box
           className="a-b-K a-b-K-Hyc8Sd"
           role="toolbar"
@@ -2075,6 +2127,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
             opacity: showTopBar ? 1 : 0,
             pointerEvents: showTopBar ? "auto" : "none",
           }}
+          onMouseMove={handleUserActivity}
         >
           <Box sx={{ display: "flex", alignItems: "center", flex: 1 }}>
             <IconButton
@@ -2139,124 +2192,190 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
             </Box>
           )}
         </Box>
-      }
 
-      <DialogContent
-        sx={{
-          height: "100vh",
-          p: 0,
-          position: "relative",
-          display: "flex",
-          flexDirection: "column",
-          backgroundColor: "transparent",
-          border: "none",
-          boxSizing: "border-box",
-          touchAction: "none", // Disable default browser touch actions to prevent conflicts with our pinch zoom
-        }}
-        onClick={handleBackdropClick}
-      >
-        <Box
-          ref={containerRef}
+        <DialogContent
           sx={{
-            flex: 1,
+            height: "100vh",
+            p: 0,
+            position: "relative",
             display: "flex",
             flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "flex-start", // Start from the top for PDFs
-            overflow: "auto",
-            width: "100%",
-            height: "100%", // Ensure full height
-            background: "transparent",
-            "& .react-pdf__Document": {
+            backgroundColor: "transparent",
+            border: "none",
+            boxSizing: "border-box",
+            touchAction: "none", // Disable default browser touch actions to prevent conflicts with our pinch zoom
+          }}
+          onClick={handleBackdropClick}
+        >
+          <Box
+            ref={containerRef}
+            sx={{
+              flex: 1,
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
-              paddingTop: "20px", // Add padding at top
-            },
-          }}
-          onClick={handleContentBackgroundClick}
-          onWheel={(e) => {
-            // Check if we're displaying an image
-            if (
-              file &&
-              (file?.mimeType?.startsWith("image/") ||
-                ["jpg", "jpeg", "png", "gif", "bmp", "webp", "svg"].includes(
-                  fileExtension || "",
-                ))
-            ) {
-              e.preventDefault();
+              justifyContent: "flex-start", // Start from the top for PDFs
+              overflow: "auto",
+              width: "100%",
+              height: "100%", // Ensure full height
+              background: "transparent",
+              "& .react-pdf__Document": {
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                paddingTop: "20px", // Add padding at top
+              },
+            }}
+            onClick={handleContentBackgroundClick}
+            onWheel={(e) => {
+              // Check if we're displaying an image
+              if (
+                file &&
+                (file?.mimeType?.startsWith("image/") ||
+                  ["jpg", "jpeg", "png", "gif", "bmp", "webp", "svg"].includes(
+                    fileExtension || "",
+                  ))
+              ) {
+                e.preventDefault();
 
-              // Apply zoom directly from the React synthetic event
-              const zoomFactor = 0.1;
-              if (e.deltaY < 0) {
-                // Zoom in
-                setScale((prev) => Math.min(prev + zoomFactor, 5));
-              } else {
-                // Zoom out
-                setScale((prev) => Math.max(prev - zoomFactor, 0.2));
+                // Apply zoom directly from the React synthetic event
+                const zoomFactor = 0.1;
+                if (e.deltaY < 0) {
+                  // Zoom in
+                  setScale((prev) => Math.min(prev + zoomFactor, 5));
+                } else {
+                  // Zoom out
+                  setScale((prev) => Math.max(prev - zoomFactor, 0.2));
+                }
               }
-            }
-          }}
-          onTouchStart={(e) => {
-            // Global touch handler for all file types
-            // This ensures that user activity is tracked even on touch devices
-            handleUserActivity();
+            }}
+            onTouchStart={(e) => {
+              // Global touch handler for all file types
+              // This ensures that user activity is tracked even on touch devices
+              handleUserActivity();
 
-            // Handle PDF and image pinch zooms at container level
-            if (
-              e.touches.length === 2 &&
-              (file?.mimeType?.startsWith("image/") ||
-                ["jpg", "jpeg", "png", "gif", "bmp", "webp", "svg"].includes(
-                  fileExtension || "",
-                ) ||
-                file?.mimeType === "application/pdf" ||
-                fileExtension === "pdf")
-            ) {
-              const distance = Math.hypot(
-                e.touches[0].clientX - e.touches[1].clientX,
-                e.touches[0].clientY - e.touches[1].clientY,
-              );
-              setPinchStartDistance(distance);
-              setPinchStartScale(scale);
-            }
-          }}
-          onTouchMove={(e) => {
-            // Handle pinch zoom at container level
-            if (
-              e.touches.length === 2 &&
-              pinchStartDistance !== null &&
-              (file?.mimeType?.startsWith("image/") ||
-                ["jpg", "jpeg", "png", "gif", "bmp", "webp", "svg"].includes(
-                  fileExtension || "",
-                ) ||
-                file?.mimeType === "application/pdf" ||
-                fileExtension === "pdf")
-            ) {
-              e.preventDefault();
+              // Handle PDF and image pinch zooms at container level
+              if (
+                e.touches.length === 2 &&
+                (fileType === "image" || fileType === "pdf")
+              ) {
+                const distance = Math.hypot(
+                  e.touches[0].clientX - e.touches[1].clientX,
+                  e.touches[0].clientY - e.touches[1].clientY,
+                );
+                setPinchStartDistance(distance);
+                setPinchStartScale(scale);
+              }
+            }}
+            onTouchMove={(e) => {
+              // Handle pinch zoom at container level
+              if (
+                e.touches.length === 2 &&
+                pinchStartDistance !== null &&
+                (fileType === "image" || fileType === "pdf")
+              ) {
+                e.preventDefault();
 
-              const distance = Math.hypot(
-                e.touches[0].clientX - e.touches[1].clientX,
-                e.touches[0].clientY - e.touches[1].clientY,
-              );
+                const distance = Math.hypot(
+                  e.touches[0].clientX - e.touches[1].clientX,
+                  e.touches[0].clientY - e.touches[1].clientY,
+                );
 
-              const scaleFactor = distance / pinchStartDistance;
-              const newScale = pinchStartScale * scaleFactor;
+                const scaleFactor = distance / pinchStartDistance;
+                const newScale = pinchStartScale * scaleFactor;
 
-              // Limit scale to reasonable bounds
-              setScale(Math.min(Math.max(newScale, 0.2), 5));
-            }
-          }}
-          onTouchEnd={() => {
-            setPinchStartDistance(null);
-          }}
-        >
-          {renderContent()}
-        </Box>
+                // Limit scale to reasonable bounds
+                setScale(Math.min(Math.max(newScale, 0.2), 5));
+              }
+            }}
+            onTouchEnd={() => {
+              setPinchStartDistance(null);
+            }}
+          >
+            {renderContent()}
+          </Box>
 
-        {/* Bottom Bar for PDFs */}
-        {!fallback &&
-          numPages &&
-          (file.mimeType === "application/pdf" || fileExtension === "pdf") && (
+          {listIndex !== undefined &&
+            listLength &&
+            listLength > 1 &&
+            onCycle && (
+              <>
+                {/* Left navigation arrow */}
+                <Box
+                  sx={{
+                    position: "absolute",
+                    left: 16,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    zIndex: 1200,
+                    opacity: showControlsBar ? 1 : 0,
+                    transition: "opacity 0.3s ease-in-out",
+                    pointerEvents: showControlsBar ? "auto" : "none",
+                  }}
+                >
+                  <Tooltip title="Previous file">
+                    <IconButton
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleUserActivity();
+                        onCycle(listIndex - 1);
+                      }}
+                      onMouseMove={handleUserActivity}
+                      sx={{
+                        backgroundColor: "rgba(0, 0, 0, 0.6)",
+                        color: "#fff",
+                        "&:hover": {
+                          backgroundColor: "rgba(0, 0, 0, 0.8)",
+                        },
+                        width: 40,
+                        height: 40,
+                      }}
+                    >
+                      <ArrowBackIosNewIcon />
+                    </IconButton>
+                  </Tooltip>
+                </Box>
+
+                {/* Right navigation arrow */}
+                <Box
+                  sx={{
+                    position: "absolute",
+                    right: 16,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    zIndex: 1200,
+                    opacity: showControlsBar ? 1 : 0,
+                    transition: "opacity 0.3s ease-in-out",
+                    pointerEvents: showControlsBar ? "auto" : "none",
+                  }}
+                >
+                  <Tooltip title="Next file">
+                    <IconButton
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleUserActivity();
+                        onCycle(listIndex + 1);
+                      }}
+                      onMouseMove={handleUserActivity}
+                      sx={{
+                        backgroundColor: "rgba(0, 0, 0, 0.6)",
+                        color: "#fff",
+                        "&:hover": {
+                          backgroundColor: "rgba(0, 0, 0, 0.8)",
+                        },
+                        width: 40,
+                        height: 40,
+                      }}
+                    >
+                      <ArrowForwardIosIcon />
+                    </IconButton>
+                  </Tooltip>
+                </Box>
+              </>
+            )}
+
+          {/* Bottom Bar for PDFs */}
+          {!fallback && numPages && fileType === "pdf" && (
             <Box
               sx={{
                 position: "absolute",
@@ -2385,23 +2504,24 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
             </Box>
           )}
 
-        {loading && (
-          <Box
-            sx={{
-              position: "absolute",
-              top: "50%",
-              left: "50%",
-              transform: "translate(-50%, -50%)",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-            }}
-          >
-            <CircularProgress />
-            <Typography mt={2}>Loading preview...</Typography>
-          </Box>
-        )}
-      </DialogContent>
+          {loading && (
+            <Box
+              sx={{
+                position: "absolute",
+                top: "50%",
+                left: "50%",
+                transform: "translate(-50%, -50%)",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+              }}
+            >
+              <CircularProgress />
+              <Typography mt={2}>Loading preview...</Typography>
+            </Box>
+          )}
+        </DialogContent>
+      </Fragment>
     </Dialog>
   );
 };

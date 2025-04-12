@@ -12,14 +12,14 @@
   - (x) Populate text pages with information
   -- (x) Populate about us
   -- (x) Populate home
-  - ( ) File Management
+  - (x) File Management
   -- (x) File and directory decryption
   -- (x) Directory navigation
   -- (x) File previews (for supported file types)
   --- (x) Previews should be shown with a small thumbnail in grid view
   --- (x) Previews enlarged upon double clicking
   -- (x) File moving
-  -- (_) File copying
+  -- (x) File copying
   -- (x) File deletion
   -- (x) File searching
   -- (x) Prompts when creating a new folder
@@ -42,9 +42,9 @@
   - (x) Add preferences menu
   - (x) Add file renaming modal
   - (x) Add file deletion modal
-  - ( ) Properly handle anonymous uploads
+  - (x) Properly handle anonymous uploads
   -- (x) Do not show an error on home page when the user is not logged in
-  -- ( ) Provide a share link after a successful anonymous upload
+  -- (x) Provide a share link after a successful anonymous upload
   - (x) Show file context menu upon right clicking on a file
   - (x) Grid view
   -- (x) Add context menu to grid view

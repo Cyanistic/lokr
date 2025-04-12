@@ -1,6 +1,7 @@
 import Cookies from "js-cookie";
 import { FileMetadata, PublicUser } from "./types";
 import { Api, FileSortOrder } from "./myApi";
+import { PublicUser as ApiPublicUser } from "./myApi";
 
 // A base URL that changes based on whether the app is in development or production
 // In dev this should always be the backend URL, so that `npm run dev` works properly
@@ -119,4 +120,77 @@ export function getExtension(file: FileMetadata | string) {
   }
   const lastDotIndex = fileName.lastIndexOf(".");
   return lastDotIndex > 0 ? fileName.slice(lastDotIndex + 1).toLowerCase() : "";
+}
+
+export function sortFiles(
+  files: FileMetadata[],
+  sortBy: FileSortOrder,
+  sortOrder: "asc" | "desc",
+  users?: Record<string, ApiPublicUser>,
+): FileMetadata[] {
+  const direction = sortOrder === "asc" ? 1 : -1;
+
+  return [...files].sort((a, b) => {
+    switch (sortBy) {
+      case "name":
+        return (
+          direction *
+          (a.name ?? a.encryptedFileName).localeCompare(
+            b.name ?? b.encryptedFileName,
+          )
+        );
+
+      case "created": {
+        const aCreated = a.createdAtDate!.getTime();
+        const bCreated = b.createdAtDate!.getTime();
+        return direction * (aCreated - bCreated);
+      }
+
+      case "modified": {
+        const aModified = a.modifiedAtDate!.getTime();
+        const bModified = b.modifiedAtDate!.getTime();
+        return direction * (aModified - bModified);
+      }
+
+      case "size":
+        return direction * ((a.size || 0) - (b.size || 0));
+
+      case "owner":
+        return (
+          direction *
+          (
+            (a.ownerId && users?.[a.ownerId]?.username) ||
+            "Anonymous"
+          ).localeCompare(
+            (b.ownerId && users?.[b.ownerId]?.username) || "Anonymous",
+          )
+        );
+
+      case "uploader":
+        return (
+          direction *
+          (
+            (a.uploaderId && users?.[a.uploaderId]?.username) ||
+            "Anonymous"
+          ).localeCompare(
+            (b.uploaderId && users?.[b.uploaderId]?.username) || "Anonymous",
+          )
+        );
+
+      case "extension": {
+        const aExt = getExtension(a);
+        const bExt = getExtension(b);
+
+        return direction * aExt.localeCompare(bExt);
+      }
+
+      default:
+        return (
+          direction *
+          (a.name ?? a.encryptedFileName).localeCompare(
+            b.name ?? b.encryptedFileName,
+          )
+        );
+    }
+  });
 }

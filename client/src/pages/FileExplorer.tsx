@@ -16,7 +16,7 @@ import {
   Movie as MovieIcon,
   ArrowUpward as ArrowUpwardIcon,
 } from "@mui/icons-material";
-import { API, listToGrid, logout } from "../utils";
+import { API, listToGrid, logout, sortFiles } from "../utils";
 import localforage from "localforage";
 import {
   unwrapAESKey,
@@ -220,6 +220,9 @@ export default function FileExplorer(
   const [selectedFile, setSelectedFile] = useState<FileMetadata | undefined>(
     undefined,
   );
+  const [selectedFileIndex, setSelectedFileIndex] = useState<
+    number | undefined
+  >(undefined);
   const [linkPassword, setLinkPassword] = useState<string | null>(null);
   const [linkError, setLinkError] = useState<string | undefined>(undefined);
   const [linkKey, setLinkKey] = useState<CryptoKey | null>(null);
@@ -285,19 +288,22 @@ export default function FileExplorer(
     if (loading) {
       return [];
     }
+    let unsortedFiles;
     if (parentId) {
       if (files[parentId]) {
-        return files[parentId].children?.map((f) => files[f]);
+        unsortedFiles = files[parentId].children?.map((f) => files[f]);
       } else {
         setParams((params) => {
           params.delete("parentId");
           return params;
         });
+        return [];
       }
     } else {
-      return [...root].map((f) => files[f]);
+      unsortedFiles = [...root].map((f) => files[f]);
     }
-  }, [files, parentId, loading]);
+    return unsortedFiles && sortFiles(unsortedFiles, sortBy, sortOrder, users);
+  }, [files, parentId, loading, sortOrder, sortBy, root, users]);
 
   const [dirStack, setDirStack] = useState<FileMetadata[]>([]);
 
@@ -792,6 +798,7 @@ export default function FileExplorer(
     } else {
       file = fileId;
     }
+    setSelectedFileIndex(currentDir?.indexOf(file));
     setSelectedFile(file);
     switch (action) {
       case "delete":
@@ -1209,8 +1216,6 @@ export default function FileExplorer(
                 }}
                 onAction={handleFileAction}
                 loading={loading}
-                sortBy={sortBy}
-                sortOrder={sortOrder}
                 onPreviewLoad={(fileId, blobUrl) => {
                   if (blobUrl) {
                     setFiles((prevFiles) => ({
@@ -1275,11 +1280,29 @@ export default function FileExplorer(
 
       {/* File preview modal */}
       <FilePreviewModal
-        key={`${selectedFile?.id}-preview`}
         open={previewOpen}
         onClose={() => setPreviewOpen(false)}
         file={selectedFile}
         linkId={linkId ?? undefined}
+        listIndex={selectedFileIndex}
+        listLength={currentDir?.length}
+        onCycle={(index) => {
+          const direction =
+            selectedFileIndex && index >= selectedFileIndex ? 1 : -1;
+          let finalIndex: number = index - direction;
+          // Skip directories
+          do {
+            // Add wrapping to the file cycling
+            finalIndex =
+              (finalIndex + direction + (currentDir?.length ?? 0)) %
+              (currentDir?.length ?? 1);
+          } while (
+            currentDir?.[finalIndex]?.isDirectory &&
+            finalIndex !== index - direction
+          );
+          setSelectedFileIndex(finalIndex);
+          setSelectedFile(currentDir?.[finalIndex]);
+        }}
         onLoad={(blobUrl) => {
           if (blobUrl) {
             setFiles((prevFiles) => ({
