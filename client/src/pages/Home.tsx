@@ -24,14 +24,18 @@ import { useState } from "react";
 import { FileMetadata } from "../types";
 import { ErrorResponse, ShareResponse } from "../myApi";
 import { isAuthenticated } from "../utils";
-import { bufferToBase64 } from "../cryptoFunctions"
+import { bufferToBase64 } from "../cryptoFunctions";
 
 export function Home() {
-
-  const [uploadResults, setUploadResults] = useState<{file: string | FileMetadata, result: ShareResponse | ErrorResponse, base64Key?: string}[]>([])
-  async function encode64(key: CryptoKey) {
-
-    return bufferToBase64(await crypto.subtle.exportKey("raw", key))
+  const [uploadResults, setUploadResults] = useState<
+    {
+      file: string | FileMetadata;
+      result: ShareResponse | ErrorResponse;
+      base64Key?: string;
+    }[]
+  >([]);
+  async function encodeBase64(key: CryptoKey) {
+    return bufferToBase64(await crypto.subtle.exportKey("raw", key));
   }
   const features = [
     {
@@ -126,15 +130,28 @@ export function Home() {
           </Box>
         </Box>
 
-        <Box className="right-home-box" sx={{gap: 2}} >
-          <Upload onUpload={async (file: string | FileMetadata, result: ShareResponse | ErrorResponse) => {
-            console.log(file)
-            console.log(result)
-            console.log(uploadResults)
-            setUploadResults([...uploadResults, {file, result, base64Key: typeof file === "string" ? undefined : await encode64(file.key!)}])
-            }}/>
+        <Box className="right-home-box" sx={{ gap: 2 }}>
+          <Upload
+            onUpload={async (
+              file: string | FileMetadata,
+              result: ShareResponse | ErrorResponse,
+            ) => {
+              const base64Key =
+                typeof file === "string"
+                  ? undefined
+                  : await encodeBase64(file.key!);
+              setUploadResults((prev) => [
+                ...prev,
+                {
+                  file,
+                  result,
+                  base64Key,
+                },
+              ]);
+            }}
+          />
           {!isAuthenticated() && uploadResults.length > 0 && (
-            <Box 
+            <Box
               component={Paper}
               elevation={3}
               sx={{
@@ -145,15 +162,14 @@ export function Home() {
                 display: "flex",
                 flexDirection: "column",
                 gap: 1,
-                }}
+              }}
             >
               <Typography variant="h6" gutterBottom>
                 Upload Results
               </Typography>
               <Divider sx={{ mb: 2 }} />
-              {uploadResults.map( ({ file, result, base64Key }, index) => {
-                const displayName =
-                  typeof file === "string" ? file : file.name;
+              {uploadResults.map(({ file, result, base64Key }, index) => {
+                const displayName = typeof file === "string" ? file : file.name;
 
                 if ("linkId" in result) {
                   const shareUrl = `${window.location.protocol}//${window.location.host}/share?linkId=${result.linkId}${base64Key ? `#${base64Key}` : ""}`;
@@ -163,7 +179,11 @@ export function Home() {
                       <Typography variant="body1" fontWeight="bold">
                         {displayName}
                       </Typography>
-                      <MuiLink href={shareUrl} target="_blank" rel="noopener noreferrer">
+                      <MuiLink
+                        href={shareUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
                         {shareUrl}
                       </MuiLink>
                     </Box>
@@ -174,7 +194,9 @@ export function Home() {
                       <Typography variant="body1" fontWeight="bold">
                         {displayName}
                       </Typography>
-                      <Typography variant="body2">{(result as ErrorResponse).message}</Typography>
+                      <Typography variant="body2">
+                        {(result as ErrorResponse).message}
+                      </Typography>
                     </Alert>
                   );
                 }
@@ -351,9 +373,7 @@ export function Home() {
                         flexShrink: 0,
                       }}
                     />
-                    <Typography variant="body2">
-                      {item}
-                    </Typography>
+                    <Typography variant="body2">{item}</Typography>
                   </Box>
                 ))}
               </Stack>

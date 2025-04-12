@@ -1279,6 +1279,7 @@ export default function FileExplorer(
         open={previewOpen}
         onClose={() => setPreviewOpen(false)}
         file={selectedFile}
+        linkId={linkId ?? undefined}
         onLoad={(blobUrl) => {
           if (blobUrl) {
             setFiles((prevFiles) => ({

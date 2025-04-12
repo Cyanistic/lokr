@@ -2123,19 +2123,21 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
             </Box>
           </Box>
 
-          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-            {/* Download button */}
-            <Tooltip title="Download">
-              <IconButton
-                href={file?.blobUrl || ""}
-                download={file?.name}
-                sx={{ color: "#e8eaed" }}
-                aria-label="Download"
-              >
-                <DownloadIcon />
-              </IconButton>
-            </Tooltip>
-          </Box>
+          {file?.blobUrl && (
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+              {/* Download button */}
+              <Tooltip title="Download">
+                <IconButton
+                  href={file?.blobUrl}
+                  download={file?.name}
+                  sx={{ color: "#e8eaed" }}
+                  aria-label="Download"
+                >
+                  <DownloadIcon />
+                </IconButton>
+              </Tooltip>
+            </Box>
+          )}
         </Box>
       }
 
