@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id AS \"id: _\", username, email,\n            iv, public_key, encrypted_private_key, salt,\n            avatar AS avatar_extension, totp_enabled, totp_verified,\n            theme AS \"theme: Theme\",\n            sort_order AS \"sort_order: FileSortOrder\", grid_view,\n            total_space, used_space\n            FROM user WHERE id = ?",
+  "query": "SELECT id AS \"id: _\", username, email,\n            iv, public_key, encrypted_private_key, salt,\n            avatar AS avatar_extension, totp_enabled, totp_verified,\n            password_salt, theme AS \"theme: Theme\",\n            sort_order AS \"sort_order: FileSortOrder\", grid_view,\n            total_space, used_space\n            FROM user WHERE id = ?",
   "describe": {
     "columns": [
       {
@@ -54,28 +54,33 @@
         "type_info": "Bool"
       },
       {
-        "name": "theme: Theme",
+        "name": "password_salt",
         "ordinal": 10,
-        "type_info": "Integer"
+        "type_info": "Text"
       },
       {
-        "name": "sort_order: FileSortOrder",
+        "name": "theme: Theme",
         "ordinal": 11,
         "type_info": "Integer"
       },
       {
-        "name": "grid_view",
+        "name": "sort_order: FileSortOrder",
         "ordinal": 12,
+        "type_info": "Integer"
+      },
+      {
+        "name": "grid_view",
+        "ordinal": 13,
         "type_info": "Bool"
       },
       {
         "name": "total_space",
-        "ordinal": 13,
+        "ordinal": 14,
         "type_info": "Integer"
       },
       {
         "name": "used_space",
-        "ordinal": 14,
+        "ordinal": 15,
         "type_info": "Integer"
       }
     ],
@@ -93,6 +98,7 @@
       true,
       false,
       false,
+      true,
       false,
       false,
       false,
@@ -100,5 +106,5 @@
       false
     ]
   },
-  "hash": "8068a061e509410b1c9d03e552470d9d348099b09c20139ef9dfd2d86207d896"
+  "hash": "cf3a6ab755c2396e09a40d94248842a556dd2e8531c325b74478d7481e2ab28d"
 }

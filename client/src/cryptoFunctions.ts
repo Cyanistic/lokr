@@ -185,21 +185,37 @@ export function bufferToBase64(buffer: ArrayBuffer): string {
 // Helper function to hash a password for the backend
 export async function hashPassword(
   password: string,
-  salt: Uint8Array | null = null,
+  salt?: Uint8Array | null,
 ): Promise<string> {
-  if (!salt) {
+  const generated = salt === undefined;
+  // There is no salt to hash
+  if (salt === null) {
+    return password;
+  }
+  // Alias for generating a salt
+  if (generated) {
     salt = new Uint8Array(16);
     crypto.getRandomValues(salt);
   }
-  return await argon2id({
-    password,
-    salt,
-    parallelism: 1,
-    iterations: 256,
-    memorySize: 512, // use 512KB memory
-    hashLength: 32, // output size = 32 bytes
-    outputType: "encoded", // return standard encoded string containing parameters needed to verify the key
-  });
+  // Attempt to use wasm argon2id
+  try {
+    return await argon2id({
+      password,
+      salt: salt!,
+      parallelism: 1,
+      iterations: 256,
+      memorySize: 512, // use 512KB memory
+      hashLength: 32, // output size = 32 bytes
+      outputType: "encoded", // return standard encoded string containing parameters needed to verify the key
+    });
+  } catch {
+    if (salt && !generated)
+      throw new Error(
+        "You created your password on a browser that supports wasm but are attempting to login on a browser that does not. This is not supported!",
+      );
+    // Fallback to using the user's raw password
+    return password;
+  }
 }
 
 export async function shareFileKey(

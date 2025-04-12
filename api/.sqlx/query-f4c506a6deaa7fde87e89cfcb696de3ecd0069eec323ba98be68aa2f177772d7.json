@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                UPDATE user SET password_hash = ?,\n                encrypted_private_key = ?, password_salt = ?,\n                salt = ?, iv = ?\n                WHERE id = ?\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "f4c506a6deaa7fde87e89cfcb696de3ecd0069eec323ba98be68aa2f177772d7"
+}

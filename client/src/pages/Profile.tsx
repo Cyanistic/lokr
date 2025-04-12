@@ -3,6 +3,7 @@ import AvatarUpload from "./ProfileAvatar";
 import { API, BASE_URL, isValidValue } from "../utils";
 import DefaultProfile from "/default-profile.webp";
 import {
+  base64ToArrayBuffer,
   bufferToBase64,
   deriveKeyFromPassword,
   encryptPrivateKey,
@@ -70,7 +71,7 @@ function Profile() {
           `${getAvatarUrl({
             id: profile.id,
             avatarExtension: profile.avatarExtension,
-          })}/?q=${Math.random()}`
+          })}/?q=${Math.random()}`,
         );
       }
     };
@@ -252,7 +253,9 @@ function Profile() {
   // Save edit to backend
   const handleSave = async (field: "username" | "password" | "email") => {
     try {
-      const passwordSalt: Uint8Array | null = (await localforage.getItem("passwordSalt")) as Uint8Array | null;
+      const passwordSalt: Uint8Array | null = profile?.passwordSalt
+        ? new Uint8Array(base64ToArrayBuffer(profile?.passwordSalt))
+        : null;
       const password = prompt("Enter your current password to confirm change");
       if (!password) {
         throw new Error("Password confirmation is required.");
@@ -269,39 +272,33 @@ function Profile() {
         }
       }
 
+      // We're setting a new password so we need to regenerate the
+      // encryptPrivateKey. We also want to regenerate the iv and salt
+      // for security reasons.
       if (field === "password") {
-        requestBody = {
-          type: "password",
-          newValue: updatedValue,
-          password: await hashPassword(password, passwordSalt),
-          encryptedPrivateKey: "",
-        };
-        const salt: string | null = await localforage.getItem("salt");
-        const privateKey: CryptoKey | null = await localforage.getItem("privateKey");
-        const iv: string | null = await localforage.getItem("iv");
+        // Step 1: Generate Salt for PBKDF2
+        const salt = crypto.getRandomValues(new Uint8Array(16));
+        const privateKey: CryptoKey | null =
+          await localforage.getItem("privateKey");
 
-        if (!salt) {
-          throw new Error("Could not find master key salt");
-        }
         if (!privateKey) {
           throw new Error("Could not find private key");
         }
-        if (!iv) {
-          throw new Error("Could not find iv");
-        }
 
         const masterKey = await deriveKeyFromPassword(updatedValue, salt);
-        const { encrypted: encryptedPrivateKey } = await encryptPrivateKey(
+        const { encrypted: encryptedPrivateKey, iv } = await encryptPrivateKey(
           privateKey,
           masterKey,
-          iv,
         );
-        requestBody.encryptedPrivateKey = bufferToBase64(encryptedPrivateKey);
-        // Hash the new password for the backend
-        requestBody.newValue = await hashPassword(
-          requestBody.newValue,
-          passwordSalt,
-        );
+
+        requestBody = {
+          type: "password",
+          newValue: await hashPassword(updatedValue),
+          password: await hashPassword(password, passwordSalt),
+          encryptedPrivateKey: bufferToBase64(encryptedPrivateKey),
+          iv: bufferToBase64(iv),
+          salt: bufferToBase64(salt),
+        };
       } else {
         requestBody = {
           type: field,
@@ -309,23 +306,12 @@ function Profile() {
           password: await hashPassword(password, passwordSalt),
         } as UserUpdate;
       }
-      console.log("Sending request:", JSON.stringify(requestBody, null, 2));
       const response = await API.api.updateUser(requestBody);
-      console.log("Response status:", response.status);
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error("Server Response:", errorData);
-        throw new Error(
-          `Failed to update ${field}: ${errorData.message || response.statusText}`,
-        );
-      }
+      if (!response.ok) throw response.error;
 
+      await refreshProfile();
       if (field === "email") {
-        await refreshProfile();
-        console.log("Disabling TOTP in UI due to email change");
         setShowTotpWarningModal(true);
-      } else {
-        refreshProfile();
       }
       setEditingField(null);
     } catch (err) {
@@ -397,7 +383,10 @@ function Profile() {
                         value={updatedValue}
                         onChange={(e) => setUpdatedValue(e.target.value)}
                       />
-                      <button className="b1" onClick={() => handleSave("username")}>
+                      <button
+                        className="b1"
+                        onClick={() => handleSave("username")}
+                      >
                         Save
                       </button>
                     </>
@@ -406,7 +395,9 @@ function Profile() {
                       {profile!.username}{" "}
                       <button
                         className="b1"
-                        onClick={() => handleEdit("username", profile!.username)}
+                        onClick={() =>
+                          handleEdit("username", profile!.username)
+                        }
                       >
                         Edit
                       </button>
@@ -495,7 +486,10 @@ function Profile() {
               ) : (
                 <>
                   ••••••••{" "}
-                  <button className="b1" onClick={() => handleEdit("password", "")}>
+                  <button
+                    className="b1"
+                    onClick={() => handleEdit("password", "")}
+                  >
                     Change Password
                   </button>
                 </>

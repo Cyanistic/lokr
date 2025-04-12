@@ -596,6 +596,8 @@ pub struct SessionUser {
     /// The salt for the PBKDF2 key derivation function
     #[schema(content_encoding = "base64", example = "iKJcRJf7fwtO6est")]
     salt: String,
+    /// The salt for the user's hashed password if applicable
+    password_salt: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     /// The file extension for the user's avatar
     avatar_extension: Option<String>,
@@ -640,7 +642,7 @@ pub async fn get_logged_in_user(
         r#"SELECT id AS "id: _", username, email,
             iv, public_key, encrypted_private_key, salt,
             avatar AS avatar_extension, totp_enabled, totp_verified,
-            theme AS "theme: Theme",
+            password_salt, theme AS "theme: Theme",
             sort_order AS "sort_order: FileSortOrder", grid_view,
             total_space, used_space
             FROM user WHERE id = ?"#,
@@ -676,10 +678,13 @@ pub enum UserUpdateField {
     Email,
     /// Update the user's password
     /// Requires a new encrypted private key to be provided since
-    /// the password is used to derive the key for the AES encryption
+    /// the password is used to derive the key for the AES encryption.
+    /// This also requires a new salt and iv for security
     #[serde(rename_all = "camelCase")]
     Password {
         encrypted_private_key: String,
+        salt: String,
+        iv: String,
     },
 }
 
@@ -787,6 +792,8 @@ pub async fn update_user(
         }
         UserUpdateField::Password {
             encrypted_private_key,
+            salt,
+            iv,
         } => {
             if update.new_value.len() < MIN_PASSWORD_LENGTH as usize
                 || update.new_value.len() > MAX_PASSWORD_LENGTH as usize
@@ -821,11 +828,11 @@ pub async fn update_user(
                 })?;
 
             // Hash the new password and store the new hash in the database
-            let salt = SaltString::generate(&mut OsRng);
+            let server_salt = SaltString::generate(&mut OsRng);
             let password_hash = tokio::task::block_in_place(|| {
                 state
                     .argon2
-                    .hash_password(update.new_value.as_bytes(), &salt)
+                    .hash_password(update.new_value.as_bytes(), &server_salt)
                     .map_err(|_| {
                         AppError::UserError((
                             StatusCode::BAD_REQUEST,
@@ -836,10 +843,17 @@ pub async fn update_user(
             .to_string();
 
             sqlx::query!(
-                "UPDATE user SET password_hash = ?, encrypted_private_key = ?, password_salt = ? WHERE id = ?",
+                r#"
+                UPDATE user SET password_hash = ?,
+                encrypted_private_key = ?, password_salt = ?,
+                salt = ?, iv = ?
+                WHERE id = ?
+                "#,
                 password_hash,
                 encrypted_private_key,
                 password_salt,
+                salt,
+                iv,
                 user.id
             )
             .execute(&state.pool)

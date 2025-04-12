@@ -223,6 +223,8 @@ export interface SessionUser {
    * @example "BukSfO6yaQ"
    */
   iv: string;
+  /** The salt for the user's hashed password if applicable */
+  passwordSalt?: string | null;
   /**
    * The user's public key
    * @example "QQe22k5wy-88PUFIW1P7MkgxoyMyalmjnffAuUNgMuE"
@@ -505,7 +507,8 @@ export type UserUpdate = UserUpdateField & {
 /**
  * Update the user's password
  * Requires a new encrypted private key to be provided since
- * the password is used to derive the key for the AES encryption
+ * the password is used to derive the key for the AES encryption.
+ * This also requires a new salt and iv for security
  */
 export type UserUpdateField =
   | {
@@ -516,6 +519,8 @@ export type UserUpdateField =
     }
   | {
       encryptedPrivateKey: string;
+      iv: string;
+      salt: string;
       type: "password";
     };
 
