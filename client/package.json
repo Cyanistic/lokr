@@ -37,6 +37,7 @@
     "react-window": "^1.8.11",
     "rollup": "^3.29.5",
     "swagger-typescript-api": "^13.0.23",
+    "ua-parser-js": "^2.0.3",
     "use-debounce": "^10.0.4"
   },
   "devDependencies": {
