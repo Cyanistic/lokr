@@ -221,6 +221,25 @@ const muiTheme = createTheme({
         },
       },
     },
+    MuiRadio: {
+      styleOverrides: {
+        root: {
+          '&.Mui-checked': {
+            color: colors.teal.main,
+          },
+        },
+        colorPrimary: {
+          '&.Mui-checked': {
+            color: colors.teal.main,
+          },
+          '& .MuiSvgIcon-root': {
+            '&:nth-of-type(2)': { // This targets the inner checked circle
+              color: colors.teal.main,
+            },
+          },
+        },
+      },
+    },
   },
 });
 
@@ -247,6 +266,25 @@ export const darkMuiTheme = createTheme({
       styleOverrides: {
         root: {
           color: "#F7FAFC", // Almost white color in dark mode
+        },
+      },
+    },
+    MuiRadio: {
+      styleOverrides: {
+        root: {
+          '&.Mui-checked': {
+            color: colors.teal.main,
+          },
+        },
+        colorPrimary: {
+          '&.Mui-checked': {
+            color: colors.teal.main,
+          },
+          '& .MuiSvgIcon-root': {
+            '&:nth-of-type(2)': { // This targets the inner checked circle
+              color: colors.teal.main,
+            },
+          },
         },
       },
     },

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { BASE_URL } from "../utils";
 import { useToast } from "../components/ToastProvider";
+import { Box, Typography, Button, Avatar } from "@mui/material";
 
 type AvatarUploadProps = {
   avatarUrl: string;
@@ -19,13 +20,13 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({
     const selectedFile = e.target.files ? e.target.files[0] : null;
 
     if (selectedFile) {
-      const validTypes = ["image/png", "image/jpeg"];
+      const validTypes = /^image\/.*$/;
 
-      if (validTypes.includes(selectedFile.type)) {
+      if (validTypes.test(selectedFile.type)) {
         setFile(selectedFile);
         setError(null); // Reset error if file type is valid
       } else {
-        showError("Please upload a PNG or JPG file.");
+        showError("Please upload a valid image file file.");
       }
     }
   };
@@ -55,47 +56,68 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({
   };
 
   return (
-    <div style={{ textAlign: "center" }}>
-      <img
+    <Box sx={{ textAlign: "center" }}>
+      <Avatar 
         src={avatarUrl}
         alt="Avatar"
-        width={256}
-        height={256}
-        style={{ display: "none", marginBottom: "20px" }} // Hide the square image
+        sx={{ 
+          width: 256, 
+          height: 256, 
+          display: "none", 
+          mb: 2.5,
+          mx: "auto"
+        }}
       />
-      <div style={{ marginBottom: "20px" }}>
-        <input
-          type="file"
-          accept="image/png, image/jpeg"
-          onChange={handleFileChange}
-        />
-      </div>
-      {error && <p style={{ color: "red", marginBottom: "20px" }}>{error}</p>}{" "}
-      {/* Error spacing */}
-      <button
-        className="b1"
+      <Box sx={{ mb: 2.5 }}>
+        <Button
+          component="label"
+          variant="contained"
+          htmlFor="avatar-upload"
+        >
+          Choose File
+          <input
+            id="avatar-upload"
+            type="file"
+            accept="image/*"
+            onChange={handleFileChange}
+            style={{ display: "none" }}
+          />
+        </Button>
+        {file && (
+          <Typography 
+            variant="body2" 
+            component="span" 
+            sx={{ 
+              ml: 1.25, 
+              color: "text.secondary" 
+            }}
+          >
+            {file.name}
+          </Typography>
+        )}
+      </Box>
+      {error && (
+        <Typography 
+          variant="body2" 
+          color="error" 
+          sx={{ mb: 2.5 }}
+        >
+          {error}
+        </Typography>
+      )}
+      <Button
+        variant="contained"
         onClick={handleUpload}
-        style={{
-          padding: "10px 20px",
-          fontSize: "16px",
-          cursor: "pointer",
-          marginTop: "10px", // Add space above the button
+        sx={{
+          mt: 1.25,
+          fontSize: "1rem",
+          px: 2.5,
+          py: 1.25,
         }}
       >
         Upload Avatar
-      </button>
-      {/*<Button variant="contained" 
-        onClick={handleUpload} 
-        style={{padding: "10px 20px",
-          fontSize: "16px",
-          cursor: "pointer",
-          marginTop: "10px", 
-          backgroundColor: theme.palette.mode === 'dark' ? '#2f27ce': '#3a31d8', 
-          color: theme.palette.mode === 'dark' ? '#050316' : '#eae9fc', 
-          textTransform: 'none'}}
-        >Upload Avatar
-      </Button>*/}
-    </div>
+      </Button>
+    </Box>
   );
 };
 

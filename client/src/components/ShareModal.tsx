@@ -81,6 +81,7 @@ const ShareModal: React.FC<ShareModalProps> = ({
   >([]);
   const [permission, setPermission] = useState<"viewer" | "editor">("viewer");
   const [password, setPassword] = useState("");
+  const [showMainPassword, setShowMainPassword] = useState<boolean>(false);
   const availableDurationUnits = ["never", "hours", "days", "weeks"] as const;
   const [durationUnits, setExpiration] =
     useState<(typeof availableDurationUnits)[number]>("hours");
@@ -470,12 +471,7 @@ const ShareModal: React.FC<ShareModalProps> = ({
               </FormControl>
             </Box>
             {/* People with Access Section above General Access */}
-            <Box
-              mt={3}
-              p={2}
-              border="1px solid"
-              borderRadius="8px"
-            >
+            <Box mt={3} p={2} border="1px solid" borderRadius="8px">
               <Typography variant="subtitle1">People with access</Typography>
               <Box
                 display="flex"
@@ -579,12 +575,7 @@ const ShareModal: React.FC<ShareModalProps> = ({
         {tab == 1 && (
           <>
             {/* General Access Section */}
-            <Box
-              mt={3}
-              p={2}
-              border="1px solid"
-              borderRadius="8px"
-            >
+            <Box mt={3} p={2} border="1px solid" borderRadius="8px">
               <Typography variant="subtitle1">General access</Typography>
               <Box
                 display="flex"
@@ -595,10 +586,26 @@ const ShareModal: React.FC<ShareModalProps> = ({
               >
                 <TextField
                   label="Password (optional)"
-                  type="password"
+                  type={showMainPassword ? "text" : "password"}
                   sx={{ flexGrow: 1 }}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end" sx={{ paddingRight: 1 }}>
+                        <IconButton
+                          onClick={() => setShowMainPassword(!showMainPassword)}
+                          edge="end"
+                        >
+                          {showMainPassword ? (
+                            <VisibilityOff />
+                          ) : (
+                            <Visibility />
+                          )}
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  }}
                 />
                 <FormControl variant="outlined" sx={{ minWidth: 100 }}>
                   <InputLabel>Permission</InputLabel>
@@ -662,12 +669,7 @@ const ShareModal: React.FC<ShareModalProps> = ({
               </Box>
             </Box>
 
-            <Box
-              mt={3}
-              p={2}
-              border="1px solid"
-              borderRadius="8px"
-            >
+            <Box mt={3} p={2} border="1px solid" borderRadius="8px">
               <Typography variant="subtitle1">Active Links</Typography>
               <Box
                 display="flex"
@@ -739,7 +741,10 @@ const ShareModal: React.FC<ShareModalProps> = ({
                                 <TextField
                                   fullWidth
                                   size="small"
-                                  value={generateShareLink(link.id, encryptionKey)}
+                                  value={generateShareLink(
+                                    link.id,
+                                    encryptionKey,
+                                  )}
                                   slotProps={{
                                     input: {
                                       readOnly: true,
@@ -770,7 +775,9 @@ const ShareModal: React.FC<ShareModalProps> = ({
                                 my: 1,
                               }}
                             >
-                              <Tooltip title={`Created: ${link.createdAt.toLocaleString()}`}>
+                              <Tooltip
+                                title={`Created: ${link.createdAt.toLocaleString()}`}
+                              >
                                 <Box
                                   sx={{ display: "flex", alignItems: "center" }}
                                 >

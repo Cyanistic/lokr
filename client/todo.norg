@@ -3,12 +3,13 @@
   -- (x) Style home
   -- (x) Style register
   -- (x) Style login
-  -- ( ) Style profile
+  -- (x) Style profile
+  --- ( ) Add password modal for confirmation
   -- (x) Style about us
   -- (x) Style file page
   -- ( ) Add logo/branding
   -- (x) Add colors
-  -- ( ) Styling sessions menu
+  -- (x) Styling sessions menu
   - (x) Populate text pages with information
   -- (x) Populate about us
   -- (x) Populate home

@@ -7,26 +7,27 @@ import {
   Chip,
   Button,
   TextField,
-  Alert,
   List,
   ListItem,
   Stack,
   Collapse,
   Fade,
-} from "@mui/material"
+} from "@mui/material";
+import { useToast } from "./ToastProvider";
+import { useEffect } from "react";
 
 interface TwoFactorAuthProps {
   profile: {
-    totpEnabled?: boolean
-  } | null
-  showTOTPSetup: boolean
-  totpInputCode: string
-  setTOTPInputCode: (code: string) => void
-  totpVerified: boolean
-  qrCode: string | null
-  onRegenerateTOTP: () => void
-  onVerifyTOTP: () => void
-  onEnableTOTP: () => void
+    totpEnabled?: boolean;
+  } | null;
+  showTOTPSetup: boolean;
+  totpInputCode: string;
+  setTOTPInputCode: (code: string) => void;
+  totpVerified: boolean;
+  qrCode: string | null;
+  onRegenerateTOTP: () => void;
+  onVerifyTOTP: () => void;
+  onEnableTOTP: () => void;
 }
 
 export default function TwoFactorAuth({
@@ -40,6 +41,15 @@ export default function TwoFactorAuth({
   onVerifyTOTP,
   onEnableTOTP,
 }: TwoFactorAuthProps) {
+  const { showSuccess } = useToast();
+  useEffect(() => {
+    if (totpVerified) {
+      showSuccess(
+        'Code verified successfully! Click "Enable TOTP" to activate two-factor authentication.',
+      );
+    }
+  }, []);
+
   return (
     <Paper
       elevation={1}
@@ -47,9 +57,11 @@ export default function TwoFactorAuth({
         p: { xs: 2, sm: 2.5 },
         mb: { xs: 2.5, sm: 3.75 },
         borderRadius: 1.25,
-        bgcolor: (theme) => (theme.palette.mode === "dark" ? "background.paper" : "#f9f9f9"),
+        bgcolor: (theme) =>
+          theme.palette.mode === "dark" ? "background.paper" : "#f9f9f9",
         border: 1,
-        borderColor: (theme) => (theme.palette.mode === "dark" ? "#304b53" : "#e2e8f0"),
+        borderColor: (theme) =>
+          theme.palette.mode === "dark" ? "#304b53" : "#e2e8f0",
       }}
     >
       <Box
@@ -72,10 +84,12 @@ export default function TwoFactorAuth({
             borderRadius: 5,
             bgcolor: profile?.totpEnabled
               ? "#81e6d9"
-              : (theme) => (theme.palette.mode === "dark" ? "#2d3748" : "#e2e8f0"),
+              : (theme) =>
+                  theme.palette.mode === "dark" ? "#2d3748" : "#e2e8f0",
             color: profile?.totpEnabled
               ? "#151c29"
-              : (theme) => (theme.palette.mode === "dark" ? "#a0aec0" : "#4a5568"),
+              : (theme) =>
+                  theme.palette.mode === "dark" ? "#a0aec0" : "#4a5568",
             fontWeight: 500,
             px: 1.25,
             py: 0.5,
@@ -87,12 +101,14 @@ export default function TwoFactorAuth({
         variant="body2"
         sx={{
           mb: 2.5,
-          color: (theme) => (theme.palette.mode === "dark" ? "#a0aec0" : "#666"),
+          color: (theme) =>
+            theme.palette.mode === "dark" ? "#a0aec0" : "#666",
           lineHeight: 1.5,
         }}
       >
-        Two-factor authentication adds an extra layer of security to your account by requiring a code from your
-        authenticator app in addition to your password.
+        Two-factor authentication adds an extra layer of security to your
+        account by requiring a code from your authenticator app in addition to
+        your password.
       </Typography>
 
       <Paper
@@ -104,13 +120,22 @@ export default function TwoFactorAuth({
           gap: 1.875,
           mb: 2.5,
           p: 1.875,
-          bgcolor: (theme) => (theme.palette.mode === "dark" ? "#151c29" : "#fff"),
+          bgcolor: (theme) =>
+            theme.palette.mode === "dark" ? "#151c29" : "#fff",
           border: 1,
-          borderColor: (theme) => (theme.palette.mode === "dark" ? "#304b53" : "#e2e8f0"),
+          borderColor: (theme) =>
+            theme.palette.mode === "dark" ? "#304b53" : "#e2e8f0",
           borderRadius: 1,
         }}
       >
-        <Box sx={{ flexShrink: 0, display: { xs: "flex", sm: "block" }, alignItems: "center", mb: { xs: 1, sm: 0 } }}>
+        <Box
+          sx={{
+            flexShrink: 0,
+            display: { xs: "flex", sm: "block" },
+            alignItems: "center",
+            mb: { xs: 1, sm: 0 },
+          }}
+        >
           {profile?.totpEnabled ? (
             <Box
               sx={{
@@ -138,7 +163,8 @@ export default function TwoFactorAuth({
                 width: 24,
                 height: 24,
                 borderRadius: "50%",
-                bgcolor: (theme) => (theme.palette.mode === "dark" ? "#2d3748" : "#e2e8f0"),
+                bgcolor: (theme) =>
+                  theme.palette.mode === "dark" ? "#2d3748" : "#e2e8f0",
                 position: "relative",
                 "&::after": {
                   content: '""',
@@ -156,7 +182,11 @@ export default function TwoFactorAuth({
           )}
           <Typography
             variant="body1"
-            sx={{ ml: { xs: 2, sm: 0 }, display: { xs: "block", sm: "none" }, fontWeight: "bold" }}
+            sx={{
+              ml: { xs: 2, sm: 0 },
+              display: { xs: "block", sm: "none" },
+              fontWeight: "bold",
+            }}
           >
             Status:
           </Typography>
@@ -171,7 +201,8 @@ export default function TwoFactorAuth({
           <Typography
             variant="body2"
             sx={{
-              color: (theme) => (theme.palette.mode === "dark" ? "#a0aec0" : "#666"),
+              color: (theme) =>
+                theme.palette.mode === "dark" ? "#a0aec0" : "#666",
             }}
           >
             {profile?.totpEnabled
@@ -224,29 +255,11 @@ export default function TwoFactorAuth({
           </>
         ) : (
           <>
-            <Button
-              variant="contained"
-              onClick={onRegenerateTOTP}
-              sx={{
-                bgcolor: (theme) => theme.palette.secondary.main,
-                "&:hover": {
-                  bgcolor: (theme) => theme.palette.secondary.dark,
-                },
-              }}
-            >
+            <Button variant="contained" onClick={onRegenerateTOTP}>
               Set Up TOTP
             </Button>
             {totpVerified && (
-              <Button
-                variant="contained"
-                onClick={onEnableTOTP}
-                sx={{
-                  bgcolor: (theme) => theme.palette.secondary.main,
-                  "&:hover": {
-                    bgcolor: (theme) => theme.palette.secondary.dark,
-                  },
-                }}
-              >
+              <Button variant="contained" onClick={onEnableTOTP}>
                 Enable TOTP
               </Button>
             )}
@@ -262,9 +275,11 @@ export default function TwoFactorAuth({
             mt: 2.5,
             p: { xs: 1.5, sm: 2.5 },
             border: 1,
-            borderColor: (theme) => (theme.palette.mode === "dark" ? "#304b53" : "#e2e8f0"),
+            borderColor: (theme) =>
+              theme.palette.mode === "dark" ? "#304b53" : "#e2e8f0",
             borderRadius: 1,
-            bgcolor: (theme) => (theme.palette.mode === "dark" ? "#151c29" : "#fff"),
+            bgcolor: (theme) =>
+              theme.palette.mode === "dark" ? "#151c29" : "#fff",
             overflow: "hidden", // Ensures the animation stays within bounds
           }}
         >
@@ -285,21 +300,82 @@ export default function TwoFactorAuth({
               ml: { xs: 1, sm: 2.5 },
               mb: 2.5,
               p: 0,
-              color: (theme) => (theme.palette.mode === "dark" ? theme.palette.text.primary : "#000"),
+              color: (theme) =>
+                theme.palette.mode === "dark"
+                  ? theme.palette.text.primary
+                  : "#000",
               fontSize: "0.875rem",
               lineHeight: 1.6,
               "& .MuiListItem-root": {
                 mb: 1.25,
                 pl: 0,
+                display: "flex",
+                alignItems: "flex-start",
               },
             }}
           >
             <ListItem>
-              Scan this QR code with your authenticator app (like Google Authenticator, Authy, or Microsoft
-              Authenticator)
+              <Box
+                sx={{
+                  width: 24,
+                  height: 24,
+                  borderRadius: "50%",
+                  bgcolor: (theme) => theme.palette.primary.main,
+                  color: (theme) => theme.palette.primary.contrastText,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontWeight: "bold",
+                  mr: 1.5,
+                  flexShrink: 0,
+                }}
+              >
+                1
+              </Box>
+              Scan this QR code with your authenticator app (like Google
+              Authenticator, Authy, or Microsoft Authenticator)
             </ListItem>
-            <ListItem>Enter the 6-digit code shown in your app below</ListItem>
-            <ListItem>Once verified, click "Enable TOTP" to activate two-factor authentication</ListItem>
+            <ListItem>
+              <Box
+                sx={{
+                  width: 24,
+                  height: 24,
+                  borderRadius: "50%",
+                  bgcolor: (theme) => theme.palette.primary.main,
+                  color: (theme) => theme.palette.primary.contrastText,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontWeight: "bold",
+                  mr: 1.5,
+                  flexShrink: 0,
+                }}
+              >
+                2
+              </Box>
+              Enter the 6-digit code shown in your app below
+            </ListItem>
+            <ListItem>
+              <Box
+                sx={{
+                  width: 24,
+                  height: 24,
+                  borderRadius: "50%",
+                  bgcolor: (theme) => theme.palette.primary.main,
+                  color: (theme) => theme.palette.primary.contrastText,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontWeight: "bold",
+                  mr: 1.5,
+                  flexShrink: 0,
+                }}
+              >
+                3
+              </Box>
+              Once verified, click "Enable TOTP" to activate two-factor
+              authentication
+            </ListItem>
           </List>
 
           {/* QR Code with Fade Animation */}
@@ -313,7 +389,8 @@ export default function TwoFactorAuth({
                   width: { xs: 150, sm: 200 },
                   height: { xs: 150, sm: 200 },
                   border: 1,
-                  borderColor: (theme) => (theme.palette.mode === "dark" ? "#304b53" : "#e2e8f0"),
+                  borderColor: (theme) =>
+                    theme.palette.mode === "dark" ? "#304b53" : "#e2e8f0",
                   p: 1.25,
                   bgcolor: "white",
                   m: "0 auto 1.875px",
@@ -343,10 +420,12 @@ export default function TwoFactorAuth({
                 width: { xs: "100%", sm: 150 },
                 "& .MuiInputBase-input": {
                   textAlign: "center",
-                  letterSpacing: 2,
+                  letterSpacing: totpInputCode ? 2 : 0,
                   p: "10px 12px",
-                  bgcolor: (theme) => (theme.palette.mode === "dark" ? "#1e293b" : "inherit"),
-                  color: (theme) => (theme.palette.mode === "dark" ? "white" : "inherit"),
+                  bgcolor: (theme) =>
+                    theme.palette.mode === "dark" ? "#1e293b" : "inherit",
+                  color: (theme) =>
+                    theme.palette.mode === "dark" ? "white" : "inherit",
                 },
               }}
             />
@@ -354,38 +433,14 @@ export default function TwoFactorAuth({
               variant="contained"
               onClick={onVerifyTOTP}
               sx={{
-                bgcolor: (theme) => theme.palette.secondary.main,
-                "&:hover": {
-                  bgcolor: (theme) => theme.palette.secondary.dark,
-                },
                 width: { xs: "100%", sm: "auto" },
               }}
             >
               Verify Code
             </Button>
           </Stack>
-
-          {/* Verification Message with Slide Animation */}
-          <Collapse in={totpVerified} mountOnEnter unmountOnExit>
-            <Alert
-              severity="success"
-              sx={{
-                mt: 1.875,
-                textAlign: "center",
-                bgcolor: (theme) => (theme.palette.mode === "dark" ? "rgba(56, 161, 105, 0.2)" : "#c6f6d5"),
-                color: (theme) => (theme.palette.mode === "dark" ? "#9ae6b4" : "#2f855a"),
-                "& .MuiAlert-icon": {
-                  color: (theme) => (theme.palette.mode === "dark" ? "#9ae6b4" : "#2f855a"),
-                },
-              }}
-            >
-              Code verified successfully! Click "Enable TOTP" to activate two-factor authentication.
-            </Alert>
-          </Collapse>
         </Paper>
       </Collapse>
     </Paper>
-  )
+  );
 }
-
-

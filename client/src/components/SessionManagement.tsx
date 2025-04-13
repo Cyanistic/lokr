@@ -1,98 +1,77 @@
 /*File contains code for displaying Session Management section on the Profile page*/
 
-import { useState, useEffect } from "react"
-import { Box, Typography, Paper, Chip, Button, CircularProgress, Alert, Stack } from "@mui/material"
-import { Computer, Smartphone, Tablet, Warning as AlertTriangle, Info, Logout } from "@mui/icons-material"
-import { BASE_URL } from "../utils"
-import { UAParser } from "ua-parser-js"
+import { useState, useEffect } from "react";
+import {
+  Box,
+  Typography,
+  Paper,
+  Chip,
+  Button,
+  CircularProgress,
+  Alert,
+  Stack,
+} from "@mui/material";
+import {
+  Computer,
+  Smartphone,
+  Tablet,
+  Warning as AlertTriangle,
+  Info,
+  Logout,
+} from "@mui/icons-material";
+import { API } from "../utils";
+import { UAParser } from "ua-parser-js";
+import { useToast } from "./ToastProvider";
+import { Session } from "../myApi";
+import { useProfile } from "./ProfileProvider";
 
-type Session = {
-  number: number
-  createdAt: string
-  lastUsedAt: string
-  userAgent?: string | null
-}
-
-interface SessionManagementProps {
-  initialSessions?: Session[]
-  onSessionDeleted?: (sessionNumber: number) => void
-  showError?: (message: string, error?: any) => void
-}
-
-export default function SessionManagement({ initialSessions, onSessionDeleted, showError }: SessionManagementProps) {
-  const [sessions, setSessions] = useState<Session[]>(initialSessions || [])
-  const [loading, setLoading] = useState(!initialSessions)
-  const [error, setError] = useState<string | null>(null)
+export default function SessionManagement() {
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { showError } = useToast();
+  const [error, setError] = useState<string | null>(null);
+  const { profile } = useProfile();
 
   useEffect(() => {
-    // If sessions were provided as props, use those
-    if (initialSessions) {
-      setSessions(initialSessions)
-      setLoading(false)
-      return
-    }
-
-    // Otherwise fetch sessions
+    // Fetch sessions
     const fetchSessions = async () => {
       try {
-        setLoading(true)
+        setLoading(true);
 
-        const response = await fetch(`${BASE_URL}/api/sessions`, {
-          credentials: "include",
-        })
+        const response = await API.api.getSessions();
 
-        if (!response.ok) {
-          throw new Error("Failed to fetch sessions")
-        }
+        if (!response.ok) throw response.error;
 
-        const sessionData = await response.json()
-        setSessions(sessionData)
+        setSessions(response.data);
       } catch (err) {
-        console.error("Failed to fetch sessions:", err)
-        setError("Failed to load session data")
-        if (showError) {
-          showError("Failed to load session data", err)
-        }
+        showError("Failed to load session data", err);
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
-    }
+    };
 
-    fetchSessions()
-  }, [initialSessions, showError])
+    fetchSessions();
+  }, [profile]);
 
   const handleTerminateSession = async (sessionNumber: number) => {
-    const confirmDelete = window.confirm("Are you sure you want to log out this device?")
-    if (!confirmDelete) return
+    const confirmDelete = window.confirm(
+      "Are you sure you want to log out this device?",
+    );
+    if (!confirmDelete) return;
 
     try {
-      const response = await fetch(`${BASE_URL}/api/session/${sessionNumber}`, {
-        method: "DELETE",
-        credentials: "include",
-      })
+      const response = await API.api.deleteSession(sessionNumber);
 
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(errorText)
-      }
-
+      if (!response.ok) throw response.error;
       // Remove deleted session from the state
-      setSessions((prev) => prev.filter((session) => session.number !== sessionNumber))
-
-      // Notify parent component if callback provided
-      if (onSessionDeleted) {
-        onSessionDeleted(sessionNumber)
-      }
+      setSessions((prev) =>
+        prev.filter((session) => session.number !== sessionNumber),
+      );
     } catch (err) {
-      console.error("Error deleting session:", err)
-      setError(err instanceof Error ? err.message : "Failed to delete session")
-      if (showError) {
-        showError("Failed to delete session", err)
-      } else {
-        alert("Failed to delete session")
-      }
+      setError(err instanceof Error ? err.message : "Failed to delete session");
+      showError("Failed to delete session", err);
     }
-  }
+  };
 
   const parseDeviceInfo = (userAgent: string | null | undefined) => {
     if (!userAgent) {
@@ -105,29 +84,29 @@ export default function SessionManagement({ initialSessions, onSessionDeleted, s
         model: "",
         vendor: "",
         cpu: "",
-      }
+      };
     }
 
     // Use UA-Parser-JS for more accurate and detailed device detection
-    const parser = new UAParser(userAgent)
-    const result = parser.getResult()
+    const parser = new UAParser(userAgent);
+    const result = parser.getResult();
 
     // Extract detailed information
-    const browser = result.browser.name || "Unknown"
-    const browserVersion = result.browser.version || ""
-    const os = result.os.name || "Unknown"
-    const osVersion = result.os.version || ""
-    const deviceVendor = result.device.vendor || ""
-    const deviceModel = result.device.model || ""
-    const deviceType = result.device.type || "desktop"
-    const cpu = result.cpu.architecture || ""
+    const browser = result.browser.name || "Unknown";
+    const browserVersion = result.browser.version || "";
+    const os = result.os.name || "Unknown";
+    const osVersion = result.os.version || "";
+    const deviceVendor = result.device.vendor || "";
+    const deviceModel = result.device.model || "";
+    const deviceType = result.device.type || "desktop";
+    const cpu = result.cpu.architecture || "";
 
     // Create a formatted string with the most relevant information
-    let formattedString = `${os}${osVersion ? ` ${osVersion}` : ""} • ${browser}${browserVersion ? ` ${browserVersion}` : ""}`
+    let formattedString = `${os}${osVersion ? ` ${osVersion}` : ""} • ${browser}${browserVersion ? ` ${browserVersion}` : ""}`;
 
     // Add device model information if available
     if (deviceVendor && deviceModel) {
-      formattedString = `${deviceVendor} ${deviceModel} • ${formattedString}`
+      formattedString = `${deviceVendor} ${deviceModel} • ${formattedString}`;
     }
 
     return {
@@ -140,25 +119,25 @@ export default function SessionManagement({ initialSessions, onSessionDeleted, s
       vendor: deviceVendor,
       cpu,
       formattedString,
-    }
-  }
+    };
+  };
 
   const getDeviceIcon = (deviceInfo: ReturnType<typeof parseDeviceInfo>) => {
     switch (deviceInfo.deviceType) {
       case "mobile":
-        return <Smartphone fontSize="small" />
+        return <Smartphone fontSize="small" />;
       case "tablet":
-        return <Tablet fontSize="small" />
+        return <Tablet fontSize="small" />;
       case "desktop":
       case "console":
       case "embedded":
       default:
-        return <Computer fontSize="small" />
+        return <Computer fontSize="small" />;
     }
-  }
+  };
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
+    const date = new Date(dateString);
     return date.toLocaleString("en-US", {
       month: "numeric",
       day: "numeric",
@@ -167,43 +146,45 @@ export default function SessionManagement({ initialSessions, onSessionDeleted, s
       minute: "numeric",
       second: "numeric",
       hour12: true,
-    })
-  }
+    });
+  };
 
   const getTimeSinceLastActive = (lastUsedAt: string) => {
-    const lastUsed = new Date(lastUsedAt)
-    const now = new Date()
-    const diffInMs = now.getTime() - lastUsed.getTime()
-    const diffInMinutes = Math.floor(diffInMs / (1000 * 60))
+    const lastUsed = new Date(lastUsedAt);
+    const now = new Date();
+    const diffInMs = now.getTime() - lastUsed.getTime();
+    const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
 
-    if (diffInMinutes < 1) return "Just now"
-    if (diffInMinutes < 60) return `${diffInMinutes} minutes ago`
+    if (diffInMinutes < 1) return "Just now";
+    if (diffInMinutes < 60) return `${diffInMinutes} minutes ago`;
 
-    const diffInHours = Math.floor(diffInMinutes / 60)
-    if (diffInHours < 24) return `${diffInHours} hours ago`
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    if (diffInHours < 24) return `${diffInHours} hours ago`;
 
-    const diffInDays = Math.floor(diffInHours / 24)
-    if (diffInDays === 1) return "1 day ago"
-    return `${diffInDays} days ago`
-  }
+    const diffInDays = Math.floor(diffInHours / 24);
+    if (diffInDays === 1) return "1 day ago";
+    return `${diffInDays} days ago`;
+  };
 
   // Determine if a session might be suspicious based on patterns
   const isSuspiciousSession = (session: Session, index: number) => {
-    if (index === 0) return false // Current session is not suspicious
+    if (index === 0) return false; // Current session is not suspicious
 
-    const deviceInfo = parseDeviceInfo(session.userAgent)
-    const lastActive = new Date(session.lastUsedAt)
-    const now = new Date()
-    const inactiveDays = Math.floor((now.getTime() - lastActive.getTime()) / (1000 * 60 * 60 * 24))
+    const deviceInfo = parseDeviceInfo(session.userAgent);
+    const lastActive = new Date(session.lastUsedAt);
+    const now = new Date();
+    const inactiveDays = Math.floor(
+      (now.getTime() - lastActive.getTime()) / (1000 * 60 * 60 * 24),
+    );
 
     // Sessions inactive for more than 30 days might be suspicious
-    if (inactiveDays > 30) return true
+    if (inactiveDays > 30) return true;
 
     // Unknown device types might be suspicious
-    if (deviceInfo.deviceType === "unknown") return true
+    if (deviceInfo.deviceType === "unknown") return true;
 
-    return false
-  }
+    return false;
+  };
 
   if (loading) {
     return (
@@ -211,7 +192,7 @@ export default function SessionManagement({ initialSessions, onSessionDeleted, s
         <CircularProgress size={24} sx={{ mr: 1 }} />
         <Typography variant="body1">Loading session data...</Typography>
       </Box>
-    )
+    );
   }
 
   if (error) {
@@ -232,7 +213,7 @@ export default function SessionManagement({ initialSessions, onSessionDeleted, s
         <AlertTriangle fontSize="small" />
         <Typography variant="body2">{error}</Typography>
       </Alert>
-    )
+    );
   }
 
   return (
@@ -242,9 +223,11 @@ export default function SessionManagement({ initialSessions, onSessionDeleted, s
         mt: 3.75,
         p: { xs: 1.5, sm: 2.5 },
         borderRadius: 1.25,
-        bgcolor: (theme) => (theme.palette.mode === "dark" ? "background.paper" : "#f9f9f9"),
+        bgcolor: (theme) =>
+          theme.palette.mode === "dark" ? "background.paper" : "#f9f9f9",
         border: 1,
-        borderColor: (theme) => (theme.palette.mode === "dark" ? "#304b53" : "#e2e8f0"),
+        borderColor: (theme) =>
+          theme.palette.mode === "dark" ? "#304b53" : "#e2e8f0",
       }}
     >
       <Box
@@ -265,12 +248,15 @@ export default function SessionManagement({ initialSessions, onSessionDeleted, s
             display: "flex",
             alignItems: "center",
             gap: 1,
-            color: (theme) => (theme.palette.mode === "dark" ? "#a0aec0" : "#666"),
+            color: (theme) =>
+              theme.palette.mode === "dark" ? "#a0aec0" : "#666",
             fontSize: "0.875rem",
           }}
         >
           <Info fontSize="small" />
-          <Typography variant="body2">Devices currently logged into your account</Typography>
+          <Typography variant="body2">
+            Devices currently logged into your account
+          </Typography>
         </Box>
       </Box>
 
@@ -279,7 +265,8 @@ export default function SessionManagement({ initialSessions, onSessionDeleted, s
           sx={{
             textAlign: "center",
             py: 2.5,
-            color: (theme) => (theme.palette.mode === "dark" ? "#a0aec0" : "#666"),
+            color: (theme) =>
+              theme.palette.mode === "dark" ? "#a0aec0" : "#666",
           }}
         >
           <Typography variant="body1">No active sessions found</Typography>
@@ -304,10 +291,12 @@ export default function SessionManagement({ initialSessions, onSessionDeleted, s
                 sx={{
                   p: { xs: 1.25, sm: 1.875 },
                   mb: 1.875,
-                  bgcolor: (theme) => (theme.palette.mode === "dark" ? "#151c29" : "#fff"),
+                  bgcolor: (theme) =>
+                    theme.palette.mode === "dark" ? "#151c29" : "#fff",
                   borderRadius: 1,
                   border: 1,
-                  borderColor: (theme) => (theme.palette.mode === "dark" ? "#304b53" : "#e2e8f0"),
+                  borderColor: (theme) =>
+                    theme.palette.mode === "dark" ? "#304b53" : "#e2e8f0",
                 }}
               >
                 <Box
@@ -328,8 +317,14 @@ export default function SessionManagement({ initialSessions, onSessionDeleted, s
                           width: 40,
                           height: 40,
                           borderRadius: "50%",
-                          bgcolor: (theme) => (theme.palette.mode === "dark" ? "#304b53" : "#e2e8f0"),
-                          color: (theme) => (theme.palette.mode === "dark" ? "#81e6d9" : "#304b53"),
+                          bgcolor: (theme) =>
+                            theme.palette.mode === "dark"
+                              ? "#304b53"
+                              : "#e2e8f0",
+                          color: (theme) =>
+                            theme.palette.mode === "dark"
+                              ? "#81e6d9"
+                              : "#304b53",
                           flexShrink: 0,
                         }}
                       >
@@ -345,8 +340,14 @@ export default function SessionManagement({ initialSessions, onSessionDeleted, s
                             mb: 0.625,
                           }}
                         >
-                          <Typography variant="body1" sx={{ fontWeight: "bold", wordBreak: "break-word" }}>
-                            {parseDeviceInfo(sessions[0].userAgent).formattedString}
+                          <Typography
+                            variant="body1"
+                            sx={{ fontWeight: "bold", wordBreak: "break-word" }}
+                          >
+                            {
+                              parseDeviceInfo(sessions[0].userAgent)
+                                .formattedString
+                            }
                           </Typography>
                           <Chip
                             label="Current"
@@ -366,7 +367,10 @@ export default function SessionManagement({ initialSessions, onSessionDeleted, s
                         <Box
                           sx={{
                             fontSize: "0.875rem",
-                            color: (theme) => (theme.palette.mode === "dark" ? "#a0aec0" : "#666"),
+                            color: (theme) =>
+                              theme.palette.mode === "dark"
+                                ? "#a0aec0"
+                                : "#666",
                           }}
                         >
                           <Typography variant="body2" sx={{ my: 0.375 }}>
@@ -404,8 +408,8 @@ export default function SessionManagement({ initialSessions, onSessionDeleted, s
               </Typography>
               <Stack spacing={1.875}>
                 {sessions.slice(1).map((session, index) => {
-                  const deviceInfo = parseDeviceInfo(session.userAgent)
-                  const suspicious = isSuspiciousSession(session, index + 1)
+                  const deviceInfo = parseDeviceInfo(session.userAgent);
+                  const suspicious = isSuspiciousSession(session, index + 1);
 
                   return (
                     <Paper
@@ -413,12 +417,16 @@ export default function SessionManagement({ initialSessions, onSessionDeleted, s
                       elevation={0}
                       sx={{
                         p: { xs: 1.25, sm: 1.875 },
-                        bgcolor: (theme) => (theme.palette.mode === "dark" ? "#151c29" : "#fff"),
+                        bgcolor: (theme) =>
+                          theme.palette.mode === "dark" ? "#151c29" : "#fff",
                         borderRadius: 1,
                         border: 1,
                         borderColor: suspicious
                           ? "#e74c3c"
-                          : (theme) => (theme.palette.mode === "dark" ? "#304b53" : "#e2e8f0"),
+                          : (theme) =>
+                              theme.palette.mode === "dark"
+                                ? "#304b53"
+                                : "#e2e8f0",
                         display: "flex",
                         justifyContent: "space-between",
                         alignItems: { xs: "flex-start", sm: "center" },
@@ -456,8 +464,14 @@ export default function SessionManagement({ initialSessions, onSessionDeleted, s
                             width: 40,
                             height: 40,
                             borderRadius: "50%",
-                            bgcolor: (theme) => (theme.palette.mode === "dark" ? "#304b53" : "#e2e8f0"),
-                            color: (theme) => (theme.palette.mode === "dark" ? "#81e6d9" : "#304b53"),
+                            bgcolor: (theme) =>
+                              theme.palette.mode === "dark"
+                                ? "#304b53"
+                                : "#e2e8f0",
+                            color: (theme) =>
+                              theme.palette.mode === "dark"
+                                ? "#81e6d9"
+                                : "#304b53",
                             flexShrink: 0,
                           }}
                         >
@@ -473,7 +487,13 @@ export default function SessionManagement({ initialSessions, onSessionDeleted, s
                               mb: 0.625,
                             }}
                           >
-                            <Typography variant="body1" sx={{ fontWeight: "bold", wordBreak: "break-word" }}>
+                            <Typography
+                              variant="body1"
+                              sx={{
+                                fontWeight: "bold",
+                                wordBreak: "break-word",
+                              }}
+                            >
                               {deviceInfo.formattedString}
                             </Typography>
                             {suspicious && (
@@ -495,11 +515,15 @@ export default function SessionManagement({ initialSessions, onSessionDeleted, s
                           <Box
                             sx={{
                               fontSize: "0.875rem",
-                              color: (theme) => (theme.palette.mode === "dark" ? "#a0aec0" : "#666"),
+                              color: (theme) =>
+                                theme.palette.mode === "dark"
+                                  ? "#a0aec0"
+                                  : "#666",
                             }}
                           >
                             <Typography variant="body2" sx={{ my: 0.375 }}>
-                              Last Active: {getTimeSinceLastActive(session.lastUsedAt)}
+                              Last Active:{" "}
+                              {getTimeSinceLastActive(session.lastUsedAt)}
                             </Typography>
                             <Typography variant="body2" sx={{ my: 0.375 }}>
                               Created: {formatDate(session.createdAt)}
@@ -532,7 +556,7 @@ export default function SessionManagement({ initialSessions, onSessionDeleted, s
                         Log Out
                       </Button>
                     </Paper>
-                  )
+                  );
                 })}
               </Stack>
             </Box>
@@ -540,5 +564,5 @@ export default function SessionManagement({ initialSessions, onSessionDeleted, s
         </>
       )}
     </Paper>
-  )
+  );
 }

@@ -165,6 +165,13 @@ interface FileExplorerProps {
   type: "files" | "shared" | "link";
 }
 
+// @ts-ignore setting this up in a commit or two
+interface SelectedFile {
+  file?: FileMetadata;
+  fromSearch?: boolean;
+  currentIndex?: boolean;
+}
+
 export default function FileExplorer(
   { type }: FileExplorerProps = { type: "files" },
 ) {
@@ -182,7 +189,9 @@ export default function FileExplorer(
     };
   }, [setShowNavbar]);
 
-  const preferredView = useRef<"list" | "grid">("list");
+  const preferredView = useRef<"list" | "grid">(
+    profile ? (profile.gridView ? "grid" : "list") : "grid",
+  );
   const preferredSortBy = useRef<FileSortOrder>("name");
   const parentId = params.get("parentId");
   const view = params.get("view") || preferredView.current;
