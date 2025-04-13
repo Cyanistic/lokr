@@ -166,15 +166,18 @@ const Login: React.FC = () => {
         masterKey,
         responseData.iv,
       );
-      localforage.setItem("iv", responseData.iv);
-      localforage.setItem("publicKey", responseData.publicKey);
-      localforage.setItem(
-        "encryptedPrivateKey",
-        responseData.encryptedPrivateKey,
-      );
-      localforage.setItem("salt", responseData.salt);
-      localforage.setItem("privateKey", privateKey);
-      localforage.setItem("passwordSalt", passwordSaltUint8Array);
+
+      await Promise.all([
+        localforage.setItem("iv", responseData.iv),
+        localforage.setItem("publicKey", responseData.publicKey),
+        localforage.setItem(
+          "encryptedPrivateKey",
+          responseData.encryptedPrivateKey,
+        ),
+        localforage.setItem("salt", responseData.salt),
+        localforage.setItem("privateKey", privateKey),
+        localforage.setItem("passwordSalt", passwordSaltUint8Array),
+      ]);
 
       // Navigate to the redirect URL or the files page if none exists
       showSuccess("Login successful! Redirecting...");

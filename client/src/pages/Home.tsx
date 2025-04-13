@@ -5,6 +5,11 @@ import {
   GitHub as GitHubIcon,
   Laptop as LaptopIcon,
   Person as PersonIcon,
+  ContentCopy as ContentCopyIcon,
+  OpenInNew as OpenInNewIcon,
+  Close as CloseIcon,
+  ExpandLess as ExpandLessIcon,
+  ExpandMore as ExpandMoreIcon,
 } from "@mui/icons-material";
 import {
   Box,
@@ -14,16 +19,17 @@ import {
   Divider,
   Stack,
   Grid,
-  Link as MuiLink,
   Alert,
   Paper,
+  IconButton,
+  Tooltip,
 } from "@mui/material";
 import Upload from "../components/Upload";
 import "../SecurityFeatures.css";
 import { useState } from "react";
 import { FileMetadata } from "../types";
 import { ErrorResponse, ShareResponse } from "../myApi";
-import { isAuthenticated } from "../utils";
+import { generateShareLink, isAuthenticated } from "../utils";
 import { bufferToBase64 } from "../cryptoFunctions";
 
 export function Home() {
@@ -34,6 +40,9 @@ export function Home() {
       base64Key?: string;
     }[]
   >([]);
+
+  const [minimized, setMinimized] = useState(false);
+
   async function encodeBase64(key: CryptoKey) {
     return bufferToBase64(await crypto.subtle.exportKey("raw", key));
   }
@@ -150,57 +159,260 @@ export function Home() {
               ]);
             }}
           />
+          {/* Upload Results displayed as a fixed position dialog */}
           {!isAuthenticated() && uploadResults.length > 0 && (
             <Box
-              component={Paper}
-              elevation={3}
               sx={{
-                p: 2,
-                width: 350,
-                maxHeight: 500, // Set max height
-                overflow: "auto", // Enable scrolling
+                position: "fixed",
+                bottom: { xs: 16, sm: 24, md: 32 },
+                left: { xs: 16, sm: 24, md: 32 },
+                zIndex: 1300,
+                maxWidth: { xs: "calc(100% - 32px)", sm: 400 },
+                width: { xs: "calc(100% - 32px)", sm: 400 },
+                maxHeight: "60vh",
                 display: "flex",
                 flexDirection: "column",
-                gap: 1,
               }}
             >
-              <Typography variant="h6" gutterBottom>
-                Upload Results
-              </Typography>
-              <Divider sx={{ mb: 2 }} />
-              {uploadResults.map(({ file, result, base64Key }, index) => {
-                const displayName = typeof file === "string" ? file : file.name;
+              <Box
+                component={Paper}
+                elevation={6}
+                sx={{
+                  p: 3,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: minimized ? 0 : 1,
+                  bgcolor: "background.paper",
+                  borderRadius: 2,
+                  overflow: "hidden", // Ensures content doesn't escape the borders
+                  boxShadow: "0 8px 16px rgba(0,0,0,0.15)",
+                  border: "1px solid",
+                  borderColor: "divider",
+                  maxHeight: "100%",
+                  transition: "gap 0.4s ease",
+                }}
+              >
+                <Box
+                  display="flex"
+                  alignItems="center"
+                  mb={minimized ? 0 : 1}
+                  sx={{ transition: "all 0.3s ease" }}
+                >
+                  <Typography
+                    variant={minimized ? "subtitle2" : "h6"}
+                    fontWeight="medium"
+                    sx={{ flexGrow: 1 }}
+                  >
+                    Upload Results
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" mr={1}>
+                    {uploadResults.length} file(s)
+                  </Typography>
+                  <IconButton
+                    size="small"
+                    onClick={() => setMinimized(!minimized)}
+                    aria-label={minimized ? "Expand" : "Collapse"}
+                    sx={{ mr: 0.5 }}
+                  >
+                    {minimized ? (
+                      <ExpandLessIcon fontSize="small" />
+                    ) : (
+                      <ExpandMoreIcon fontSize="small" />
+                    )}
+                  </IconButton>
+                  <IconButton
+                    size="small"
+                    onClick={() => setUploadResults([])}
+                    aria-label="Close"
+                    sx={{ marginRight: -1 }}
+                  >
+                    <CloseIcon fontSize="small" />
+                  </IconButton>
+                </Box>
 
-                if ("linkId" in result) {
-                  const shareUrl = `${window.location.protocol}//${window.location.host}/share?linkId=${result.linkId}${base64Key ? `#${base64Key}` : ""}`;
+                <Divider
+                  sx={{
+                    mb: minimized ? 0 : 2,
+                    height: minimized ? 0 : 1,
+                    opacity: minimized ? 0 : 1,
+                    transition:
+                      "opacity 0.3s ease, height 0.3s ease, margin 0.3s ease",
+                  }}
+                />
 
-                  return (
-                    <Box key={index} sx={{ mb: 2 }}>
-                      <Typography variant="body1" fontWeight="bold">
-                        {displayName}
-                      </Typography>
-                      <MuiLink
-                        href={shareUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        {shareUrl}
-                      </MuiLink>
-                    </Box>
-                  );
-                } else {
-                  return (
-                    <Alert key={index} severity="error" sx={{ mb: 2 }}>
-                      <Typography variant="body1" fontWeight="bold">
-                        {displayName}
-                      </Typography>
-                      <Typography variant="body2">
-                        {(result as ErrorResponse).message}
-                      </Typography>
-                    </Alert>
-                  );
-                }
-              })}
+                {/* Scrollable area for results */}
+                <Box
+                  sx={{
+                    overflow: "auto",
+                    flex: "1 1 auto",
+                    maxHeight: minimized ? "0px" : "200px",
+                    height: minimized ? "0px" : "auto",
+                    opacity: minimized ? 0 : 1,
+                    transition:
+                      "max-height 0.3s ease, opacity 0.3s ease, height 0.3s ease",
+                    borderRadius: "10px",
+                    visibility: minimized ? "hidden" : "visible",
+                  }}
+                >
+                  {uploadResults.map(({ file, result, base64Key }, index) => {
+                    const displayName =
+                      typeof file === "string" ? file : file.name;
+                    const fileSize =
+                      typeof file !== "string" && file.size
+                        ? `${(file.size / 1024).toFixed(1)} KB`
+                        : "";
+
+                    if (result.type === "link") {
+                      const shareUrl = generateShareLink(
+                        result.linkId,
+                        base64Key,
+                      );
+
+                      return (
+                        <Box
+                          key={index}
+                          sx={{
+                            mb: 2,
+                            p: 2,
+                            borderRadius: 1,
+                            border: "1px solid",
+                            borderColor: "divider",
+                            bgcolor: "success.light",
+                            transition: "background-color 0.2s ease",
+                            "&:hover": { bgcolor: "success.100" },
+                          }}
+                        >
+                          <Box display="flex" alignItems="center" mb={1}>
+                            <Tooltip title={displayName} placement="top">
+                              <Typography
+                                variant="body1"
+                                fontWeight="bold"
+                                sx={{
+                                  flexGrow: 1,
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                {displayName}
+                              </Typography>
+                            </Tooltip>
+                            {fileSize && (
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                              >
+                                {fileSize}
+                              </Typography>
+                            )}
+                          </Box>
+
+                          <Box
+                            sx={{
+                              p: 1,
+                              bgcolor: "background.paper",
+                              borderRadius: 1,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              overflow: "hidden",
+                            }}
+                          >
+                            <Typography
+                              variant="body2"
+                              noWrap
+                              sx={{
+                                maxWidth: { xs: "180px", sm: "260px" },
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                              }}
+                            >
+                              {shareUrl}
+                            </Typography>
+
+                            <IconButton
+                              size="small"
+                              onClick={() => {
+                                navigator.clipboard.writeText(shareUrl);
+                                // You could add a toast notification here
+                              }}
+                            >
+                              <ContentCopyIcon />
+                            </IconButton>
+                          </Box>
+
+                          <Box display="flex" justifyContent="flex-end" mt={1}>
+                            <Tooltip title="Open Link" placement="left">
+                              <IconButton
+                                size="small"
+                                href={shareUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                sx={{
+                                  margin: 0,
+                                  padding: 0,
+                                  color: "primary.main",
+                                  "&:hover": {
+                                    backgroundColor: "rgba(0, 0, 0, 0.04)",
+                                  },
+                                }}
+                              >
+                                <OpenInNewIcon sx={{ fontSize: "16px" }} />
+                              </IconButton>
+                            </Tooltip>
+                          </Box>
+                        </Box>
+                      );
+                    } else {
+                      return (
+                        <Alert
+                          key={index}
+                          severity="error"
+                          sx={{
+                            mb: 2,
+                            p: 2,
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "flex-start",
+                          }}
+                          variant="outlined"
+                        >
+                          <Box
+                            display="flex"
+                            alignItems="center"
+                            width="100%"
+                            mb={0.5}
+                          >
+                            <Typography
+                              variant="body1"
+                              fontWeight="bold"
+                              sx={{
+                                flexGrow: 1,
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {displayName}
+                            </Typography>
+                            {fileSize && (
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                              >
+                                {fileSize}
+                              </Typography>
+                            )}
+                          </Box>
+                          <Typography variant="body2">
+                            {(result as ErrorResponse).message}
+                          </Typography>
+                        </Alert>
+                      );
+                    }
+                  })}
+                </Box>
+              </Box>
             </Box>
           )}
         </Box>

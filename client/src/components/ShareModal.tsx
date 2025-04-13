@@ -47,7 +47,7 @@ import {
   shareFileKey,
 } from "../cryptoFunctions";
 import DefaultProfile from "/default-profile.webp";
-import { API, BASE_URL } from "../utils";
+import { API, BASE_URL, generateShareLink } from "../utils";
 import { useToast } from "./ToastProvider";
 import { ShareResponse } from "../myApi";
 import { SessionUser } from "./ProfileProvider";
@@ -351,7 +351,7 @@ const ShareModal: React.FC<ShareModalProps> = ({
 
   // Handle Copying a Link
   const handleCopyLink = (linkId: string) => {
-    const linkToShare = `${window.location.protocol}//${window.location.host}/share?linkId=${linkId}${encryptionKey ? `#${encryptionKey}` : ""}`; // Replace with dynamic link generation if needed
+    const linkToShare = generateShareLink(linkId, encryptionKey); // Replace with dynamic link generation if needed
     navigator.clipboard.writeText(linkToShare).then(
       () => setCopyToast(true),
       (err) => showError("Failed to copy link. Please try again.", err),
@@ -739,7 +739,7 @@ const ShareModal: React.FC<ShareModalProps> = ({
                                 <TextField
                                   fullWidth
                                   size="small"
-                                  value={`${window.location.protocol}//${window.location.host}/share?linkId=${link.id}${encryptionKey ? `#${encryptionKey}` : ""}`}
+                                  value={generateShareLink(link.id, encryptionKey)}
                                   slotProps={{
                                     input: {
                                       readOnly: true,

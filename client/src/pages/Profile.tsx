@@ -11,7 +11,7 @@ import {
 } from "../cryptoFunctions";
 import localforage from "localforage";
 import { useSearchParams } from "react-router-dom";
-import { FileSortOrder, UserUpdate } from "../myApi";
+import { FileSortOrder, Theme, UserUpdate } from "../myApi";
 import { useToast } from "../components/ToastProvider";
 import "./Profile.css";
 import { useProfile } from "../components/ProfileProvider";
@@ -58,7 +58,7 @@ function Profile() {
   const [totpInputCode, setTOTPInputCode] = useState("");
   const [totpVerified, setTOTPVerified] = useState(false);
 
-  const { mode, toggleTheme } = useMuiTheme();
+  const { mode, setTheme } = useMuiTheme();
   const [selectedSortOrder, setSelectedSortOrder] =
     useState<FileSortOrder>("name");
 
@@ -405,10 +405,15 @@ function Profile() {
                   )}
                 </p>
                 <p>
-                  <strong>Theme:</strong> {mode === "light" ? "Light" : "Dark"}{" "}
-                  <button className="b1" onClick={toggleTheme}>
-                    Toggle
-                  </button>
+                  <strong>Theme:</strong>{" "}
+                  <select
+                    value={mode}
+                    onChange={(e) => setTheme(e.target.value as Theme)}
+                  >
+                    <option value="system">System</option>
+                    <option value="light">Light</option>
+                    <option value="dark">Dark</option>
+                  </select>
                 </p>
                 <p>
                   <strong>View Mode:</strong>{" "}

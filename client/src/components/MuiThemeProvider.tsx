@@ -1,56 +1,71 @@
-import { type ReactNode, useState, useEffect, createContext, useContext } from "react"
-import { ThemeProvider as MuiThemeProvider, CssBaseline } from "@mui/material"
-import muiTheme, { darkMuiTheme } from "../theme"
-
-type ThemeMode = "light" | "dark"
+import {
+  type ReactNode,
+  useState,
+  createContext,
+  useContext,
+} from "react";
+import { ThemeProvider as MuiThemeProvider, CssBaseline } from "@mui/material";
+import muiTheme, { darkMuiTheme } from "../theme";
+import { Theme } from "../myApi";
+import { isValidValue } from "../utils";
 
 interface ThemeContextType {
-  mode: ThemeMode
-  toggleTheme: () => void
+  mode: Theme;
+  setTheme: (theme: Theme) => void;
 }
 
 const ThemeContext = createContext<ThemeContextType>({
   mode: "light",
-  toggleTheme: () => {},
-})
+  setTheme: () => {},
+});
 
-export const useMuiTheme = () => useContext(ThemeContext)
+export const useMuiTheme = () => useContext(ThemeContext);
 
 interface MuiThemeProviderProps {
-  children: ReactNode
+  children: ReactNode;
+}
+
+// We don't include system here because that is the
+// same as the fallback behavior
+const VALID_THEMES = ["light", "dark"] as const;
+
+function loadInitialTheme(): Theme {
+  const savedMode = localStorage.getItem("theme");
+  if (isValidValue(savedMode, VALID_THEMES)) {
+    return savedMode! as Theme;
+  } else {
+    const isDarkMode = window.matchMedia(
+      "(prefers-color-scheme: dark)",
+    ).matches;
+    return isDarkMode ? "dark" : "light";
+  }
 }
 
 function MuiThemeProviderComponent({ children }: MuiThemeProviderProps) {
-  const [mode, setMode] = useState<ThemeMode>("light")
 
   // Check for user's preferred color scheme on initial load
-  useEffect(() => {
-    const isDarkMode = window.matchMedia("(prefers-color-scheme: dark)").matches
-    setMode(isDarkMode ? "dark" : "light")
+  const [mode, setMode] = useState<Theme>(loadInitialTheme());
 
-    // Check for existing preference in localStorage
-    const savedMode = localStorage.getItem("theme-mode") as ThemeMode | null
-    if (savedMode) {
-      setMode(savedMode)
+  const setTheme = (newTheme: Theme) => {
+    localStorage.setItem("theme", newTheme);
+    if (isValidValue(newTheme, VALID_THEMES)) {
+      setMode(newTheme! as Theme);
+    } else {
+      const isDarkMode = window.matchMedia(
+        "(prefers-color-scheme: dark)",
+      ).matches;
+      setMode(isDarkMode ? "dark" : "light");
     }
-  }, [])
-
-  const toggleTheme = () => {
-    setMode((prevMode) => {
-      const newMode = prevMode === "light" ? "dark" : "light"
-      localStorage.setItem("theme-mode", newMode)
-      return newMode
-    })
-  }
+  };
 
   return (
-    <ThemeContext.Provider value={{ mode, toggleTheme }}>
+    <ThemeContext.Provider value={{ mode, setTheme }}>
       <MuiThemeProvider theme={mode === "light" ? muiTheme : darkMuiTheme}>
         <CssBaseline />
         {children}
       </MuiThemeProvider>
     </ThemeContext.Provider>
-  )
+  );
 }
 
-export default MuiThemeProviderComponent
+export default MuiThemeProviderComponent;

@@ -194,3 +194,8 @@ export function sortFiles(
     }
   });
 }
+
+// Generate a share link based on a given link id and key
+export function generateShareLink(linkId: string, key?: string | null) {
+  return `${window.location.protocol}//${window.location.host}/share?linkId=${linkId}${key ? `#${key}` : ""}`;
+}

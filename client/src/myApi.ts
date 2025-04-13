@@ -10,6 +10,15 @@
  * ---------------------------------------------------------------
  */
 
+export type AppError =
+  | "JsonRejection"
+  | "SqlxError"
+  | "SerdeError"
+  | "ValidationError"
+  | "AuthError"
+  | "UserError"
+  | "Generic";
+
 export interface AvatarResponse {
   extension: string;
 }
@@ -66,10 +75,9 @@ export interface CreateUser {
  * Used in HTTP responses to notify the client of errors
  */
 export interface ErrorResponse {
-  /** @example "UserError" */
-  errorType: string;
   /** @example "Something went wrong" */
   message: string;
+  type: AppError;
 }
 
 /** Metadata of a file or directory */
@@ -136,6 +144,8 @@ export interface LoginResponse {
    * @example "iKJcRJf7fwtO6est"
    */
   salt: string;
+  /** The user's preferred theme */
+  theme: Theme;
 }
 
 /** A struct representing a user logging in */

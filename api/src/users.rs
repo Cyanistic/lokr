@@ -123,6 +123,8 @@ pub struct LoginResponse {
     /// The salt for the PBKDF2 key derivation function
     #[schema(content_encoding = "base64", example = "iKJcRJf7fwtO6est")]
     salt: String,
+    /// The user's preferred theme
+    theme: Theme,
 }
 
 /// Verify that the username only contains alphanumeric characters and underscores
@@ -365,7 +367,11 @@ pub async fn authenticate_user(
 
     let login_body = sqlx::query_as!(
         LoginResponse,
-        "SELECT iv, public_key, encrypted_private_key, salt FROM user WHERE username = ?",
+        r#"
+        SELECT iv, public_key, encrypted_private_key,
+        salt, theme AS "theme: Theme"
+        FROM user WHERE  username = ?
+        "#,
         user.username
     )
     .fetch_one(&state.pool)
@@ -470,8 +476,8 @@ pub async fn check_usage(
                 .is_some()
         {
             errors.push(ErrorResponse {
+                r#type: AppError::UserError((StatusCode::CONFLICT, "".into())),
                 message: "Username already in use".into(),
-                error_type: "Username".into(),
             });
         }
     }
@@ -487,8 +493,8 @@ pub async fn check_usage(
                 .is_some()
         {
             errors.push(ErrorResponse {
+                r#type: AppError::UserError((StatusCode::CONFLICT, "".into())),
                 message: "Email already in use".into(),
-                error_type: "Email".into(),
             });
         }
     }

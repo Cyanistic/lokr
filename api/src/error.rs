@@ -8,12 +8,13 @@ use axum::{
     Json,
 };
 use serde::Serialize;
-use utoipa::ToSchema;
+use utoipa::{openapi::ObjectBuilder, PartialSchema, ToSchema};
 use validator::Validate;
 
 /// Error that wraps `anyhow::Error`.
 /// Useful to provide more fine grained error handling in our application.
 /// Helps us debug errors in the code easier and gives the client a better idea of what went wrong.
+#[derive(Debug)]
 pub enum AppError {
     JsonRejection(JsonRejection),
     SqlxError(sqlx::Error),
@@ -24,28 +25,55 @@ pub enum AppError {
     Generic(anyhow::Error),
 }
 
+impl Serialize for AppError {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_unit_struct(&self.r#type())
+    }
+}
+impl ToSchema for AppError {}
+impl PartialSchema for AppError {
+    fn schema() -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema> {
+        ObjectBuilder::new()
+            .schema_type(utoipa::openapi::Type::String)
+            .enum_values(Some([
+                "JsonRejection",
+                "SqlxError",
+                "SerdeError",
+                "ValidationError",
+                "AuthError",
+                "UserError",
+                "Generic",
+            ]))
+            .examples([serde_json::json!("UserError")])
+            .into()
+    }
+}
+
 /// A JSON response for errors that includes the error type and message
 /// Used in HTTP responses to notify the client of errors
-#[derive(Serialize, Debug, Clone, ToSchema)]
+#[derive(Serialize, Debug, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ErrorResponse {
     #[schema(example = "UserError")]
-    pub error_type: String,
+    pub r#type: AppError,
     #[schema(example = "Something went wrong")]
     pub message: String,
 }
 
 impl AppError {
     /// Get the error type as a string to notify the client of what went wrong
-    pub fn r#type(&self) -> String {
+    pub fn r#type(&self) -> &'static str {
         match self {
-            AppError::JsonRejection(_) => "JsonRejection".to_owned(),
-            AppError::ValidationError(_) => "ValidationError".to_owned(),
-            AppError::SerdeError(_) => "SerdeError".to_owned(),
-            AppError::AuthError(_) => "AuthError".to_owned(),
-            AppError::SqlxError(_) => "SqlxError".to_owned(),
-            AppError::Generic(_) => "Generic".to_owned(),
-            AppError::UserError(_) => "User".to_owned(),
+            AppError::JsonRejection(_) => "JsonRejection",
+            AppError::ValidationError(_) => "ValidationError",
+            AppError::SerdeError(_) => "SerdeError",
+            AppError::AuthError(_) => "AuthError",
+            AppError::SqlxError(_) => "SqlxError",
+            AppError::Generic(_) => "Generic",
+            AppError::UserError(_) => "User",
         }
     }
 }
@@ -94,7 +122,7 @@ impl IntoResponse for AppError {
             status,
             headers,
             Json(ErrorResponse {
-                error_type: self.r#type(),
+                r#type: self,
                 message,
             }),
         )
