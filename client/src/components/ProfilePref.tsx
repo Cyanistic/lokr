@@ -37,7 +37,6 @@ interface PreferencesSectionProps {
   handleEdit: (field: EditableField, currentValue: string | null) => void;
   openPasswordModal: (field: EditableField) => void;
   toggleGridView: () => Promise<void>;
-  updatePreferences: () => Promise<void>;
 }
 
 export default function PreferencesSection({
@@ -51,7 +50,6 @@ export default function PreferencesSection({
   handleEdit,
   openPasswordModal,
   toggleGridView,
-  updatePreferences,
 }: PreferencesSectionProps) {
   const { profile, refreshProfile } = useProfile();
   const { mode, setTheme } = useMuiTheme();
@@ -211,12 +209,6 @@ export default function PreferencesSection({
                     <MenuItem value="extension">Extension</MenuItem>
                   </Select>
                 </FormControl>
-              </Box>
-
-              <Box sx={{ mt: 2 }}>
-                <Button variant="contained" onClick={updatePreferences}>
-                  Save Preferences
-                </Button>
               </Box>
             </Stack>
           </Paper>

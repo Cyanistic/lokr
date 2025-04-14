@@ -113,6 +113,10 @@ function Profile() {
     }
   }, [profile]);
 
+  useEffect(() => {
+    updatePreferences();
+  }, [selectedSortOrder]);
+
   const getAvatarUrl = (user: { id: string; avatarExtension: string }) => {
     if (user) {
       return user.avatarExtension
@@ -358,7 +362,6 @@ function Profile() {
               setPasswordModal({ ...passwordModal, open: true, field })
             }
             toggleGridView={toggleGridView}
-            updatePreferences={updatePreferences}
           />
         );
       case "security":
