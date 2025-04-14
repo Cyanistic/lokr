@@ -24,6 +24,7 @@ import AvatarUpload from "../pages/ProfileAvatar";
 import type { FileSortOrder } from "../myApi";
 import { useProfile } from "./ProfileProvider";
 import { useMuiTheme } from "./MuiThemeProvider";
+import { EditableField } from "../pages/Profile";
 
 interface PreferencesSectionProps {
   loading: boolean;
@@ -33,8 +34,8 @@ interface PreferencesSectionProps {
   editingField: string | null;
   updatedValue: string;
   setUpdatedValue: (value: string) => void;
-  handleEdit: (field: string, currentValue: string | null) => void;
-  handleSave: (field: "username" | "password" | "email") => Promise<void>;
+  handleEdit: (field: EditableField, currentValue: string | null) => void;
+  openPasswordModal: (field: EditableField) => void;
   toggleGridView: () => Promise<void>;
   updatePreferences: () => Promise<void>;
 }
@@ -48,7 +49,7 @@ export default function PreferencesSection({
   updatedValue,
   setUpdatedValue,
   handleEdit,
-  handleSave,
+  openPasswordModal,
   toggleGridView,
   updatePreferences,
 }: PreferencesSectionProps) {
@@ -104,11 +105,16 @@ export default function PreferencesSection({
                         size="small"
                         value={updatedValue}
                         onChange={(e) => setUpdatedValue(e.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" && updatedValue.trim()) {
+                            openPasswordModal("username");
+                          }
+                        }}
                         fullWidth
                       />
                       <Button
                         variant="contained"
-                        onClick={() => handleSave("username")}
+                        onClick={() => openPasswordModal("username")}
                       >
                         Save
                       </Button>
@@ -254,4 +260,3 @@ export default function PreferencesSection({
     </Box>
   );
 }
-

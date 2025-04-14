@@ -31,9 +31,18 @@ import { useMuiTheme } from "../components/MuiThemeProvider";
 // Import section components
 import PreferencesSection from "../components/ProfilePref";
 import SecuritySettingsSection from "../components/SecuritySettings";
+import { PasswordModal } from "../components/PasswordModal";
 
 // Valid profile sections
 const Sections = ["profile", "security", "notifications"] as const;
+const EditableFields = ["username", "email", "password"] as const;
+export type EditableField = (typeof EditableFields)[number];
+export type PasswordField = EditableField | "toggleTotp" | "regenerateTotp";
+export interface PasswordModalFields {
+  open: boolean;
+  loading: boolean;
+  field: PasswordField | null;
+}
 
 function Profile() {
   type RegenerateTOTPRequest = { type: "regenerate"; password: string };
@@ -45,7 +54,7 @@ function Profile() {
   };
 
   const { profile, loading: loadingProfile, refreshProfile } = useProfile();
-  const [editingField, setEditingField] = useState<string | null>(null);
+  const [editingField, setEditingField] = useState<EditableField | null>(null);
   const [updatedValue, setUpdatedValue] = useState<string>("");
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(true); // Loading state for fetching user data
@@ -53,12 +62,17 @@ function Profile() {
   const [avatarUrl, setAvatarUrl] = useState<string>(DefaultProfile);
   const activeSection =
     isValidValue(params.get("section"), Sections) ?? "profile";
-  const { showError } = useToast();
+  const { showError, showSuccess } = useToast();
   const [showTotpWarningModal, setShowTotpWarningModal] = useState(false);
   const [showTOTPSetup, setShowTOTPSetup] = useState(false); // State to control TOTP setup
   const [totpInputCode, setTOTPInputCode] = useState("");
   const [totpVerified, setTOTPVerified] = useState(false);
   const navigate = useNavigate();
+  const [passwordModal, setPasswordModal] = useState<PasswordModalFields>({
+    open: false,
+    loading: false,
+    field: null,
+  });
 
   const { mode } = useMuiTheme();
   const [selectedSortOrder, setSelectedSortOrder] =
@@ -109,15 +123,14 @@ function Profile() {
   };
 
   // Regenerate TOTP
-  const handleRegenerateTOTP = async () => {
+  const handleRegenerateTOTP = async (password: string): Promise<boolean> => {
     try {
-      const password = prompt("Enter your current password:");
-      if (!password) {
-        showError("Password is required!");
-        return;
-      }
-      const passwordSalt: Uint8Array | null =
-        await localforage.getItem("passwordSalt");
+      setPasswordModal((prev) => {
+        return { ...prev, loading: true };
+      });
+      const passwordSalt: Uint8Array | null = profile?.passwordSalt
+        ? new Uint8Array(base64ToArrayBuffer(profile?.passwordSalt))
+        : null;
       const hashedPassword = await hashPassword(password, passwordSalt);
       const requestBody: RegenerateTOTPRequest = {
         type: "regenerate",
@@ -125,11 +138,7 @@ function Profile() {
       };
 
       const response = await API.api.updateTotp(requestBody);
-      if (!response.ok) {
-        const errorText = await response.text();
-        showError("Server Error", errorText);
-        return;
-      }
+      if (!response.ok) throw response.error;
       const responseData = await response.json();
 
       // Ensure the QR code has the correct format
@@ -141,8 +150,14 @@ function Profile() {
       setShowTOTPSetup(true);
       setTOTPVerified(false);
       setTOTPInputCode("");
+      return true;
     } catch (err) {
-      showError("Failed to regenerate TOTP.");
+      showError("Failed to regenerate TOTP.", err);
+      return false;
+    } finally {
+      setPasswordModal((prev) => {
+        return { ...prev, loading: false };
+      });
     }
   };
 
@@ -154,10 +169,8 @@ function Profile() {
         code: totpInputCode,
       };
       const response = await API.api.updateTotp(responseBody);
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
-      alert("TOTP verified successfully! You can now enable TOTP.");
+      if (!response.ok) throw response.error;
+      showSuccess("TOTP verified successfully! You can now enable TOTP.");
       setTOTPVerified(true);
 
       //Hides after verification
@@ -165,24 +178,19 @@ function Profile() {
       setQrCode(null);
       setTOTPInputCode("");
     } catch (err) {
-      alert("Invalid TOTP code.");
+      showError("Invalid TOTP code.", err);
     }
   };
 
   // Enable/Disable TOTP
-  const handleEnableTOTP = async () => {
+  const handleEnableTOTP = async (password: string): Promise<boolean> => {
     try {
-      const password = prompt("Enter your current password:");
-      if (!password) {
-        showError("Password is required!");
-        return;
-      }
-
-      const passwordSalt: Uint8Array | null =
-        await localforage.getItem("passwordSalt");
-      if (!passwordSalt) {
-        throw new Error("Password salt not found");
-      }
+      setPasswordModal((prev) => {
+        return { ...prev, loading: true };
+      });
+      const passwordSalt: Uint8Array | null = profile?.passwordSalt
+        ? new Uint8Array(base64ToArrayBuffer(profile.passwordSalt))
+        : null;
 
       const hashedPassword = await hashPassword(password, passwordSalt);
       const enable = !profile?.totpEnabled;
@@ -193,35 +201,42 @@ function Profile() {
       };
       const response = await API.api.updateTotp(requestBody);
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        showError(`Error: ${errorText}`);
-        return;
-      }
+      if (!response.ok) throw response.error;
 
       showError(`TOTP ${enable ? "enabled" : "disabled"} successfully!`);
-      await refreshProfile();
+      refreshProfile();
+      return true;
     } catch (err) {
       showError("Failed to update TOTP settings.", err);
+      return false;
+    } finally {
+      setPasswordModal((prev) => {
+        return { ...prev, loading: false };
+      });
     }
   };
 
   // Start editing a field
-  const handleEdit = (field: string, currentValue: string | null) => {
+  const handleEdit = (
+    field: EditableField | null,
+    currentValue: string | null,
+  ) => {
     setEditingField(field);
     setUpdatedValue(currentValue || "");
   };
 
   // Save edit to backend
-  const handleSave = async (field: "username" | "password" | "email") => {
+  const handleSave = async (
+    field: EditableField,
+    password: string,
+  ): Promise<boolean> => {
     try {
+      setPasswordModal((prev) => {
+        return { ...prev, loading: true };
+      });
       const passwordSalt: Uint8Array | null = profile?.passwordSalt
         ? new Uint8Array(base64ToArrayBuffer(profile?.passwordSalt))
         : null;
-      const password = prompt("Enter your current password to confirm change");
-      if (!password) {
-        throw new Error("Password confirmation is required.");
-      }
 
       let requestBody: UserUpdate;
       if (field === "username") {
@@ -276,11 +291,17 @@ function Profile() {
         setShowTotpWarningModal(true);
       }
       setEditingField(null);
+      return true;
     } catch (err) {
       showError(
         `Error updating ${field}: ${err instanceof Error ? err.message : "Unknown error"}`,
         err,
       );
+      return false;
+    } finally {
+      setPasswordModal((prev) => {
+        return { ...prev, loading: false };
+      });
     }
   };
 
@@ -333,7 +354,9 @@ function Profile() {
             updatedValue={updatedValue}
             setUpdatedValue={setUpdatedValue}
             handleEdit={handleEdit}
-            handleSave={handleSave}
+            openPasswordModal={(field) =>
+              setPasswordModal({ ...passwordModal, open: true, field })
+            }
             toggleGridView={toggleGridView}
             updatePreferences={updatePreferences}
           />
@@ -346,7 +369,9 @@ function Profile() {
             updatedValue={updatedValue}
             setUpdatedValue={setUpdatedValue}
             handleEdit={handleEdit}
-            handleSave={handleSave}
+            openPasswordModal={(field) =>
+              setPasswordModal({ ...passwordModal, open: true, field })
+            }
             showTotpWarningModal={showTotpWarningModal}
             setShowTotpWarningModal={setShowTotpWarningModal}
             showTOTPSetup={showTOTPSetup}
@@ -354,9 +379,21 @@ function Profile() {
             setTOTPInputCode={setTOTPInputCode}
             totpVerified={totpVerified}
             qrCode={qrCode}
-            handleRegenerateTOTP={handleRegenerateTOTP}
+            handleRegenerateTOTP={() =>
+              setPasswordModal({
+                ...passwordModal,
+                open: true,
+                field: "regenerateTotp",
+              })
+            }
             handleVerifyInline={handleVerifyInline}
-            handleEnableTOTP={handleEnableTOTP}
+            handleEnableTOTP={() =>
+              setPasswordModal({
+                ...passwordModal,
+                open: true,
+                field: "toggleTotp",
+              })
+            }
           />
         );
       case "notifications":
@@ -387,118 +424,143 @@ function Profile() {
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
 
   return (
-    <Container
-      maxWidth="lg"
-      sx={{
-        py: { xs: 2, sm: 4 },
-        height: { xs: "auto", md: "calc(100vh - 100px)" },
-      }}
-    >
-      <Paper
-        elevation={2}
+    <>
+      <Container
+        maxWidth="lg"
         sx={{
-          borderRadius: 2,
-          overflow: "hidden",
-          bgcolor: (theme) => theme.palette.background.paper,
-          height: { xs: "auto", md: "100%" }, // Adjust height for mobile
-          display: "flex",
-          flexDirection: "column",
+          py: { xs: 2, sm: 4 },
+          height: { xs: "auto", md: "calc(100vh - 100px)" },
         }}
       >
-        <Grid container sx={{ height: { xs: "auto", md: "100%" } }}>
-          {/* Left Sidebar with buttons - Convert to horizontal tabs on mobile */}
-          <Grid
-            item
-            xs={12}
-            md={3}
-            sx={{
-              borderRight: { xs: 0, md: 1 },
-              borderBottom: { xs: 1, md: 0 },
-              borderColor: "divider",
-              height: { xs: "auto", md: "100%" },
-            }}
-          >
-            <Box sx={{ p: { xs: 1, sm: 2 }, height: "100%", overflow: "auto" }}>
-              <Tabs
-                orientation={isMobile ? "horizontal" : "vertical"}
-                variant={isMobile ? "fullWidth" : "standard"}
-                value={activeSection}
-                onChange={(_, newValue) => {
-                  setParams((prev) => {
-                    prev.set("section", newValue);
-                    return prev;
-                  });
-                }}
-                sx={{
-                  borderRight: { xs: 0, md: 1 },
-                  borderColor: "divider",
-                  "& .MuiTab-root": {
-                    alignItems: { xs: "center", md: "flex-start" },
-                    textAlign: { xs: "center", md: "left" },
-                    py: { xs: 1, md: 2 },
-                    minHeight: { xs: 48, md: "auto" },
-                  },
-                }}
-              >
-                <Tab
-                  label="Preferences"
-                  value="profile"
-                  sx={{
-                    fontWeight: activeSection === "profile" ? 600 : 400,
-                    color:
-                      activeSection === "profile"
-                        ? (theme) => theme.palette.primary.main
-                        : (theme) => theme.palette.text.primary,
-                  }}
-                />
-                <Tab
-                  label="Security"
-                  value="security"
-                  sx={{
-                    fontWeight: activeSection === "security" ? 600 : 400,
-                    color:
-                      activeSection === "security"
-                        ? (theme) => theme.palette.primary.main
-                        : (theme) => theme.palette.text.primary,
-                  }}
-                />
-                <Tab
-                  label="Notifications"
-                  value="notifications"
-                  sx={{
-                    fontWeight: activeSection === "notifications" ? 600 : 400,
-                    color:
-                      activeSection === "notifications"
-                        ? (theme) => theme.palette.primary.main
-                        : (theme) => theme.palette.text.primary,
-                  }}
-                />
-              </Tabs>
-            </Box>
-          </Grid>
-
-          {/* Right content area - Make this scrollable */}
-          <Grid
-            item
-            xs={12}
-            md={9}
-            sx={{
-              height: { xs: "auto", md: "100%" },
-              overflow: { xs: "visible", md: "hidden" },
-            }}
-          >
-            <Box
+        <Paper
+          elevation={2}
+          sx={{
+            borderRadius: 2,
+            overflow: "hidden",
+            bgcolor: (theme) => theme.palette.background.paper,
+            height: { xs: "auto", md: "100%" }, // Adjust height for mobile
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          <Grid container sx={{ height: { xs: "auto", md: "100%" } }}>
+            {/* Left Sidebar with buttons - Convert to horizontal tabs on mobile */}
+            <Grid
+              item
+              xs={12}
+              md={3}
               sx={{
+                borderRight: { xs: 0, md: 1 },
+                borderBottom: { xs: 1, md: 0 },
+                borderColor: "divider",
                 height: { xs: "auto", md: "100%" },
-                overflow: { xs: "visible", md: "auto" },
               }}
             >
-              {renderSection()}
-            </Box>
+              <Box
+                sx={{ p: { xs: 1, sm: 2 }, height: "100%", overflow: "auto" }}
+              >
+                <Tabs
+                  orientation={isMobile ? "horizontal" : "vertical"}
+                  variant={isMobile ? "fullWidth" : "standard"}
+                  value={activeSection}
+                  onChange={(_, newValue) => {
+                    setParams((prev) => {
+                      prev.set("section", newValue);
+                      return prev;
+                    });
+                  }}
+                  sx={{
+                    borderRight: { xs: 0, md: 1 },
+                    borderColor: "divider",
+                    "& .MuiTab-root": {
+                      alignItems: { xs: "center", md: "flex-start" },
+                      textAlign: { xs: "center", md: "left" },
+                      py: { xs: 1, md: 2 },
+                      minHeight: { xs: 48, md: "auto" },
+                    },
+                  }}
+                >
+                  <Tab
+                    label="Preferences"
+                    value="profile"
+                    sx={{
+                      fontWeight: activeSection === "profile" ? 600 : 400,
+                      color:
+                        activeSection === "profile"
+                          ? (theme) => theme.palette.primary.main
+                          : (theme) => theme.palette.text.primary,
+                    }}
+                  />
+                  <Tab
+                    label="Security"
+                    value="security"
+                    sx={{
+                      fontWeight: activeSection === "security" ? 600 : 400,
+                      color:
+                        activeSection === "security"
+                          ? (theme) => theme.palette.primary.main
+                          : (theme) => theme.palette.text.primary,
+                    }}
+                  />
+                  <Tab
+                    label="Notifications"
+                    value="notifications"
+                    sx={{
+                      fontWeight: activeSection === "notifications" ? 600 : 400,
+                      color:
+                        activeSection === "notifications"
+                          ? (theme) => theme.palette.primary.main
+                          : (theme) => theme.palette.text.primary,
+                    }}
+                  />
+                </Tabs>
+              </Box>
+            </Grid>
+
+            {/* Right content area - Make this scrollable */}
+            <Grid
+              item
+              xs={12}
+              md={9}
+              sx={{
+                height: { xs: "auto", md: "100%" },
+                overflow: { xs: "visible", md: "hidden" },
+              }}
+            >
+              <Box
+                sx={{
+                  height: { xs: "auto", md: "100%" },
+                  overflow: { xs: "visible", md: "auto" },
+                }}
+              >
+                {renderSection()}
+              </Box>
+            </Grid>
           </Grid>
-        </Grid>
-      </Paper>
-    </Container>
+        </Paper>
+      </Container>
+
+      {/* Password modal */}
+      <PasswordModal
+        key={`${editingField}-password`}
+        open={passwordModal.open}
+        onClose={() => setPasswordModal({ ...passwordModal, open: false })}
+        customText="Please enter your current password to confirm this action."
+        loading={passwordModal.loading}
+        onSubmit={async (password) => {
+          switch (passwordModal.field) {
+            case "username":
+            case "password":
+            case "email":
+              return await handleSave(passwordModal.field, password);
+            case "toggleTotp":
+              return await handleEnableTOTP(password);
+            case "regenerateTotp":
+              return await handleRegenerateTOTP(password);
+          }
+        }}
+      />
+    </>
   );
 }
 

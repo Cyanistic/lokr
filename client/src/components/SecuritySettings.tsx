@@ -20,14 +20,15 @@ import SessionManagement from "./SessionManagement";
 import { useProfile } from "./ProfileProvider";
 import { Visibility, VisibilityOff } from "@mui/icons-material";
 import { useState } from "react";
+import { EditableField, PasswordField } from "../pages/Profile";
 
 interface SecuritySettingsSectionProps {
   loading: boolean;
-  editingField: string | null;
+  editingField: "username" | "password" | "email" | null;
   updatedValue: string;
   setUpdatedValue: (value: string) => void;
-  handleEdit: (field: string, currentValue: string | null) => void;
-  handleSave: (field: "username" | "password" | "email") => Promise<void>;
+  handleEdit: (field: EditableField, currentValue: string | null) => void;
+  openPasswordModal: (field: PasswordField) => void;
   showTotpWarningModal: boolean;
   setShowTotpWarningModal: (show: boolean) => void;
   showTOTPSetup: boolean;
@@ -35,9 +36,9 @@ interface SecuritySettingsSectionProps {
   setTOTPInputCode: (code: string) => void;
   totpVerified: boolean;
   qrCode: string | null;
-  handleRegenerateTOTP: () => Promise<void>;
+  handleRegenerateTOTP: () => void;
   handleVerifyInline: () => Promise<void>;
-  handleEnableTOTP: () => Promise<void>;
+  handleEnableTOTP: () => void;
 }
 
 export default function SecuritySettingsSection({
@@ -46,7 +47,7 @@ export default function SecuritySettingsSection({
   updatedValue,
   setUpdatedValue,
   handleEdit,
-  handleSave,
+  openPasswordModal,
   showTotpWarningModal,
   setShowTotpWarningModal,
   showTOTPSetup,
@@ -99,6 +100,11 @@ export default function SecuritySettingsSection({
                   placeholder="Enter new password"
                   value={updatedValue}
                   onChange={(e) => setUpdatedValue(e.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && updatedValue.trim()) {
+                      openPasswordModal("password");
+                    }
+                  }}
                   fullWidth
                   size="small"
                   InputProps={{
@@ -114,7 +120,7 @@ export default function SecuritySettingsSection({
                 />
                 <Button
                   variant="contained"
-                  onClick={() => handleSave("password")}
+                  onClick={() => openPasswordModal("password")}
                   sx={{
                     width: { xs: "100%", sm: "auto" },
                   }}
@@ -166,12 +172,17 @@ export default function SecuritySettingsSection({
                   type="email"
                   value={updatedValue}
                   onChange={(e) => setUpdatedValue(e.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && updatedValue.trim()) {
+                      openPasswordModal("email");
+                    }
+                  }}
                   fullWidth
                   size="small"
                 />
                 <Button
                   variant="contained"
-                  onClick={() => handleSave("email")}
+                  onClick={() => openPasswordModal("email")}
                   sx={{
                     width: { xs: "100%", sm: "auto" },
                   }}
@@ -252,4 +263,3 @@ export default function SecuritySettingsSection({
     </Box>
   );
 }
-

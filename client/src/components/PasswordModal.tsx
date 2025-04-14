@@ -17,7 +17,7 @@ import { Visibility, VisibilityOff } from "@mui/icons-material";
 interface PasswordModalProps {
   open: boolean;
   onClose?: () => void;
-  onSubmit: (password: string) => void;
+  onSubmit: (password: string) => Promise<void | boolean> | void;
   customText?: string;
   error?: string;
   loading?: boolean;
@@ -39,20 +39,15 @@ export function PasswordModal({
   };
 
   const handleSubmit = async () => {
-    onSubmit(password.trim());
-    if (onClose) {
-      onClose();
+    if (await onSubmit(password.trim())) {
+      onClose?.();
     }
   };
 
   return (
     <Dialog
       open={open}
-      onClose={() => {
-        if (onClose) {
-          onClose();
-        }
-      }}
+      onClose={onClose}
       fullWidth
       maxWidth="xs"
       sx={{ backdropFilter: "blur(5px)" }}
