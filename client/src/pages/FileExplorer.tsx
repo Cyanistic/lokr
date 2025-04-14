@@ -165,11 +165,10 @@ interface FileExplorerProps {
   type: "files" | "shared" | "link";
 }
 
-// @ts-ignore setting this up in a commit or two
 interface SelectedFile {
   file?: FileMetadata;
+  index?: number;
   fromSearch?: boolean;
-  currentIndex?: boolean;
 }
 
 export default function FileExplorer(
@@ -226,12 +225,7 @@ export default function FileExplorer(
   const [deleteOpen, setDeleteOpen] = useState<boolean>(false);
   const [renameOpen, setRenameOpen] = useState<boolean>(false);
   const [previewOpen, setPreviewOpen] = useState<boolean>(false);
-  const [selectedFile, setSelectedFile] = useState<FileMetadata | undefined>(
-    undefined,
-  );
-  const [selectedFileIndex, setSelectedFileIndex] = useState<
-    number | undefined
-  >(undefined);
+  const [selectedFile, setSelectedFile] = useState<SelectedFile>({});
   const [linkPassword, setLinkPassword] = useState<string | null>(null);
   const [linkError, setLinkError] = useState<string | undefined>(undefined);
   const [linkKey, setLinkKey] = useState<CryptoKey | null>(null);
@@ -782,20 +776,21 @@ export default function FileExplorer(
   }, []);
 
   /** Directory navigation. */
-  const handleOpenFile = (file: FileMetadata) => {
+  const handleOpenFile = (file: FileMetadata, fromSearch: boolean = false) => {
     if (file.isDirectory) {
       setParams((params) => {
         params.set("parentId", file.id);
         return params;
       });
     } else {
-      handleFileAction("preview", file);
+      handleFileAction("preview", file, fromSearch);
     }
   };
 
   async function handleFileAction(
     action: string,
     fileId: string | FileMetadata,
+    fromSearch: boolean = false,
   ) {
     let file;
     if (typeof fileId === "string") {
@@ -807,8 +802,7 @@ export default function FileExplorer(
     } else {
       file = fileId;
     }
-    setSelectedFileIndex(currentDir?.indexOf(file));
-    setSelectedFile(file);
+    setSelectedFile({ file, index: currentDir?.indexOf(file), fromSearch });
     switch (action) {
       case "delete":
         setDeleteOpen(true);
@@ -995,7 +989,7 @@ export default function FileExplorer(
                 loading={loading}
                 files={files}
                 onOpen={throttledFetchFiles}
-                onFileSelected={handleOpenFile}
+                onFileSelected={(file) => handleOpenFile(file, true)}
                 onNavigateToPath={(path) => {
                   setParams((params) => {
                     if (path) {
@@ -1246,7 +1240,7 @@ export default function FileExplorer(
       <ShareModal
         currentUser={profile ?? undefined}
         open={shareOpen}
-        file={selectedFile}
+        file={selectedFile.file}
         onClose={() => setShareOpen(false)}
       />
 
@@ -1254,7 +1248,7 @@ export default function FileExplorer(
       <FileInfoModal
         open={infoOpen}
         onClose={() => setInfoOpen(false)}
-        file={selectedFile}
+        file={selectedFile.file}
         users={users}
         path={dirStack}
       />
@@ -1270,20 +1264,20 @@ export default function FileExplorer(
 
       {/* File deletion confirmation modal */}
       <DeleteModal
-        file={selectedFile}
+        file={selectedFile.file}
         open={deleteOpen}
         onClose={() => setDeleteOpen(false)}
-        onConfirm={async () => await handleDelete(selectedFile!)}
+        onConfirm={async () => await handleDelete(selectedFile.file!)}
       />
 
       {/* File renaming modal */}
       <RenameModal
-        key={`${selectedFile?.id}-rename`}
-        file={selectedFile}
+        key={`${selectedFile.file?.id}-rename`}
+        file={selectedFile.file}
         open={renameOpen}
         onClose={() => setRenameOpen(false)}
         onConfirm={async (newName) =>
-          await handleRename(selectedFile!, newName)
+          await handleRename(selectedFile.file!, newName)
         }
       />
 
@@ -1291,13 +1285,15 @@ export default function FileExplorer(
       <FilePreviewModal
         open={previewOpen}
         onClose={() => setPreviewOpen(false)}
-        file={selectedFile}
+        file={selectedFile.file}
         linkId={linkId ?? undefined}
-        listIndex={selectedFileIndex}
+        listIndex={selectedFile.index}
         listLength={currentDir?.length}
+        fromSearch={selectedFile.fromSearch}
         onCycle={(index) => {
+          if (selectedFile.fromSearch) return;
           const direction =
-            selectedFileIndex && index >= selectedFileIndex ? 1 : -1;
+            selectedFile.index && index >= selectedFile.index ? 1 : -1;
           let finalIndex: number = index - direction;
           // Skip directories
           do {
@@ -1309,19 +1305,25 @@ export default function FileExplorer(
             currentDir?.[finalIndex]?.isDirectory &&
             finalIndex !== index - direction
           );
-          setSelectedFileIndex(finalIndex);
-          setSelectedFile(currentDir?.[finalIndex]);
+          setSelectedFile({
+            ...selectedFile,
+            index: finalIndex,
+            file: currentDir?.[finalIndex],
+          });
         }}
         onLoad={(blobUrl) => {
           if (blobUrl) {
             setFiles((prevFiles) => ({
               ...prevFiles,
-              [selectedFile!.id]: {
-                ...prevFiles[selectedFile!.id],
+              [selectedFile.file!.id]: {
+                ...prevFiles[selectedFile.file!.id],
                 blobUrl,
               },
             }));
-            setSelectedFile({ ...selectedFile!, blobUrl });
+            setSelectedFile({
+              ...selectedFile,
+              file: { ...selectedFile.file!, blobUrl },
+            });
           }
         }}
       />
@@ -1339,7 +1341,7 @@ export default function FileExplorer(
           }}
           linkId={linkId}
           owner={type === "files"}
-          file={selectedFile}
+          file={selectedFile.file}
           files={files}
           root={[...root]}
           dirStack={dirStack}

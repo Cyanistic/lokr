@@ -1,13 +1,15 @@
 * List of frontend Todos
-  - ( ) Make cohesive styling across application
+  - (x) Make cohesive styling across application
+  -- ( ) Update all components to use MUI insted of HTML and CSS for better theme management
+  -- ( ) Improve upload component styling
   -- (x) Style home
   -- (x) Style register
   -- (x) Style login
   -- (x) Style profile
-  --- ( ) Add password modal for confirmation
+  --- (x) Add password modal for confirmation
   -- (x) Style about us
   -- (x) Style file page
-  -- ( ) Add logo/branding
+  -- (x) Add logo/branding
   -- (x) Add colors
   -- (x) Styling sessions menu
   - (x) Populate text pages with information

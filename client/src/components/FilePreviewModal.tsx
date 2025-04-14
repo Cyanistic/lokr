@@ -113,6 +113,7 @@ interface FilePreviewModalProps {
   listIndex?: number;
   onCycle?: (index: number) => void;
   listLength?: number;
+  fromSearch?: boolean;
 }
 
 const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
@@ -124,6 +125,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
   listIndex,
   listLength,
   onCycle,
+  fromSearch,
 }) => {
   // Determine file type once and reuse throughout component
   const fileType = getFileType(file);
@@ -2296,6 +2298,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
           </Box>
 
           {listIndex !== undefined &&
+            !fromSearch &&
             listLength &&
             listLength > 1 &&
             onCycle && (

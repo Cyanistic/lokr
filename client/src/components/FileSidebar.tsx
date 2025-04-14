@@ -28,7 +28,7 @@ import {
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import FolderIcon from "@mui/icons-material/Folder";
 import PeopleAltIcon from "@mui/icons-material/PeopleAlt";
-import { ChevronLeft, Key, Logout, Settings } from "@mui/icons-material";
+import { ChevronLeft, Key, Lock, Logout, Settings } from "@mui/icons-material";
 import DefaultProfile from "/default-profile.webp";
 import { BASE_URL, formatBytes, logout } from "../utils";
 import { SessionUser } from "../myApi";
@@ -173,23 +173,34 @@ export function FileSidebar({
           borderRadius: collapsed ? "0" : "0 24px 24px 0",
         }}
       >
-        <Box
-          sx={{
-            display: "flex",
-            height: "64px",
-            alignItems: "center",
-            justifyContent: "space-between",
-            transition: "all 0.3s ease",
-            borderBottom: "1px solid",
-            borderColor: "divider",
-            px: 2,
-          }}
-        >
+          <Box
+            sx={{
+              display: "flex",
+              height: "64px",
+              alignItems: "center",
+              justifyContent: collapsed ? "flex-end" : "space-between",
+              transition: "all 0.3s ease",
+              borderBottom: "1px solid",
+              borderColor: "divider",
+              px: 2,
+              position: "relative",
+            }}
+          >
           {!collapsed && (
             <>
-              <Typography variant="h5" sx={{ fontWeight: 700, ml: 10 }}>
-                Lokr
-              </Typography>
+              <Box 
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '100%'
+                }}
+              >
+                <Lock sx={{ mr: 1 }} />
+                <Typography variant="h5" sx={{ fontWeight: 700 }}>
+                  Lokr
+                </Typography>
+              </Box>
             </>
           )}
           <IconButton
