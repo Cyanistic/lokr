@@ -54,11 +54,6 @@ export default function SessionManagement() {
   }, [profile]);
 
   const handleTerminateSession = async (sessionNumber: number) => {
-    const confirmDelete = window.confirm(
-      "Are you sure you want to log out this device?",
-    );
-    if (!confirmDelete) return;
-
     try {
       const response = await API.api.deleteSession(sessionNumber);
 

@@ -15,6 +15,7 @@ import {
   MusicNote as MusicNoteIcon,
   Movie as MovieIcon,
   ArrowUpward as ArrowUpwardIcon,
+  Refresh as RefreshIcon,
 } from "@mui/icons-material";
 import { API, listToGrid, logout, sortFiles } from "../utils";
 import localforage from "localforage";
@@ -1158,13 +1159,30 @@ export default function FileExplorer(
           {/* Sort controls have been moved to slide out next to the view toggle button */}
           <Box sx={{ mb: 2 }} />
 
-          <BreadcrumbsNavigation
-            path={dirStack.map((f) => f.name ?? "Encrypted directory")}
-            onNavigate={(index) => {
-              const tempStack = handleNavigate(index, dirStack);
-              setDirStack(tempStack);
-            }}
-          />
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center',
+            justifyContent: 'space-between'
+          }}>
+            <BreadcrumbsNavigation
+              path={dirStack.map((f) => f.name ?? "Encrypted directory")}
+              onNavigate={(index) => {
+                const tempStack = handleNavigate(index, dirStack);
+                setDirStack(tempStack);
+              }}
+              loading={loading}
+            />
+            <Tooltip title="Refresh">
+              <IconButton 
+                onClick={() => fetchFiles()}
+                disabled={loading}
+                size="small"
+                sx={{ ml: 1 }}
+              >
+                <RefreshIcon />
+              </IconButton>
+            </Tooltip>
+          </Box>
 
           {/* Create a box that takes the remaining height of the viewport */}
           <Box

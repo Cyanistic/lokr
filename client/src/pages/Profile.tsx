@@ -207,7 +207,7 @@ function Profile() {
 
       if (!response.ok) throw response.error;
 
-      showError(`TOTP ${enable ? "enabled" : "disabled"} successfully!`);
+      showSuccess(`TOTP ${enable ? "enabled" : "disabled"} successfully!`);
       refreshProfile();
       return true;
     } catch (err) {
@@ -399,19 +399,19 @@ function Profile() {
             }
           />
         );
-      case "notifications":
-        return (
-          <Box sx={{ p: { xs: 2, sm: 3 } }}>
-            <Typography variant="h5" gutterBottom>
-              Notifications Settings
-            </Typography>
-            <Paper elevation={1} sx={{ p: { xs: 2, sm: 3 }, borderRadius: 2 }}>
-              <Typography variant="body1">
-                Notification settings will be available soon.
-              </Typography>
-            </Paper>
-          </Box>
-        );
+      // case "notifications":
+      //   return (
+      //     <Box sx={{ p: { xs: 2, sm: 3 } }}>
+      //       <Typography variant="h5" gutterBottom>
+      //         Notifications Settings
+      //       </Typography>
+      //       <Paper elevation={1} sx={{ p: { xs: 2, sm: 3 }, borderRadius: 2 }}>
+      //         <Typography variant="body1">
+      //           Notification settings will be available soon.
+      //         </Typography>
+      //       </Paper>
+      //     </Box>
+      //   );
       default:
         return (
           <Box sx={{ p: 3 }}>
@@ -501,17 +501,6 @@ function Profile() {
                       fontWeight: activeSection === "security" ? 600 : 400,
                       color:
                         activeSection === "security"
-                          ? (theme) => theme.palette.primary.main
-                          : (theme) => theme.palette.text.primary,
-                    }}
-                  />
-                  <Tab
-                    label="Notifications"
-                    value="notifications"
-                    sx={{
-                      fontWeight: activeSection === "notifications" ? 600 : 400,
-                      color:
-                        activeSection === "notifications"
                           ? (theme) => theme.palette.primary.main
                           : (theme) => theme.palette.text.primary,
                     }}
