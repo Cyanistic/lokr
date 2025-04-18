@@ -5,6 +5,7 @@ use sqlx::{QueryBuilder, Sqlite, SqlitePool};
 use uuid::Uuid;
 
 use crate::{upload::FileMetadata, users::PublicUser, UPLOAD_DIR};
+pub const NONCE_LENGTH: usize = 12;
 
 macro_rules! log_err {
     ($inner:expr) => {{
@@ -15,6 +16,31 @@ macro_rules! log_err {
             );
         }
     }};
+}
+
+#[macro_export]
+macro_rules! check_nonce {
+    ($nonce:expr, $msg:expr) => {{
+        use ::base64::engine::Engine;
+        use $crate::error::AppError;
+        use $crate::utils::NONCE_LENGTH;
+
+        let mut buf: [u8; NONCE_LENGTH] = [0; NONCE_LENGTH];
+        if !::base64::engine::general_purpose::STANDARD
+            .decode_slice(($nonce), &mut buf)
+            .is_ok_and(|num| num == NONCE_LENGTH)
+        {
+            Err(AppError::UserError((
+                StatusCode::BAD_REQUEST,
+                ($msg).into(),
+            )))
+        } else {
+            Ok(())
+        }
+    }};
+    ($nonce:expr) => {
+        check_nonce!($nonce, "Provided nonce is not the correct length!")
+    };
 }
 
 pub fn levenshtien(a: &str, b: &str) -> usize {

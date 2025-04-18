@@ -39,6 +39,10 @@ pub const MAX_PASSWORD_LENGTH: u64 = 256;
 pub const MIN_USERNAME_LENGTH: u64 = 3;
 pub const MAX_USERNAME_LENGTH: u64 = 20;
 pub const PUBLIC_KEY_LENGTH: usize = 550; // Length I ended up with after encoding the public key
+                                          // There is some variance in the length of the encrypted private key
+pub const ENCRYPTED_PRIVATE_KEY_LENGTH: usize = 2390;
+pub const IV_LENGTH: usize = 12;
+pub const SALT_LENGTH: usize = 16;
 
 /// A struct representing a new user to be created
 #[derive(Deserialize, ToSchema, Validate, Debug)]
@@ -214,45 +218,74 @@ pub async fn create_user(
     }
 
     let decoded_public_key = general_purpose::STANDARD
-        .decode(&*new_user.public_key)
+        .decode_slice(&*new_user.public_key, &mut [0; PUBLIC_KEY_LENGTH])
         .map_err(|_| {
             AppError::UserError((
                 StatusCode::BAD_REQUEST,
-                "Failed to decode public key".into(),
+                format!("Public key must be base64 encoded and {PUBLIC_KEY_LENGTH} bytes long")
+                    .into(),
             ))
         })?;
 
-    if decoded_public_key.len() != PUBLIC_KEY_LENGTH {
+    if decoded_public_key != PUBLIC_KEY_LENGTH {
         return Err(AppError::UserError((
             StatusCode::BAD_REQUEST,
             format!("Public key must be {} bytes", PUBLIC_KEY_LENGTH).into(),
         )));
     }
     let decoded_iv = general_purpose::STANDARD
-        .decode(&*new_user.iv)
-        .map_err(|_| {
-            AppError::UserError((StatusCode::BAD_REQUEST, "Failed to decode iv".into()))
-        })?;
-    // AES-GCM requires a 12 byte IV
-    if decoded_iv.len() != 12 {
-        return Err(AppError::UserError((
-            StatusCode::BAD_REQUEST,
-            "IV must be 12 bytes".into(),
-        )));
-    }
-    general_purpose::STANDARD
-        .decode(&*new_user.salt)
-        .map_err(|_| {
-            AppError::UserError((StatusCode::BAD_REQUEST, "Failed to decode salt".into()))
-        })?;
-    general_purpose::STANDARD
-        .decode(&*new_user.encrypted_private_key)
+        .decode_slice(&*new_user.iv, &mut [0; IV_LENGTH])
         .map_err(|_| {
             AppError::UserError((
                 StatusCode::BAD_REQUEST,
-                "Failed to decode encrypted private key".into(),
+                format!("IV must be base64 encoded and {IV_LENGTH} bytes long").into(),
             ))
         })?;
+    // AES-GCM requires a 12 byte IV
+    if decoded_iv != IV_LENGTH {
+        return Err(AppError::UserError((
+            StatusCode::BAD_REQUEST,
+            format!("IV must be {IV_LENGTH} bytes").into(),
+        )));
+    }
+
+    let decoded_salt = general_purpose::STANDARD
+        .decode_slice(&*new_user.salt, &mut [0; SALT_LENGTH])
+        .map_err(|_| {
+            AppError::UserError((
+                StatusCode::BAD_REQUEST,
+                format!("Salt must be base64 encoded and {SALT_LENGTH} bytes long").into(),
+            ))
+        })?;
+
+    if decoded_salt != SALT_LENGTH {
+        return Err(AppError::UserError((
+            StatusCode::BAD_REQUEST,
+            format!("Salt must be {SALT_LENGTH} bytes").into(),
+        )));
+    }
+
+    let decoded_encrypted_private_key = general_purpose::STANDARD
+        .decode_slice(
+            &*new_user.encrypted_private_key,
+            &mut [0; ENCRYPTED_PRIVATE_KEY_LENGTH + 5],
+        )
+        .map_err(|_| {
+            AppError::UserError((
+                StatusCode::BAD_REQUEST,
+                format!("Encrypted private key must be base64 encoded and {ENCRYPTED_PRIVATE_KEY_LENGTH} bytes")
+                    .into(),
+            ))
+        })?;
+
+    if !(ENCRYPTED_PRIVATE_KEY_LENGTH - 5..ENCRYPTED_PRIVATE_KEY_LENGTH + 6)
+        .contains(&decoded_encrypted_private_key)
+    {
+        return Err(AppError::UserError((
+            StatusCode::BAD_REQUEST,
+            format!("Encrypted private key must be {ENCRYPTED_PRIVATE_KEY_LENGTH} bytes").into(),
+        )));
+    }
     // Salt used for password hashing on the backend, not the one used for the PBKDF2 key derivation function
     // The user provided salt is used for the PBKDF2 key derivation function
     let salt = SaltString::generate(&mut OsRng);
@@ -824,14 +857,60 @@ pub async fn update_user(
                 }
             };
 
-            general_purpose::STANDARD
-                .decode(&*encrypted_private_key)
+            let decoded_iv = general_purpose::STANDARD
+                .decode_slice(&iv, &mut [0; IV_LENGTH])
                 .map_err(|_| {
                     AppError::UserError((
                         StatusCode::BAD_REQUEST,
-                        "Failed to decode encrypted private key".into(),
+                        format!("IV must be base64 encoded and {IV_LENGTH} bytes long").into(),
                     ))
                 })?;
+
+            if decoded_iv != IV_LENGTH {
+                return Err(AppError::UserError((
+                    StatusCode::BAD_REQUEST,
+                    format!("IV must be {IV_LENGTH} bytes").into(),
+                )));
+            }
+
+            let decoded_salt = general_purpose::STANDARD
+                .decode_slice(&salt, &mut [0; SALT_LENGTH])
+                .map_err(|_| {
+                    AppError::UserError((
+                        StatusCode::BAD_REQUEST,
+                        format!("Salt must be base64 encoded and {SALT_LENGTH} bytes long").into(),
+                    ))
+                })?;
+
+            if decoded_salt != SALT_LENGTH {
+                return Err(AppError::UserError((
+                    StatusCode::BAD_REQUEST,
+                    format!("Salt must be {SALT_LENGTH} bytes").into(),
+                )));
+            }
+
+            let decoded_encrypted_private_key = general_purpose::STANDARD
+                .decode_slice(
+                    &encrypted_private_key,
+                    &mut [0; ENCRYPTED_PRIVATE_KEY_LENGTH + 5],
+                )
+                .map_err(|_| {
+                    AppError::UserError((
+                        StatusCode::BAD_REQUEST,
+                        format!("Encrypted private key must be base64 encoded and {ENCRYPTED_PRIVATE_KEY_LENGTH} bytes")
+                            .into(),
+                    ))
+                })?;
+
+            if !(ENCRYPTED_PRIVATE_KEY_LENGTH - 5..ENCRYPTED_PRIVATE_KEY_LENGTH + 6)
+                .contains(&decoded_encrypted_private_key)
+            {
+                return Err(AppError::UserError((
+                    StatusCode::BAD_REQUEST,
+                    format!("Encrypted private key must be {ENCRYPTED_PRIVATE_KEY_LENGTH} bytes")
+                        .into(),
+                )));
+            }
 
             // Hash the new password and store the new hash in the database
             let server_salt = SaltString::generate(&mut OsRng);

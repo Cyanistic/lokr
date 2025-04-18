@@ -8,6 +8,7 @@ use axum::{
     Json,
 };
 use axum_extra::{headers::Cookie, TypedHeader};
+use base64::{engine::general_purpose, Engine};
 use chrono::{DateTime, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
 use serde_inline_default::serde_inline_default;
@@ -19,6 +20,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::SessionAuth,
+    check_nonce,
     error::{AppError, ErrorResponse},
     share::{share_with_link, ShareResponse},
     state::AppState,
@@ -27,6 +29,9 @@ use crate::{
     utils::{get_file_users, Normalize},
     SuccessResponse, UPLOAD_DIR,
 };
+
+const ROOT_FILE_ENCRYPTED_KEY_LENGTH: usize = 512;
+const CHILD_FILE_ENCRYPTED_KEY_LENGTH: usize = 48;
 
 /// All data for the uploaded file.
 /// All encrypted fields are expected to be encrypted
@@ -160,6 +165,47 @@ pub async fn upload_file(
             "Missing file metadata".into(),
         )));
     };
+
+    let key_length = general_purpose::STANDARD
+        .decode_slice(
+            &metadata.encrypted_key,
+            &mut [0; ROOT_FILE_ENCRYPTED_KEY_LENGTH],
+        )
+        .map_err(|_| {
+            AppError::UserError((
+                StatusCode::BAD_REQUEST,
+                "Incorrect encrypted key length".into(),
+            ))
+        })?;
+
+    if (metadata.parent_id.is_some() && key_length != CHILD_FILE_ENCRYPTED_KEY_LENGTH)
+        || (metadata.parent_id.is_none() && key_length != ROOT_FILE_ENCRYPTED_KEY_LENGTH)
+    {
+        return Err(AppError::UserError((
+            StatusCode::BAD_REQUEST,
+            "Incorrect encrypted key length".into(),
+        )));
+    }
+
+    check_nonce!(
+        &metadata.name_nonce,
+        "The provided name nonce is not the correct length!"
+    )?;
+
+    if let Some(nonce) = metadata.file_nonce.as_ref() {
+        check_nonce!(&nonce, "The provided file nonce is not the correct length!")?;
+    }
+
+    if let Some(nonce) = metadata.mime_type_nonce.as_ref() {
+        check_nonce!(
+            &nonce,
+            "The provided mime type nonce is not the correct length!"
+        )?;
+    }
+
+    if let Some(nonce) = metadata.key_nonce.as_ref() {
+        check_nonce!(&nonce, "The provided key nonce is not the correct length!")?;
+    }
 
     if metadata.mime_type_nonce.is_some() != metadata.encrypted_mime_type.is_some() {
         return Err(AppError::UserError((
@@ -686,6 +732,30 @@ pub async fn update_file(
                     "A new nonce is only needed if the file does not have a parent id".into(),
                 )));
             }
+            if let Some(nonce) = key_nonce.as_ref() {
+                check_nonce!(
+                    &nonce,
+                    "The provided mime type nonce is not the correct length!"
+                )?;
+            }
+
+            let key_length = general_purpose::STANDARD
+                .decode_slice(&encrypted_key, &mut [0; ROOT_FILE_ENCRYPTED_KEY_LENGTH])
+                .map_err(|_| {
+                    AppError::UserError((
+                        StatusCode::BAD_REQUEST,
+                        "Incorrect encrypted key length".into(),
+                    ))
+                })?;
+
+            if (parent_id.is_some() && key_length != CHILD_FILE_ENCRYPTED_KEY_LENGTH)
+                || (parent_id.is_none() && key_length != ROOT_FILE_ENCRYPTED_KEY_LENGTH)
+            {
+                return Err(AppError::UserError((
+                    StatusCode::BAD_REQUEST,
+                    "Incorrect encrypted key length".into(),
+                )));
+            }
             // Make sure that the target parent file being has the same owner to
             // prevent tampering with the source file.
             // We also include a children query here to ensure that the
@@ -794,6 +864,10 @@ pub async fn update_file(
             encrypted_name,
             name_nonce,
         } => {
+            check_nonce!(
+                &name_nonce,
+                "The provided name nonce is not the correct length!"
+            )?;
             // Rename the file
             sqlx::query!(
                 "UPDATE file SET encrypted_name = ?, name_nonce = ? WHERE id = ?",
