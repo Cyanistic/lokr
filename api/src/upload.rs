@@ -13,7 +13,10 @@ use chrono::{DateTime, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
 use serde_inline_default::serde_inline_default;
 use sqlx::{Executor, Sqlite};
-use tokio::{fs::File, io::AsyncWriteExt};
+use tokio::{
+    fs::File,
+    io::{AsyncWriteExt, BufWriter},
+};
 use tracing::{error, instrument};
 use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
@@ -136,154 +139,198 @@ pub async fn upload_file(
     let uuid = user.map(|user| user.0.id);
     let file_id = Uuid::now_v7();
     let mut file_path: Option<PathBuf> = None;
-    // Allocate a megabyte buffer
-    let mut file_data: Vec<u8> = Vec::with_capacity(1024 * 1024);
+    let mut file_size: i64 = 0;
+    let mut writer: Option<BufWriter<File>> = None;
     let link_password = params
         .link_id
         .and_then(|l_id| cookies.get(&l_id.to_string()))
         .and_then(|password_hash| urlencoding::decode(password_hash).ok());
 
-    while let Some(mut field) = data.next_field().await? {
-        match field.name() {
-            Some("metadata") => {
-                metadata = Some(serde_json::from_slice(&field.bytes().await?)?);
-            }
-            Some("file") => {
-                file_path = Some(UPLOAD_DIR.join(file_id.to_string()));
-
-                while let Some(chunk) = field.chunk().await? {
-                    file_data.extend_from_slice(&chunk);
+    // Define cleanup function to remove file on error
+    let cleanup = async |path: &Option<PathBuf>| {
+        if let Some(path) = path {
+            if let Err(e) = tokio::fs::remove_file(path).await {
+                // Only log the error if it's not a "file not found" error
+                if e.kind() != std::io::ErrorKind::NotFound {
+                    tracing::warn!("Failed to clean up file on error: {}", e);
                 }
             }
-            _ => {}
         }
-    }
-
-    let Some(metadata) = metadata else {
-        return Err(AppError::UserError((
-            StatusCode::BAD_REQUEST,
-            "Missing file metadata".into(),
-        )));
     };
 
-    let key_length = general_purpose::STANDARD
-        .decode_slice(
-            &metadata.encrypted_key,
-            &mut [0; ROOT_FILE_ENCRYPTED_KEY_LENGTH],
-        )
-        .map_err(|_| {
-            AppError::UserError((
-                StatusCode::BAD_REQUEST,
-                "Incorrect encrypted key length".into(),
-            ))
-        })?;
+    // Use a Result to handle early returns and cleanup
+    let result: Result<_, AppError> = async {
+        // Note that here we assume that the metadata is sent before the file data
+        // if this is not done, then parsing is more complex.
+        while let Some(mut field) = data.next_field().await? {
+            match field.name() {
+                Some("metadata") => {
+                    metadata = Some(serde_json::from_slice(&field.bytes().await?)?);
+                }
+                Some("file") => {
+                    if metadata.as_ref().is_some_and(|m| m.is_directory) {
+                        // Skip file processing for directories
+                        continue;
+                    }
 
-    if (metadata.parent_id.is_some() && key_length != CHILD_FILE_ENCRYPTED_KEY_LENGTH)
-        || (metadata.parent_id.is_none() && key_length != ROOT_FILE_ENCRYPTED_KEY_LENGTH)
-    {
-        return Err(AppError::UserError((
-            StatusCode::BAD_REQUEST,
-            "Incorrect encrypted key length".into(),
-        )));
-    }
+                    file_path = Some(UPLOAD_DIR.join(file_id.to_string()));
 
-    check_nonce!(
-        &metadata.name_nonce,
-        "The provided name nonce is not the correct length!"
-    )?;
+                    if let Some(path) = &file_path {
+                        let file = File::create(path).await?;
+                        let mut buf_writer = BufWriter::with_capacity(64 * 1024, file);
 
-    if let Some(nonce) = metadata.file_nonce.as_ref() {
-        check_nonce!(&nonce, "The provided file nonce is not the correct length!")?;
-    }
-
-    if let Some(nonce) = metadata.mime_type_nonce.as_ref() {
-        check_nonce!(
-            &nonce,
-            "The provided mime type nonce is not the correct length!"
-        )?;
-    }
-
-    if let Some(nonce) = metadata.key_nonce.as_ref() {
-        check_nonce!(&nonce, "The provided key nonce is not the correct length!")?;
-    }
-
-    if metadata.mime_type_nonce.is_some() != metadata.encrypted_mime_type.is_some() {
-        return Err(AppError::UserError((
-            StatusCode::BAD_REQUEST,
-            "Only include mime type nonce if there is a mime type to encrypt".into(),
-        )));
-    }
-
-    if metadata.is_directory == metadata.file_nonce.is_some() {
-        return Err(AppError::UserError((
-            StatusCode::BAD_REQUEST,
-            "Include a file nonce only if the file is not a directory".into(),
-        )));
-    }
-
-    // Implement retry mechanism for the entire transaction
-    const MAX_RETRIES: usize = 5;
-    const BASE_RETRY_DELAY_MS: u64 = 50;
-
-    let mut retries = 0;
-    let link;
-
-    loop {
-        // Begin a new transaction for each attempt
-        match process_upload_transaction(
-            &state,
-            &uuid,
-            &params,
-            &metadata,
-            link_password.as_deref(),
-            file_id,
-            file_data.len() as i64,
-        )
-        .await
-        {
-            Ok(link_result) => {
-                link = link_result;
-                break;
-            }
-            Err(e) => {
-                // Check if it's an SQLITE_BUSY error because if it is
-                // then we need to retry. 517 is SQLITE_BUSY_SNAPSHOT
-                // Reference: https://www.sqlite.org/rescode.html#busy_snapshot
-                if let AppError::SqlxError(db_err) = &e {
-                    if let Some(code) = db_err.as_database_error().and_then(|e| e.code()) {
-                        if (code == "5" || code == "517") && retries < MAX_RETRIES {
-                            retries += 1;
-                            // Exponential backoff with jitter
-                            let jitter = fastrand::u64(1..=50);
-                            let delay = BASE_RETRY_DELAY_MS * (1 << retries) + jitter;
-                            tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
-                            continue;
+                        while let Some(chunk) = field.chunk().await? {
+                            buf_writer.write_all(&chunk).await?;
+                            file_size += chunk.len() as i64;
                         }
+
+                        // Flush the buffer to ensure all data is written
+                        buf_writer.flush().await?;
+                        writer = Some(buf_writer);
                     }
                 }
-                return Err(e);
+                _ => {}
             }
         }
-    }
 
-    // If everything succeeds, write the file to disk (only if it's not a directory)
-    if let Some(file_path) = file_path {
-        if !metadata.is_directory && !file_data.is_empty() {
-            let mut file = File::create(file_path).await?;
-            file.write_all(&file_data).await?;
+        let Some(metadata) = metadata else {
+            return Err(AppError::UserError((
+                StatusCode::BAD_REQUEST,
+                "Missing file metadata".into(),
+            )));
+        };
+
+        let key_length = general_purpose::STANDARD
+            .decode_slice(
+                &metadata.encrypted_key,
+                &mut [0; ROOT_FILE_ENCRYPTED_KEY_LENGTH],
+            )
+            .map_err(|_| {
+                AppError::UserError((
+                    StatusCode::BAD_REQUEST,
+                    "Incorrect encrypted key length".into(),
+                ))
+            })?;
+
+        if uuid.is_some() {
+            if (metadata.parent_id.is_some() && key_length != CHILD_FILE_ENCRYPTED_KEY_LENGTH)
+                || (metadata.parent_id.is_none() && key_length != ROOT_FILE_ENCRYPTED_KEY_LENGTH)
+            {
+                return Err(AppError::UserError((
+                    StatusCode::BAD_REQUEST,
+                    "Incorrect encrypted key length".into(),
+                )));
+            }
+        } else if key_length != CHILD_FILE_ENCRYPTED_KEY_LENGTH {
+            return Err(AppError::UserError((
+                StatusCode::BAD_REQUEST,
+                "Incorrect encrypted key length".into(),
+            )));
+        }
+
+        check_nonce!(
+            &metadata.name_nonce,
+            "The provided name nonce is not the correct length!"
+        )?;
+
+        if let Some(nonce) = metadata.file_nonce.as_ref() {
+            check_nonce!(&nonce, "The provided file nonce is not the correct length!")?;
+        }
+
+        if let Some(nonce) = metadata.mime_type_nonce.as_ref() {
+            check_nonce!(
+                &nonce,
+                "The provided mime type nonce is not the correct length!"
+            )?;
+        }
+
+        if let Some(nonce) = metadata.key_nonce.as_ref() {
+            check_nonce!(&nonce, "The provided key nonce is not the correct length!")?;
+        }
+
+        if metadata.mime_type_nonce.is_some() != metadata.encrypted_mime_type.is_some() {
+            return Err(AppError::UserError((
+                StatusCode::BAD_REQUEST,
+                "Only include mime type nonce if there is a mime type to encrypt".into(),
+            )));
+        }
+
+        if metadata.is_directory == metadata.file_nonce.is_some() {
+            return Err(AppError::UserError((
+                StatusCode::BAD_REQUEST,
+                "Include a file nonce only if the file is not a directory".into(),
+            )));
+        }
+
+        // Implement retry mechanism for the entire transaction
+        const MAX_RETRIES: usize = 5;
+        const BASE_RETRY_DELAY_MS: u64 = 50;
+
+        let mut retries = 0;
+        let link;
+
+        loop {
+            // Begin a new transaction for each attempt
+            match process_upload_transaction(
+                &state,
+                &uuid,
+                &params,
+                &metadata,
+                link_password.as_deref(),
+                file_id,
+                file_size,
+            )
+            .await
+            {
+                Ok(link_result) => {
+                    link = link_result;
+                    break;
+                }
+                Err(e) => {
+                    // Check if it's an SQLITE_BUSY error because if it is
+                    // then we need to retry. 517 is SQLITE_BUSY_SNAPSHOT
+                    // Reference: https://www.sqlite.org/rescode.html#busy_snapshot
+                    if let AppError::SqlxError(db_err) = &e {
+                        if let Some(code) = db_err.as_database_error().and_then(|e| e.code()) {
+                            if (code == "5" || code == "517") && retries < MAX_RETRIES {
+                                retries += 1;
+                                // Exponential backoff with jitter
+                                let jitter = fastrand::u64(1..=50);
+                                let delay = BASE_RETRY_DELAY_MS * (1 << retries) + jitter;
+                                tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
+                                continue;
+                            }
+                        }
+                    }
+                    return Err(e);
+                }
+            }
+        }
+
+        // Finalize the write operation by dropping the writer
+        drop(writer);
+
+        Ok((
+            StatusCode::OK,
+            Json(UploadResponse {
+                id: file_id,
+                size: file_size,
+                is_directory: metadata.is_directory,
+                link,
+            }),
+        )
+            .into_response())
+    }
+    .await;
+
+    // Handle cleanup on error
+    match result {
+        Ok(response) => Ok(response),
+        Err(e) => {
+            cleanup(&file_path).await;
+            Err(e)
         }
     }
-
-    Ok((
-        StatusCode::OK,
-        Json(UploadResponse {
-            id: file_id,
-            size: file_data.len() as i64,
-            is_directory: metadata.is_directory,
-            link,
-        }),
-    )
-        .into_response())
 }
 
 // Extract the transaction logic into a separate function to enable proper retries
