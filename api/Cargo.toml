@@ -31,7 +31,7 @@ anyhow = "1.0.95"
 argon2 = "0.5.3"
 axum-extra = { version = "0.10.0", features = ["typed-header"] }
 axum-macros = "0.5.0"
-axum = { version = "0.8.1", features = ["multipart"] }
+axum = { version = "0.8.1", features = ["multipart", "http2"] }
 base64 = "0.22.1"
 chrono = { version = "0.4.39", features = ["serde"] }
 dirs = "6.0"
@@ -42,12 +42,12 @@ regex = "1.11.1"
 serde = "1.0.217"
 serde-inline-default = "0.2.3"
 serde_json = "1.0.135"
-sonic-rs = "0.3.17"
+sonic-rs = "0.5"
 sqlx = { version = "0.8.3", features = ["sqlite", "macros", "chrono", "runtime-tokio", "uuid"] }
 tokio = { version = "1.43.0", features = ["full"] }
 totp-rs = { version = "5.6.0", features = ["gen_secret", "qr"] }
 tower = "0.5.2"
-tower_governor = { version = "0.6.0", features = ["axum", "tracing"] }
+tower_governor = { version = "0.7.0", features = ["axum", "tracing"] }
 tower-http = { version = "0.6.2", features = ["trace", "fs", "cors", "compression-br", "compression-gzip", "compression-zstd", "sensitive-headers", "util", "timeout", "set-header"] }
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
@@ -56,6 +56,6 @@ utoipa-axum = "0.2.0"
 utoipa-swagger-ui = { version = "9.0.0", features = ["axum"] }
 utoipa = { version = "5.3.1", features = ["axum_extras", "uuid", "chrono"] }
 uuid = { version = "1.12.0", features = ["v4", "fast-rng", "v7", "serde"] }
-validator = { version = "0.19.0", features = ["derive"] }
+validator = { version = "0.20.0", features = ["derive"] }
 urlencoding = "2.1.3"
 fastrand = "2.3.0"

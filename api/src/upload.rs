@@ -107,13 +107,12 @@ pub struct UploadRequest {
     /// The encrypted file data as bytes
     #[schema(format = Binary, content_media_type = "application/octet-stream", required = false)]
     file: String,
-    #[schema(example = "", content_media_type = "text/plain")]
-    link_id: Option<String>,
 }
 
 #[utoipa::path(
     post,
     path = "/api/upload",
+    description = "Upload a file to the backend. This endpoint is also used to create folders",
     request_body(content = UploadRequest, content_type = "multipart/form-data"),
     params(
         LinkParams,
@@ -168,8 +167,9 @@ pub async fn upload_file(
                     metadata = Some(serde_json::from_slice(&field.bytes().await?)?);
                 }
                 Some("file") => {
-                    if metadata.as_ref().is_some_and(|m| m.is_directory) {
-                        // Skip file processing for directories
+                    if metadata.as_ref().is_some_and(|m| m.is_directory) || file_path.is_some() {
+                        // Skip file processing for directories or if we
+                        // already have data for a file
                         continue;
                     }
 
