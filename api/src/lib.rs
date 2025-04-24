@@ -1,9 +1,10 @@
 use anyhow::{anyhow, Result};
+use download::serve_auth;
 use regex::Regex;
 use serde::Serialize;
 use state::AppState;
 use std::{
-    env::current_dir,
+    env::{current_dir, temp_dir},
     net::SocketAddr,
     path::PathBuf,
     str::FromStr,
@@ -21,7 +22,6 @@ use tower_http::{
     LatencyUnit, ServiceBuilderExt,
 };
 use tracing::{info, warn, Level};
-use upload::serve_auth;
 use url::Url;
 use utoipa::{
     openapi::security::{ApiKey, ApiKeyValue, SecurityScheme},
@@ -48,6 +48,7 @@ use sqlx::{
 };
 
 pub mod auth;
+pub mod download;
 pub mod error;
 pub mod session;
 pub mod share;
@@ -110,6 +111,23 @@ pub static AVATAR_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
     path
 });
 
+pub static TEMP_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
+    let path = temp_dir().join(PKG_NAME);
+    if !path.exists() {
+        std::fs::create_dir_all(&path).unwrap();
+    }
+    path
+});
+
+/// Path to where chunked upload transaction data is stored
+pub static TRANSACTION_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
+    let path = TEMP_DIR.join("transactions");
+    if !path.exists() {
+        std::fs::create_dir_all(&path).unwrap();
+    }
+    path
+});
+
 /// Website host
 pub static HOST: LazyLock<String> =
     LazyLock::new(|| std::env::var("LOKR_HOST").unwrap_or("lokr.cyanistic.com".to_string()));
@@ -133,8 +151,8 @@ pub static HOST: LazyLock<String> =
             upload::upload_file,
             upload::delete_file,
             upload::update_file,
-            upload::get_file,
-            upload::get_file_metadata,
+            download::get_file,
+            download::get_file_metadata,
             share::share_file,
             share::get_user_shared_file,
             share::get_link_shared_file,
@@ -288,7 +306,7 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
         .routes(routes!(upload::upload_file))
         .route_layer(DefaultBodyLimit::max(1_000_000_000))
         .routes(routes!(users::search_users))
-        .routes(routes!(upload::get_file_metadata))
+        .routes(routes!(download::get_file_metadata))
         .routes(routes!(share::get_user_shared_file))
         .routes(routes!(share::get_link_shared_file))
         .routes(routes!(users::upload_avatar))

@@ -1,0 +1,500 @@
+use std::collections::HashMap;
+
+use axum::{
+    extract::{Query, Request, State},
+    http::{StatusCode, Uri},
+    middleware::Next,
+    response::{IntoResponse, Response},
+    Json,
+};
+use axum_extra::{headers::Cookie, TypedHeader};
+use chrono::{DateTime, TimeZone, Utc};
+use serde::{Deserialize, Serialize};
+use serde_inline_default::serde_inline_default;
+use sqlx::{Executor, Sqlite};
+use tracing::instrument;
+use utoipa::{IntoParams, ToSchema};
+use uuid::Uuid;
+
+use crate::{
+    auth::SessionAuth,
+    error::{AppError, ErrorResponse},
+    state::AppState,
+    upload::{LinkParams, UploadMetadata},
+    users::PublicUser,
+    utils::{get_file_users, Normalize},
+};
+
+/// Check if a user owns a file
+pub async fn is_owner<'a, E: Executor<'a, Database = Sqlite>>(
+    db: E,
+    user: &Uuid,
+    file: &Uuid,
+) -> Result<bool, AppError> {
+    Ok(sqlx::query!(
+        "SELECT owner_id FROM file WHERE id = ? AND owner_id = ?",
+        file,
+        user
+    )
+    .fetch_optional(db)
+    .await?
+    .is_some())
+}
+
+/// Metadata of a file or directory
+#[derive(Serialize, ToSchema, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct FileMetadata {
+    /// The id of the file or directory
+    pub id: Uuid,
+    #[serde(flatten)]
+    pub upload: UploadMetadata,
+    pub created_at: DateTime<Utc>,
+    pub modified_at: DateTime<Utc>,
+    pub owner_id: Option<Uuid>,
+    pub uploader_id: Option<Uuid>,
+    pub size: i64,
+    /// Whether or not the user has edit permission to this file
+    /// if this is not set then the file should inherit the edit permissions
+    /// of the parent. This will not be sent when a user is querying their
+    /// own files, as they will always have edit permissions.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub edit_permission: Option<bool>,
+    /// The children of the directory.
+    /// Only present if the file is a directory.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub children: Vec<Uuid>,
+}
+
+#[derive(Deserialize, IntoParams, Debug)]
+#[serde(rename_all = "camelCase")]
+#[serde_inline_default]
+pub struct FileQuery {
+    /// The id of the file or directory to get.
+    /// If not provided, the root of the currently
+    /// authorized user directory is returned
+    pub id: Option<Uuid>,
+    /// The maximum depth to return children for
+    #[serde_inline_default(1)]
+    #[param(maximum = 20, default = 1)]
+    pub depth: u32,
+    /// The offset to start returning children from
+    #[param(default = 0)]
+    #[serde_inline_default(0)]
+    pub offset: u32,
+    /// The maximum number of children to return
+    #[param(default = 50)]
+    #[serde_inline_default(50)]
+    pub limit: u32,
+    /// Whether to include the ancestors of the
+    /// chain of the file in the response
+    #[serde(default)]
+    pub include_ancestors: bool,
+}
+
+impl FileMetadata {
+    fn example() -> HashMap<Uuid, Self> {
+        let parent_uuid = Uuid::try_parse_ascii(b"123e4567-e89b-12d3-a456-426614174000").unwrap();
+        let child_uuid = Uuid::try_parse_ascii(b"21f981a7-d21f-4aa5-9f6b-09005235236a").unwrap();
+        let user_id = Uuid::try_parse_ascii(b"dae2b0f0-d84b-42c8-aebd-58a71ee1fb86").unwrap();
+
+        let date = Utc.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap();
+        let first = FileMetadata {
+            id: parent_uuid,
+            upload: UploadMetadata {
+                encrypted_file_name: "encryptedFileName".into(),
+                encrypted_mime_type: Some("encryptedMimeType".into()),
+                encrypted_key: "encryptedKey".into(),
+                file_nonce: Some("exampleNonce".into()),
+                key_nonce: Some("exampleNonce".into()),
+                name_nonce: "exampleNonce".into(),
+                mime_type_nonce: Some("exampleNonce".into()),
+                is_directory: true,
+                parent_id: None,
+            },
+            size: 0,
+            edit_permission: None,
+            created_at: date,
+            modified_at: date,
+            owner_id: Some(user_id),
+            uploader_id: Some(user_id),
+            children: vec![child_uuid],
+        };
+        let child = FileMetadata {
+            id: child_uuid,
+            upload: UploadMetadata {
+                encrypted_file_name: "encryptedFileName".into(),
+                encrypted_mime_type: Some("encryptedMimeType".into()),
+                encrypted_key: "encryptedKey".into(),
+                file_nonce: Some("exampleNonce".into()),
+                key_nonce: Some("exampleNonce".into()),
+                name_nonce: "exampleNonce".into(),
+                mime_type_nonce: Some("exampleNonce".into()),
+                is_directory: false,
+                parent_id: Some(parent_uuid),
+            },
+            size: 32,
+            created_at: date,
+            modified_at: date,
+            owner_id: Some(user_id),
+            uploader_id: Some(user_id),
+            children: vec![],
+            edit_permission: None,
+        };
+        HashMap::from([(parent_uuid, first), (child_uuid, child)])
+    }
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct FileResponse {
+    #[schema(
+        example = FileMetadata::example
+    )]
+    pub files: HashMap<Uuid, FileMetadata>,
+    #[schema(example = "same kind of thing as files, but with `PublicUser` schema...")]
+    pub users: HashMap<Uuid, PublicUser>,
+    #[schema(example = "123e4567-e89b-12d3-a456-426614174000")]
+    pub root: Vec<Uuid>,
+}
+#[utoipa::path(
+    get,
+    path = "/api/file",
+    description = "Get the metadata of a file or directory. Also returns the children of a directory.",
+    params(
+        FileQuery
+    ),
+    responses(
+        (status = OK, description = "The file or directory metadata was retrieved successfully", body = FileResponse),
+        (status = BAD_REQUEST, description = "No file id or user authoziation provided", body = ErrorResponse),
+        (status = NOT_FOUND, description = "File was not found"),
+    ),
+    security(
+        (),
+        ("lokr_session_cookie" = [])
+    )
+)]
+#[instrument(err, skip(state))]
+pub async fn get_file_metadata(
+    State(state): State<AppState>,
+    SessionAuth(user): SessionAuth,
+    Query(params): Query<FileQuery>,
+) -> Result<Response, AppError> {
+    // Limit the depth to 20 to prevent infinite recursion
+    let depth = params.depth.min(20);
+    let query = sqlx::query!(
+        r#"
+            WITH RECURSIVE children AS (
+                -- Anchor member (root or specified node)
+                SELECT 
+                    0 AS depth,
+                    id, 
+                    parent_id, 
+                    encrypted_name, 
+                    encrypted_key, 
+                    owner_id,
+                    uploader_id,
+                    file_nonce, 
+                    key_nonce, 
+                    name_nonce, 
+                    mime_type_nonce, 
+                    is_directory, 
+                    mime,
+                    size,
+                    created_at,
+                    modified_at
+                FROM file
+                WHERE 
+                owner_id = COALESCE(?, owner_id) AND
+                IIF(? IS NULL, parent_id IS NULL, id = ?)
+                UNION ALL
+                
+                -- Recursive member
+                SELECT 
+                    c.depth + 1,
+                    f.id, 
+                    f.parent_id, 
+                    f.encrypted_name, 
+                    f.encrypted_key, 
+                    f.owner_id,
+                    f.uploader_id,
+                    f.file_nonce, 
+                    f.key_nonce, 
+                    f.name_nonce, 
+                    f.mime_type_nonce, 
+                    f.is_directory, 
+                    f.mime,
+                    f.size,
+                    f.created_at,
+                    f.modified_at
+                FROM file f
+                JOIN children c ON f.parent_id = c.id
+                WHERE 
+                    c.depth < ? 
+                ORDER BY c.depth + 1
+            )
+            SELECT 
+                -- Goofy ahh workaround to get the query to work with sqlx
+                depth AS "depth!: u32",
+                id AS "id: Uuid",
+                parent_id AS "parent_id: Uuid", 
+                encrypted_name, 
+                encrypted_key, 
+                owner_id AS "owner_id: Uuid",
+                uploader_id AS "uploader_id: Uuid",
+                file_nonce AS "file_nonce?", 
+                key_nonce, 
+                name_nonce, 
+                mime_type_nonce AS "mime_type_nonce?", 
+                is_directory AS "is_directory!",
+                mime,
+                IIF(size - 16 < 0, 0, size - 16) AS "size!: i64",
+                created_at,
+                modified_at
+            FROM children ORDER BY depth ASC LIMIT ? OFFSET ?
+            "#,
+        user.id,
+        params.id,
+        params.id,
+        depth,
+        params.limit,
+        params.offset
+    )
+    .fetch_all(&state.pool);
+    // If the user has requested to include ancestors, we need to run a second query
+    // We want to speed up computation, so if the user requests ancestors
+    // then run the query to get them concurrently with the main query
+    let (query, ancestors) = if params.include_ancestors && params.id.is_some() {
+        let ancestor_query = sqlx::query!(
+            r#"
+            WITH RECURSIVE ancestors AS (
+                -- Anchor member (root or specified node)
+                SELECT 
+                    0 AS depth,
+                    id, 
+                    parent_id, 
+                    encrypted_name, 
+                    encrypted_key, 
+                    owner_id,
+                    uploader_id,
+                    file_nonce, 
+                    key_nonce, 
+                    name_nonce, 
+                    mime_type_nonce, 
+                    is_directory, 
+                    mime,
+                    created_at,
+                    modified_at
+                FROM file
+                WHERE 
+                owner_id = ? AND
+                id = ?
+                UNION ALL
+                
+                -- Recursive member
+                SELECT 
+                    a.depth + 1,
+                    f.id, 
+                    f.parent_id, 
+                    f.encrypted_name, 
+                    f.encrypted_key, 
+                    f.owner_id,
+                    f.uploader_id,
+                    f.file_nonce, 
+                    f.key_nonce, 
+                    f.name_nonce, 
+                    f.mime_type_nonce, 
+                    f.is_directory, 
+                    f.mime,
+                    f.created_at,
+                    f.modified_at
+                FROM file f
+                JOIN ancestors a ON f.id = a.parent_id
+            )
+            SELECT 
+                depth AS "depth!: u32",
+                id AS "id: Uuid",
+                parent_id AS "parent_id: Uuid", 
+                encrypted_name, 
+                encrypted_key, 
+                owner_id AS "owner_id: Uuid",
+                uploader_id AS "uploader_id: Uuid",
+                file_nonce AS "file_nonce?", 
+                key_nonce, 
+                name_nonce, 
+                mime_type_nonce AS "mime_type_nonce?", 
+                is_directory AS "is_directory!",
+                mime,
+                -- Ancestors are always directories so their size must
+                -- be always be 0
+                0 AS "size!: i64",
+                created_at,
+                modified_at
+            FROM ancestors
+            WHERE depth > 0
+            ORDER BY depth DESC
+        "#,
+            user.id,
+            params.id
+        )
+        .fetch_all(&state.pool);
+        // Run both database queries concurrently
+        let (query, ancestor_query) = tokio::try_join!(query, ancestor_query)?;
+        let ancestors = ancestor_query.into_iter().map(|row| FileMetadata {
+            id: row.id,
+            created_at: row.created_at.and_utc(),
+            modified_at: row.modified_at.and_utc(),
+            owner_id: row.owner_id,
+            uploader_id: row.uploader_id,
+            upload: UploadMetadata {
+                encrypted_file_name: row.encrypted_name,
+                encrypted_mime_type: row.mime,
+                encrypted_key: row.encrypted_key,
+                file_nonce: row.file_nonce,
+                is_directory: row.is_directory,
+                parent_id: row.parent_id,
+                key_nonce: row.key_nonce,
+                name_nonce: row.name_nonce,
+                mime_type_nonce: row.mime_type_nonce,
+            },
+            size: row.size,
+            children: Vec::new(),
+            edit_permission: None,
+        });
+        (query, Some(ancestors))
+    } else {
+        (query.await?, None)
+    };
+    // Convert the query result into a tree structure
+    let (files, root) = ancestors
+        .into_iter()
+        .flatten()
+        .chain(query.into_iter().map(|row| FileMetadata {
+            id: row.id,
+            created_at: row.created_at.and_utc(),
+            modified_at: row.modified_at.and_utc(),
+            owner_id: row.owner_id,
+            uploader_id: row.uploader_id,
+            upload: UploadMetadata {
+                encrypted_file_name: row.encrypted_name,
+                encrypted_mime_type: row.mime,
+                encrypted_key: row.encrypted_key,
+                file_nonce: row.file_nonce,
+                is_directory: row.is_directory,
+                parent_id: row.parent_id,
+                key_nonce: row.key_nonce,
+                name_nonce: row.name_nonce,
+                mime_type_nonce: row.mime_type_nonce,
+            },
+            size: row.size,
+            children: Vec::new(),
+            edit_permission: None,
+        }))
+        .normalize();
+    if params.id.is_some() && files.is_empty() {
+        Err(AppError::UserError((
+            StatusCode::NOT_FOUND,
+            "File not found".into(),
+        )))
+    } else {
+        Ok((
+            StatusCode::OK,
+            Json(FileResponse {
+                users: get_file_users(&state.pool, &files).await?,
+                files,
+                root,
+            }),
+        )
+            .into_response())
+    }
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/file/data/{id}",
+    description = "Get the raw contents of a file. Requires the password hash of a link in the cookies of the request if the link is password protected.",
+    params(
+            ("id" = Uuid, Path, description = "The id of the file to get"),
+            ("linkId" = Option<Uuid>, Query, description = "The share link id to use for accessing the file if applicable")
+        ),
+    responses(
+        (status = OK, description = "The file was retrieved successfully", content_type = "application/octet-stream"),
+        (status = NOT_FOUND, description = "File was not found"),
+    ),
+)]
+// Dummy function to avoid generate documentation for this path
+#[allow(unused)]
+async fn get_file() {}
+
+#[instrument(err, skip(state))]
+pub async fn serve_auth(
+    State(state): State<AppState>,
+    auth: Option<SessionAuth>,
+    TypedHeader(cookies): TypedHeader<Cookie>,
+    uri: Uri,
+    Query(params): Query<LinkParams>,
+    request: Request,
+    next: Next,
+) -> Result<Response, AppError> {
+    if auth.is_none() && params.link_id.is_none() {
+        return Err(AppError::UserError((
+            StatusCode::UNAUTHORIZED,
+            "No link or authorization provided".into(),
+        )));
+    }
+    // I tried using the Path extractor to only get the file id out but
+    // that didn't work because ServeDir doesn't use path params
+    // so I just had to use this hack instead
+    let path = uri.path();
+    let last_segment = path.split('/').next_back().unwrap_or_default();
+    let Ok(id) = Uuid::try_parse(last_segment) else {
+        return Err(AppError::UserError((
+            StatusCode::BAD_REQUEST,
+            "Invalid file id".into(),
+        )));
+    };
+    let uuid = auth.map(|user| user.0.id);
+    let link_password = params
+        .link_id
+        .and_then(|l_id| cookies.get(&l_id.to_string()))
+        .and_then(|password_hash| urlencoding::decode(password_hash).ok());
+    let query = sqlx::query!(r#"
+        WITH RECURSIVE ancestors AS (
+            SELECT
+                id,
+                parent_id
+            FROM file
+            WHERE id = ?  -- the file we're checking
+            UNION ALL
+            SELECT
+                f.id,
+                f.parent_id
+            FROM file f
+            JOIN ancestors a ON f.id = a.parent_id
+        )
+        SELECT is_directory
+        FROM file 
+        LEFT JOIN share_user AS su
+        ON su.file_id = file.id AND su.user_id = ?
+        LEFT JOIN share_link AS sl
+        ON sl.file_id = file.id AND sl.id = ? AND (expires_at IS NULL OR DATETIME(expires_at) >= CURRENT_TIMESTAMP)
+        AND (sl.password_hash IS NULL OR sl.password_hash = ?)
+        WHERE file.id IN (SELECT id FROM ancestors) AND
+        owner_id = ? OR su.file_id IS NOT NULL OR sl.file_id IS NOT NULL
+        LIMIT 1
+        "#,
+        id,
+        uuid,
+        params.link_id,
+        link_password,
+        uuid,
+    ).fetch_optional(&state.pool).await?;
+
+    if query.is_none() {
+        return Err(AppError::UserError((
+            StatusCode::NOT_FOUND,
+            "File not found".into(),
+        )));
+    }
+    let response = next.run(request).await;
+    Ok(response)
+}

@@ -56,3 +56,11 @@
   - (x) Support for persistent settings
   -- (x) Dark/Light theme customization
   -- (x) Grid/List view by default
+  - ( ) File chunking support
+  -- ( ) Chunked uploading
+  -- ( ) Chunked file downloading
+  - ( ) Hide unused file previews
+  - ( ) Minimize memory usage for mobile
+  - ( ) Video streaming (requires chunked uploads and downloads)
+  -- ( ) Show video previews in grid view with only the first frame decrypted
+  -- ( ) Handle streaming with seeking

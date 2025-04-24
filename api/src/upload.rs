@@ -1,20 +1,19 @@
-use std::{collections::HashMap, io::ErrorKind, path::PathBuf};
+use std::{future::Future, io::ErrorKind, path::PathBuf};
 
 use axum::{
-    extract::{Multipart, Path, Query, Request, State},
-    http::{StatusCode, Uri},
-    middleware::Next,
+    body::Body,
+    extract::{Multipart, Path, Query, State},
+    http::StatusCode,
     response::{IntoResponse, Response},
     Json,
 };
 use axum_extra::{headers::Cookie, TypedHeader};
 use base64::{engine::general_purpose, Engine};
-use chrono::{DateTime, TimeZone, Utc};
+use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
-use serde_inline_default::serde_inline_default;
 use sqlx::{Executor, Sqlite};
 use tokio::{
-    fs::File,
+    fs::{create_dir_all, remove_file, File},
     io::{AsyncWriteExt, BufWriter},
 };
 use tracing::{error, instrument};
@@ -28,9 +27,8 @@ use crate::{
     share::{share_with_link, ShareResponse},
     state::AppState,
     success,
-    users::PublicUser,
-    utils::{get_file_users, Normalize},
-    SuccessResponse, UPLOAD_DIR,
+    users::BinaryFile,
+    SuccessResponse, TRANSACTION_DIR, UPLOAD_DIR,
 };
 
 const ROOT_FILE_ENCRYPTED_KEY_LENGTH: usize = 512;
@@ -109,6 +107,18 @@ pub struct UploadRequest {
     file: String,
 }
 
+// Define cleanup function to remove file on error
+async fn cleanup(path: Option<&PathBuf>) {
+    if let Some(path) = path {
+        if let Err(e) = tokio::fs::remove_file(path).await {
+            // Only log the error if it's not a "file not found" error
+            if e.kind() != std::io::ErrorKind::NotFound {
+                tracing::warn!("Failed to clean up file on error: {}", e);
+            }
+        }
+    }
+}
+
 #[utoipa::path(
     post,
     path = "/api/upload",
@@ -144,18 +154,6 @@ pub async fn upload_file(
         .link_id
         .and_then(|l_id| cookies.get(&l_id.to_string()))
         .and_then(|password_hash| urlencoding::decode(password_hash).ok());
-
-    // Define cleanup function to remove file on error
-    let cleanup = async |path: &Option<PathBuf>| {
-        if let Some(path) = path {
-            if let Err(e) = tokio::fs::remove_file(path).await {
-                // Only log the error if it's not a "file not found" error
-                if e.kind() != std::io::ErrorKind::NotFound {
-                    tracing::warn!("Failed to clean up file on error: {}", e);
-                }
-            }
-        }
-    };
 
     // Use a Result to handle early returns and cleanup
     let result: Result<_, AppError> = async {
@@ -200,112 +198,18 @@ pub async fn upload_file(
             )));
         };
 
-        let key_length = general_purpose::STANDARD
-            .decode_slice(
-                &metadata.encrypted_key,
-                &mut [0; ROOT_FILE_ENCRYPTED_KEY_LENGTH],
-            )
-            .map_err(|_| {
-                AppError::UserError((
-                    StatusCode::BAD_REQUEST,
-                    "Incorrect encrypted key length".into(),
-                ))
-            })?;
+        check_upload_metadata(&metadata, uuid.is_some())?;
 
-        if uuid.is_some() {
-            if (metadata.parent_id.is_some() && key_length != CHILD_FILE_ENCRYPTED_KEY_LENGTH)
-                || (metadata.parent_id.is_none() && key_length != ROOT_FILE_ENCRYPTED_KEY_LENGTH)
-            {
-                return Err(AppError::UserError((
-                    StatusCode::BAD_REQUEST,
-                    "Incorrect encrypted key length".into(),
-                )));
-            }
-        } else if key_length != CHILD_FILE_ENCRYPTED_KEY_LENGTH {
-            return Err(AppError::UserError((
-                StatusCode::BAD_REQUEST,
-                "Incorrect encrypted key length".into(),
-            )));
-        }
-
-        check_nonce!(
-            &metadata.name_nonce,
-            "The provided name nonce is not the correct length!"
-        )?;
-
-        if let Some(nonce) = metadata.file_nonce.as_ref() {
-            check_nonce!(&nonce, "The provided file nonce is not the correct length!")?;
-        }
-
-        if let Some(nonce) = metadata.mime_type_nonce.as_ref() {
-            check_nonce!(
-                &nonce,
-                "The provided mime type nonce is not the correct length!"
-            )?;
-        }
-
-        if let Some(nonce) = metadata.key_nonce.as_ref() {
-            check_nonce!(&nonce, "The provided key nonce is not the correct length!")?;
-        }
-
-        if metadata.mime_type_nonce.is_some() != metadata.encrypted_mime_type.is_some() {
-            return Err(AppError::UserError((
-                StatusCode::BAD_REQUEST,
-                "Only include mime type nonce if there is a mime type to encrypt".into(),
-            )));
-        }
-
-        if metadata.is_directory == metadata.file_nonce.is_some() {
-            return Err(AppError::UserError((
-                StatusCode::BAD_REQUEST,
-                "Include a file nonce only if the file is not a directory".into(),
-            )));
-        }
-
-        // Implement retry mechanism for the entire transaction
-        const MAX_RETRIES: usize = 5;
-        const BASE_RETRY_DELAY_MS: u64 = 50;
-
-        let mut retries = 0;
-        let link;
-
-        loop {
-            // Begin a new transaction for each attempt
-            match process_upload_transaction(
+        let link = metadata
+            .retry_upload_transaction(
                 &state,
                 &uuid,
                 &params,
-                &metadata,
                 link_password.as_deref(),
                 file_id,
                 file_size,
             )
-            .await
-            {
-                Ok(link_result) => {
-                    link = link_result;
-                    break;
-                }
-                Err(e) => {
-                    // Check if it's an SQLITE_BUSY error because if it is
-                    // then we need to retry. 517 is SQLITE_BUSY_SNAPSHOT
-                    // Reference: https://www.sqlite.org/rescode.html#busy_snapshot
-                    if let AppError::SqlxError(db_err) = &e {
-                        if let Some(code) = db_err.as_database_error().and_then(|e| e.code()) {
-                            if (code == "5" || code == "517") && retries < MAX_RETRIES {
-                                retries += 1;
-                                // Exponential backoff with jitter
-                                let jitter = fastrand::u64(1..=50);
-                                let delay = BASE_RETRY_DELAY_MS * (1 << retries) + jitter;
-                                tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
-                                continue;
-                            }
-                        }
-                    }
-                    return Err(e);
-                }
-            }
-        }
+            .await?;
 
         // Finalize the write operation by dropping the writer
         drop(writer);
@@ -327,26 +231,22 @@ pub async fn upload_file(
     match result {
         Ok(response) => Ok(response),
         Err(e) => {
-            cleanup(&file_path).await;
+            cleanup(file_path.as_ref()).await;
             Err(e)
         }
     }
 }
 
-// Extract the transaction logic into a separate function to enable proper retries
-async fn process_upload_transaction(
-    state: &AppState,
-    uuid: &Option<Uuid>,
-    params: &LinkParams,
+async fn get_owner_from_parent<'a, E>(
     metadata: &UploadMetadata,
+    uuid: &Option<Uuid>,
     link_password: Option<&str>,
-    file_id: Uuid,
-    file_size: i64,
-) -> Result<Option<ShareResponse>, AppError> {
-    // Begin a transaction to prevent a race condition across threads
-    // that could allow a user to upload more than they are allowed to
-    let mut tx = state.pool.begin().await?;
-
+    link_id: Option<&Uuid>,
+    db: E,
+) -> Result<Option<Uuid>, AppError>
+where
+    E: Executor<'a, Database = Sqlite>,
+{
     // Get the owner id of the file so we can reuse it, as the file owner for children should
     // be the same as the the owner id of the parent
     let owner_id = match metadata.parent_id {
@@ -380,11 +280,11 @@ async fn process_upload_transaction(
                 "#,
                 parent_id,
                 uuid,
-                params.link_id,
+                link_id,
                 link_password,
                 uuid
             )
-            .fetch_optional(&mut *tx)
+            .fetch_optional(db)
             .await?
             {
                 Some(parent_file) => {
@@ -414,101 +314,52 @@ async fn process_upload_transaction(
         // will automatically be the uploader
         None => *uuid
     };
+    Ok(owner_id)
+}
 
-    // Check if the owner has enough space to upload the file
-    if let Some(owner_id) = owner_id {
-        let owner = sqlx::query!(
-            "SELECT total_space, used_space FROM user WHERE id = ?",
-            owner_id
-        )
-        .fetch_one(&mut *tx)
-        .await?;
-        let row_space = metadata.file_nonce.as_ref().map(|f| f.len()).unwrap_or(1)
-            + metadata.key_nonce.as_ref().map(|k| k.len()).unwrap_or(1)
-            + metadata.name_nonce.len()
-            + metadata
-                .mime_type_nonce
-                .as_ref()
-                .map(|m| m.len())
-                .unwrap_or(1)
-            + metadata.encrypted_key.len()
-            + metadata.encrypted_file_name.len()
-            + metadata
-                .encrypted_mime_type
-                .as_ref()
-                .map(|e| e.len())
-                .unwrap_or(1);
-        if owner.used_space + row_space as i64 + file_size > owner.total_space {
-            return Err(AppError::UserError((
-                StatusCode::PAYMENT_REQUIRED,
-                "File owner does not have enough free space".into(),
-            )));
-        }
-    }
-
-    match sqlx::query!(
-        r#"
-        INSERT INTO file (id, owner_id, uploader_id, parent_id,
-        encrypted_key, encrypted_name, mime, file_nonce,
-        key_nonce, mime_type_nonce, name_nonce, is_directory, size)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        "#,
-        file_id,
-        owner_id,
-        uuid,
-        metadata.parent_id,
-        metadata.encrypted_key,
-        metadata.encrypted_file_name,
-        metadata.encrypted_mime_type,
-        metadata.file_nonce,
-        metadata.key_nonce,
-        metadata.mime_type_nonce,
-        metadata.name_nonce,
-        metadata.is_directory,
-        file_size,
+async fn check_space<'a, E>(
+    metadata: &UploadMetadata,
+    owner_id: &Uuid,
+    file_size: i64,
+    db: E,
+) -> Result<(), AppError>
+where
+    E: Executor<'a, Database = Sqlite>,
+{
+    let owner = sqlx::query!(
+        "SELECT total_space, used_space FROM user WHERE id = ?",
+        owner_id
     )
-    .execute(&mut *tx)
-    .await
-    {
-        // If a FOREIGN KEY constraint is violated, it likely means that the parent id is invalid
-        // this is a user error and not a server error, so report it as such.
-        Err(e)
-            if e.as_database_error()
-                .and_then(|e| e.code())
-                .is_some_and(|code| code == "787") =>
-        {
-            return Err(AppError::UserError((
-                StatusCode::BAD_REQUEST,
-                "Invalid parent id".into(),
-            )))
-        }
-        Err(e) => return Err(e.into()),
-        _ => {}
+    .fetch_one(db)
+    .await?;
+    let row_space = metadata.file_nonce.as_ref().map(|f| f.len()).unwrap_or(1)
+        + metadata.key_nonce.as_ref().map(|k| k.len()).unwrap_or(1)
+        + metadata.name_nonce.len()
+        + metadata
+            .mime_type_nonce
+            .as_ref()
+            .map(|m| m.len())
+            .unwrap_or(1)
+        + metadata.encrypted_key.len()
+        + metadata.encrypted_file_name.len()
+        + metadata
+            .encrypted_mime_type
+            .as_ref()
+            .map(|e| e.len())
+            .unwrap_or(1);
+    if owner.used_space + row_space as i64 + file_size > owner.total_space {
+        return Err(AppError::UserError((
+            StatusCode::PAYMENT_REQUIRED,
+            "File owner does not have enough free space".into(),
+        )));
     }
-
-    // If the owner is None, then that means the owner is anonymous
-    // in this case we should generate a share link instead of checking
-    // for space.
-    let link: Option<ShareResponse> = if owner_id.is_none() && metadata.parent_id.is_none() {
-        // Create a share link without edit permissions so we don't have to deal with
-        // anonymous users filling up a bunch of space.
-        // Might add ability to password protect in the future, keeping things simple for now.
-        // Will probably prevent abuse in the future using some kind of captcha or cloudflare
-        Some(share_with_link(state, &mut *tx, file_id, *uuid, 60 * 60 * 24, None, false).await?)
-    } else {
-        None
-    };
-
-    // Everything went well, commit the transaction
-    tx.commit().await?;
-
-    Ok(link)
+    Ok(())
 }
 
 #[derive(Debug, Deserialize, IntoParams)]
 #[serde(rename_all = "camelCase")]
 pub struct LinkParams {
-    link_id: Option<Uuid>,
+    pub link_id: Option<Uuid>,
 }
 
 #[utoipa::path(
@@ -627,7 +478,7 @@ pub async fn delete_file(
         // This is because we don't actually store created directories on the file system
         if !file.is_directory {
             // If the file exists, delete it
-            match std::fs::remove_file(&*UPLOAD_DIR.join(file.id.to_string())) {
+            match remove_file(&*UPLOAD_DIR.join(file.id.to_string())).await {
                 // A not found error likely means that the file was already deleted
                 // so just ignore it.
                 // Any other error likely means that there actually is a file
@@ -930,476 +781,503 @@ pub async fn update_file(
     Ok((StatusCode::OK, success!("File updated successfully")).into_response())
 }
 
-/// Check if a user owns a file
-pub async fn is_owner<'a, E: Executor<'a, Database = Sqlite>>(
-    db: E,
-    user: &Uuid,
-    file: &Uuid,
-) -> Result<bool, AppError> {
-    Ok(sqlx::query!(
-        "SELECT owner_id FROM file WHERE id = ? AND owner_id = ?",
-        file,
-        user
-    )
-    .fetch_optional(db)
-    .await?
-    .is_some())
-}
-
-/// Metadata of a file or directory
-#[derive(Serialize, ToSchema, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct FileMetadata {
-    /// The id of the file or directory
-    pub id: Uuid,
-    #[serde(flatten)]
-    pub upload: UploadMetadata,
-    pub created_at: DateTime<Utc>,
-    pub modified_at: DateTime<Utc>,
-    pub owner_id: Option<Uuid>,
-    pub uploader_id: Option<Uuid>,
-    pub size: i64,
-    /// Whether or not the user has edit permission to this file
-    /// if this is not set then the file should inherit the edit permissions
-    /// of the parent. This will not be sent when a user is querying their
-    /// own files, as they will always have edit permissions.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub edit_permission: Option<bool>,
-    /// The children of the directory.
-    /// Only present if the file is a directory.
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub children: Vec<Uuid>,
-}
-
-#[derive(Deserialize, IntoParams, Debug)]
-#[serde(rename_all = "camelCase")]
-#[serde_inline_default]
-pub struct FileQuery {
-    /// The id of the file or directory to get.
-    /// If not provided, the root of the currently
-    /// authorized user directory is returned
-    pub id: Option<Uuid>,
-    /// The maximum depth to return children for
-    #[serde_inline_default(1)]
-    #[param(maximum = 20, default = 1)]
-    pub depth: u32,
-    /// The offset to start returning children from
-    #[param(default = 0)]
-    #[serde_inline_default(0)]
-    pub offset: u32,
-    /// The maximum number of children to return
-    #[param(default = 50)]
-    #[serde_inline_default(50)]
-    pub limit: u32,
-    /// Whether to include the ancestors of the
-    /// chain of the file in the response
-    #[serde(default)]
-    pub include_ancestors: bool,
-}
-
-impl FileMetadata {
-    fn example() -> HashMap<Uuid, Self> {
-        let parent_uuid = Uuid::try_parse_ascii(b"123e4567-e89b-12d3-a456-426614174000").unwrap();
-        let child_uuid = Uuid::try_parse_ascii(b"21f981a7-d21f-4aa5-9f6b-09005235236a").unwrap();
-        let user_id = Uuid::try_parse_ascii(b"dae2b0f0-d84b-42c8-aebd-58a71ee1fb86").unwrap();
-
-        let date = Utc.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap();
-        let first = FileMetadata {
-            id: parent_uuid,
-            upload: UploadMetadata {
-                encrypted_file_name: "encryptedFileName".into(),
-                encrypted_mime_type: Some("encryptedMimeType".into()),
-                encrypted_key: "encryptedKey".into(),
-                file_nonce: Some("exampleNonce".into()),
-                key_nonce: Some("exampleNonce".into()),
-                name_nonce: "exampleNonce".into(),
-                mime_type_nonce: Some("exampleNonce".into()),
-                is_directory: true,
-                parent_id: None,
-            },
-            size: 0,
-            edit_permission: None,
-            created_at: date,
-            modified_at: date,
-            owner_id: Some(user_id),
-            uploader_id: Some(user_id),
-            children: vec![child_uuid],
-        };
-        let child = FileMetadata {
-            id: child_uuid,
-            upload: UploadMetadata {
-                encrypted_file_name: "encryptedFileName".into(),
-                encrypted_mime_type: Some("encryptedMimeType".into()),
-                encrypted_key: "encryptedKey".into(),
-                file_nonce: Some("exampleNonce".into()),
-                key_nonce: Some("exampleNonce".into()),
-                name_nonce: "exampleNonce".into(),
-                mime_type_nonce: Some("exampleNonce".into()),
-                is_directory: false,
-                parent_id: Some(parent_uuid),
-            },
-            size: 32,
-            created_at: date,
-            modified_at: date,
-            owner_id: Some(user_id),
-            uploader_id: Some(user_id),
-            children: vec![],
-            edit_permission: None,
-        };
-        HashMap::from([(parent_uuid, first), (child_uuid, child)])
-    }
-}
-
 #[derive(Serialize, ToSchema)]
-pub struct FileResponse {
-    #[schema(
-        example = FileMetadata::example
-    )]
-    pub files: HashMap<Uuid, FileMetadata>,
-    #[schema(example = "same kind of thing as files, but with `PublicUser` schema...")]
-    pub users: HashMap<Uuid, PublicUser>,
-    #[schema(example = "123e4567-e89b-12d3-a456-426614174000")]
-    pub root: Vec<Uuid>,
+pub struct TransactionResponse {
+    id: Uuid,
 }
+
+#[derive(Deserialize, ToSchema, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct TransactionRequest {
+    #[serde(flatten)]
+    upload: UploadMetadata,
+    /// The size of each chunk in bytes, excluding
+    /// the last chunk which may be smaller
+    chunk_size: i64,
+    total_chunks: i64,
+    /// The final expected size of the file after
+    /// all encryption on all chunks is performed.
+    /// This is likely calculated using
+    /// (NONCE_LENGTH + 16) * TOTAL_CHUNKS + FILE_SIZE
+    /// the 16 comes from AES-GCM authentication tag
+    file_size: i64,
+}
+
+// Check if the metadata provided for the upload is valid
+fn check_upload_metadata(metadata: &UploadMetadata, authenticated: bool) -> Result<(), AppError> {
+    let key_length = general_purpose::STANDARD
+        .decode_slice(
+            &metadata.encrypted_key,
+            &mut [0; ROOT_FILE_ENCRYPTED_KEY_LENGTH],
+        )
+        .map_err(|_| {
+            AppError::UserError((
+                StatusCode::BAD_REQUEST,
+                "Incorrect encrypted key length".into(),
+            ))
+        })?;
+
+    if authenticated {
+        if (metadata.parent_id.is_some() && key_length != CHILD_FILE_ENCRYPTED_KEY_LENGTH)
+            || (metadata.parent_id.is_none() && key_length != ROOT_FILE_ENCRYPTED_KEY_LENGTH)
+        {
+            return Err(AppError::UserError((
+                StatusCode::BAD_REQUEST,
+                "Incorrect encrypted key length".into(),
+            )));
+        }
+    } else if key_length != CHILD_FILE_ENCRYPTED_KEY_LENGTH {
+        return Err(AppError::UserError((
+            StatusCode::BAD_REQUEST,
+            "Incorrect encrypted key length".into(),
+        )));
+    }
+
+    check_nonce!(
+        &metadata.name_nonce,
+        "The provided name nonce is not the correct length!"
+    )?;
+
+    if let Some(nonce) = metadata.file_nonce.as_ref() {
+        check_nonce!(&nonce, "The provided file nonce is not the correct length!")?;
+    }
+
+    if let Some(nonce) = metadata.mime_type_nonce.as_ref() {
+        check_nonce!(
+            &nonce,
+            "The provided mime type nonce is not the correct length!"
+        )?;
+    }
+
+    if let Some(nonce) = metadata.key_nonce.as_ref() {
+        check_nonce!(&nonce, "The provided key nonce is not the correct length!")?;
+    }
+
+    if metadata.mime_type_nonce.is_some() != metadata.encrypted_mime_type.is_some() {
+        return Err(AppError::UserError((
+            StatusCode::BAD_REQUEST,
+            "Only include mime type nonce if there is a mime type to encrypt".into(),
+        )));
+    }
+
+    if metadata.is_directory == metadata.file_nonce.is_some() {
+        return Err(AppError::UserError((
+            StatusCode::BAD_REQUEST,
+            "Include a file nonce only if the file is not a directory".into(),
+        )));
+    }
+    Ok(())
+}
+
+pub const MIN_CHUNK_SIZE: u64 = 2u64.pow(19);
+
 #[utoipa::path(
-    get,
-    path = "/api/file",
-    description = "Get the metadata of a file or directory. Also returns the children of a directory.",
+    post,
+    path = "/api/upload/chunked",
+    description = "Start a chunked upload transaction for a file.",
+    request_body(content = TransactionRequest, content_type = "application/json"),
     params(
-        FileQuery
-    ),
+            LinkParams,
+        ),
     responses(
-        (status = OK, description = "The file or directory metadata was retrieved successfully", body = FileResponse),
-        (status = BAD_REQUEST, description = "No file id or user authoziation provided", body = ErrorResponse),
-        (status = NOT_FOUND, description = "File was not found"),
+        (status = CREATED, description = "Transaction successfully started", body = TransactionResponse),
+        (status = FORBIDDEN, description = "File metadata is not able to be processed as a chunked upload", body = ErrorResponse),
+        (status = BAD_REQUEST, description = "Provided file metadata is not valid", body = ErrorResponse),
     ),
     security(
-        (),
         ("lokr_session_cookie" = [])
     )
 )]
-#[instrument(err, skip(state))]
-pub async fn get_file_metadata(
+pub async fn start_chunked_upload(
     State(state): State<AppState>,
-    SessionAuth(user): SessionAuth,
-    Query(params): Query<FileQuery>,
-) -> Result<Response, AppError> {
-    // Limit the depth to 20 to prevent infinite recursion
-    let depth = params.depth.min(20);
-    let query = sqlx::query!(
-        r#"
-            WITH RECURSIVE children AS (
-                -- Anchor member (root or specified node)
-                SELECT 
-                    0 AS depth,
-                    id, 
-                    parent_id, 
-                    encrypted_name, 
-                    encrypted_key, 
-                    owner_id,
-                    uploader_id,
-                    file_nonce, 
-                    key_nonce, 
-                    name_nonce, 
-                    mime_type_nonce, 
-                    is_directory, 
-                    mime,
-                    size,
-                    created_at,
-                    modified_at
-                FROM file
-                WHERE 
-                owner_id = COALESCE(?, owner_id) AND
-                IIF(? IS NULL, parent_id IS NULL, id = ?)
-                UNION ALL
-                
-                -- Recursive member
-                SELECT 
-                    c.depth + 1,
-                    f.id, 
-                    f.parent_id, 
-                    f.encrypted_name, 
-                    f.encrypted_key, 
-                    f.owner_id,
-                    f.uploader_id,
-                    f.file_nonce, 
-                    f.key_nonce, 
-                    f.name_nonce, 
-                    f.mime_type_nonce, 
-                    f.is_directory, 
-                    f.mime,
-                    f.size,
-                    f.created_at,
-                    f.modified_at
-                FROM file f
-                JOIN children c ON f.parent_id = c.id
-                WHERE 
-                    c.depth < ? 
-                ORDER BY c.depth + 1
-            )
-            SELECT 
-                -- Goofy ahh workaround to get the query to work with sqlx
-                depth AS "depth!: u32",
-                id AS "id: Uuid",
-                parent_id AS "parent_id: Uuid", 
-                encrypted_name, 
-                encrypted_key, 
-                owner_id AS "owner_id: Uuid",
-                uploader_id AS "uploader_id: Uuid",
-                file_nonce AS "file_nonce?", 
-                key_nonce, 
-                name_nonce, 
-                mime_type_nonce AS "mime_type_nonce?", 
-                is_directory AS "is_directory!",
-                mime,
-                IIF(size - 16 < 0, 0, size - 16) AS "size!: i64",
-                created_at,
-                modified_at
-            FROM children ORDER BY depth ASC LIMIT ? OFFSET ?
-            "#,
-        user.id,
-        params.id,
-        params.id,
-        depth,
-        params.limit,
-        params.offset
-    )
-    .fetch_all(&state.pool);
-    // If the user has requested to include ancestors, we need to run a second query
-    // We want to speed up computation, so if the user requests ancestors
-    // then run the query to get them concurrently with the main query
-    let (query, ancestors) = if params.include_ancestors && params.id.is_some() {
-        let ancestor_query = sqlx::query!(
-            r#"
-            WITH RECURSIVE ancestors AS (
-                -- Anchor member (root or specified node)
-                SELECT 
-                    0 AS depth,
-                    id, 
-                    parent_id, 
-                    encrypted_name, 
-                    encrypted_key, 
-                    owner_id,
-                    uploader_id,
-                    file_nonce, 
-                    key_nonce, 
-                    name_nonce, 
-                    mime_type_nonce, 
-                    is_directory, 
-                    mime,
-                    created_at,
-                    modified_at
-                FROM file
-                WHERE 
-                owner_id = ? AND
-                id = ?
-                UNION ALL
-                
-                -- Recursive member
-                SELECT 
-                    a.depth + 1,
-                    f.id, 
-                    f.parent_id, 
-                    f.encrypted_name, 
-                    f.encrypted_key, 
-                    f.owner_id,
-                    f.uploader_id,
-                    f.file_nonce, 
-                    f.key_nonce, 
-                    f.name_nonce, 
-                    f.mime_type_nonce, 
-                    f.is_directory, 
-                    f.mime,
-                    f.created_at,
-                    f.modified_at
-                FROM file f
-                JOIN ancestors a ON f.id = a.parent_id
-            )
-            SELECT 
-                depth AS "depth!: u32",
-                id AS "id: Uuid",
-                parent_id AS "parent_id: Uuid", 
-                encrypted_name, 
-                encrypted_key, 
-                owner_id AS "owner_id: Uuid",
-                uploader_id AS "uploader_id: Uuid",
-                file_nonce AS "file_nonce?", 
-                key_nonce, 
-                name_nonce, 
-                mime_type_nonce AS "mime_type_nonce?", 
-                is_directory AS "is_directory!",
-                mime,
-                -- Ancestors are always directories so their size must
-                -- be always be 0
-                0 AS "size!: i64",
-                created_at,
-                modified_at
-            FROM ancestors
-            WHERE depth > 0
-            ORDER BY depth DESC
-        "#,
-            user.id,
-            params.id
-        )
-        .fetch_all(&state.pool);
-        // Run both database queries concurrently
-        let (query, ancestor_query) = tokio::try_join!(query, ancestor_query)?;
-        let ancestors = ancestor_query.into_iter().map(|row| FileMetadata {
-            id: row.id,
-            created_at: row.created_at.and_utc(),
-            modified_at: row.modified_at.and_utc(),
-            owner_id: row.owner_id,
-            uploader_id: row.uploader_id,
-            upload: UploadMetadata {
-                encrypted_file_name: row.encrypted_name,
-                encrypted_mime_type: row.mime,
-                encrypted_key: row.encrypted_key,
-                file_nonce: row.file_nonce,
-                is_directory: row.is_directory,
-                parent_id: row.parent_id,
-                key_nonce: row.key_nonce,
-                name_nonce: row.name_nonce,
-                mime_type_nonce: row.mime_type_nonce,
-            },
-            size: row.size,
-            children: Vec::new(),
-            edit_permission: None,
-        });
-        (query, Some(ancestors))
-    } else {
-        (query.await?, None)
-    };
-    // Convert the query result into a tree structure
-    let (files, root) = ancestors
-        .into_iter()
-        .flatten()
-        .chain(query.into_iter().map(|row| FileMetadata {
-            id: row.id,
-            created_at: row.created_at.and_utc(),
-            modified_at: row.modified_at.and_utc(),
-            owner_id: row.owner_id,
-            uploader_id: row.uploader_id,
-            upload: UploadMetadata {
-                encrypted_file_name: row.encrypted_name,
-                encrypted_mime_type: row.mime,
-                encrypted_key: row.encrypted_key,
-                file_nonce: row.file_nonce,
-                is_directory: row.is_directory,
-                parent_id: row.parent_id,
-                key_nonce: row.key_nonce,
-                name_nonce: row.name_nonce,
-                mime_type_nonce: row.mime_type_nonce,
-            },
-            size: row.size,
-            children: Vec::new(),
-            edit_permission: None,
-        }))
-        .normalize();
-    if params.id.is_some() && files.is_empty() {
-        Err(AppError::UserError((
-            StatusCode::NOT_FOUND,
-            "File not found".into(),
-        )))
-    } else {
-        Ok((
-            StatusCode::OK,
-            Json(FileResponse {
-                users: get_file_users(&state.pool, &files).await?,
-                files,
-                root,
-            }),
-        )
-            .into_response())
-    }
-}
-
-#[utoipa::path(
-    get,
-    path = "/api/file/data/{id}",
-    description = "Get the raw contents of a file. Requires the password hash of a link in the cookies of the request if the link is password protected.",
-    params(
-            ("id" = Uuid, Path, description = "The id of the file to get"),
-            ("linkId" = Option<Uuid>, Query, description = "The share link id to use for accessing the file if applicable")
-        ),
-    responses(
-        (status = OK, description = "The file was retrieved successfully", content_type = "application/octet-stream"),
-        (status = NOT_FOUND, description = "File was not found"),
-    ),
-)]
-// Dummy function to avoid generate documentation for this path
-#[allow(unused)]
-async fn get_file() {}
-
-#[instrument(err, skip(state))]
-pub async fn serve_auth(
-    State(state): State<AppState>,
-    auth: Option<SessionAuth>,
+    user: Option<SessionAuth>,
     TypedHeader(cookies): TypedHeader<Cookie>,
-    uri: Uri,
     Query(params): Query<LinkParams>,
-    request: Request,
-    next: Next,
+    Json(metadata): Json<TransactionRequest>,
 ) -> Result<Response, AppError> {
-    if auth.is_none() && params.link_id.is_none() {
+    if !metadata
+        .file_size
+        .try_into()
+        .is_ok_and(|s: u64| s >= MIN_CHUNK_SIZE)
+    {
         return Err(AppError::UserError((
-            StatusCode::UNAUTHORIZED,
-            "No link or authorization provided".into(),
+            StatusCode::FORBIDDEN,
+            "The provided file is too small to be uploaded in chunks".into(),
         )));
     }
-    // I tried using the Path extractor to only get the file id out but
-    // that didn't work because ServeDir doesn't use path params
-    // so I just had to use this hack instead
-    let path = uri.path();
-    let last_segment = path.split('/').next_back().unwrap_or_default();
-    let Ok(id) = Uuid::try_parse(last_segment) else {
+    if !metadata
+        .chunk_size
+        .try_into()
+        .is_ok_and(|s: u64| s >= MIN_CHUNK_SIZE)
+    {
         return Err(AppError::UserError((
-            StatusCode::BAD_REQUEST,
-            "Invalid file id".into(),
+            StatusCode::FORBIDDEN,
+            "The provided chunk size is too small, please use a larger chunk size or upload your file using the regular upload endpoint".into(),
         )));
-    };
-    let uuid = auth.map(|user| user.0.id);
+    }
+    if metadata.total_chunks <= 0 {
+        return Err(AppError::UserError((
+            StatusCode::FORBIDDEN,
+            "There must be at least one chunk to process for uploading".into(),
+        )));
+    }
+    if metadata.upload.is_directory {
+        return Err(AppError::UserError((
+            StatusCode::FORBIDDEN,
+            "Uploading directories in chunks is not supported".into(),
+        )));
+    }
+    if metadata.upload.file_nonce.is_some() {
+        return Err(AppError::UserError((
+            StatusCode::FORBIDDEN,
+            "Chunked uploads are identified by their lack of file nonces. Please include the file nonce at the start of each encrypted block".into(),
+        )));
+    }
     let link_password = params
         .link_id
         .and_then(|l_id| cookies.get(&l_id.to_string()))
         .and_then(|password_hash| urlencoding::decode(password_hash).ok());
-    let query = sqlx::query!(r#"
-        WITH RECURSIVE ancestors AS (
-            SELECT
-                id,
-                parent_id
-            FROM file
-            WHERE id = ?  -- the file we're checking
-            UNION ALL
-            SELECT
-                f.id,
-                f.parent_id
-            FROM file f
-            JOIN ancestors a ON f.id = a.parent_id
-        )
-        SELECT is_directory
-        FROM file 
-        LEFT JOIN share_user AS su
-        ON su.file_id = file.id AND su.user_id = ?
-        LEFT JOIN share_link AS sl
-        ON sl.file_id = file.id AND sl.id = ? AND (expires_at IS NULL OR DATETIME(expires_at) >= CURRENT_TIMESTAMP)
-        AND (sl.password_hash IS NULL OR sl.password_hash = ?)
-        WHERE file.id IN (SELECT id FROM ancestors) AND
-        owner_id = ? OR su.file_id IS NOT NULL OR sl.file_id IS NOT NULL
-        LIMIT 1
-        "#,
-        id,
-        uuid,
-        params.link_id,
-        link_password,
-        uuid,
-    ).fetch_optional(&state.pool).await?;
+    let uuid = user.map(|u| u.0.id);
 
-    if query.is_none() {
+    check_upload_metadata(&metadata.upload, uuid.is_some())?;
+    let response = metadata
+        .retry_upload_transaction(
+            &state,
+            &uuid,
+            &params,
+            link_password.as_deref(),
+            (),
+            metadata.file_size,
+        )
+        .await?;
+
+    create_dir_all(TRANSACTION_DIR.join(response.id.to_string())).await?;
+
+    Ok((StatusCode::CREATED, Json(response)).into_response())
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/upload/{transaction_id}/chunk/{chunk_id}",
+    description = "Upload a file chunk to an active transaction that is being uploaded in chunks.",
+    request_body(content = BinaryFile, description = "The file chunk to process"),
+    params(
+            LinkParams,
+        ),
+    responses(
+        (status = CREATED, description = "Successfully added chunk to transaction", body = TransactionResponse),
+        (status = BAD_REQUEST, description = "Invalid chunk size", body = ErrorResponse),
+    ),
+    security(
+        ("lokr_session_cookie" = [])
+    )
+)]
+pub async fn upload_chunk(
+    State(state): State<AppState>,
+    Path((transaction_id, chunk_id)): Path<(Uuid, i64)>,
+    body: Body,
+) -> Result<Response, AppError> {
+    let transaction_path = TRANSACTION_DIR.join(transaction_id.to_string());
+    if !transaction_path.is_dir() {
         return Err(AppError::UserError((
-            StatusCode::NOT_FOUND,
-            "File not found".into(),
+            StatusCode::BAD_REQUEST,
+            "The provided tranction id is not valid".into(),
         )));
     }
-    let response = next.run(request).await;
-    Ok(response)
+    let Some(metadata) = sqlx::query!(
+        "SELECT * FROM upload_transaction WHERE id = ?",
+        transaction_id
+    )
+    .fetch_optional(&state.pool)
+    .await?
+    else {
+        return Err(AppError::UserError((
+            StatusCode::BAD_REQUEST,
+            "The provided tranction id is not valid".into(),
+        )));
+    };
+    if chunk_id < 0 || chunk_id >= metadata.total_chunks {
+        return Err(AppError::UserError((
+            StatusCode::BAD_REQUEST,
+            "The provided chunk id is not valid".into(),
+        )));
+    }
+    let mut stream = body.into_data_stream();
+    let file_path = transaction_path.join(chunk_id.to_string());
+    let file = match File::create_new(&file_path).await {
+        Ok(k) => k,
+        Err(e) if e.kind() == ErrorKind::AlreadyExists => {
+            return Err(AppError::UserError((
+                StatusCode::BAD_REQUEST,
+                "This chunk has already been uploaded".into(),
+            )));
+        }
+        Err(e) => return Err(e.into()),
+    };
+    let mut writer = BufWriter::new(file);
+    let mut chunk_size = 0;
+    let expected_chunk_size = metadata.chunk_size as usize;
+    let result: Result<_, AppError> = async {
+        while let Some(frame) = stream.next().await {
+            let frame = frame?;
+            chunk_size += frame.len();
+            if chunk_size > expected_chunk_size {
+                return Err(AppError::UserError((
+                    StatusCode::BAD_REQUEST,
+                    "The provided chunk is larger than the chunk size for the transaction".into(),
+                )));
+            }
+            writer.write_all(&frame).await?;
+        }
+        // Only the last chunk is allowed to be smaller than the chunk size
+        if chunk_size != expected_chunk_size && chunk_id != metadata.total_chunks - 1 {
+            return Err(AppError::UserError((
+                StatusCode::BAD_REQUEST,
+                "Only the last chunk of a transaction is allowed to be smaller than the chunk size"
+                    .into(),
+            )));
+        }
+        sqlx::query!(
+            "UPDATE upload_transaction SET current_chunks = current_chunks + 1 WHERE id = ?",
+            transaction_id
+        )
+        .execute(&state.pool)
+        .await?;
+        Ok(())
+    }
+    .await;
+
+    if let Err(e) = result {
+        cleanup(Some(&file_path)).await;
+        return Err(e);
+    }
+
+    Ok((StatusCode::CREATED).into_response())
+}
+
+pub trait Processable {
+    type FileId;
+    type Success;
+
+    fn process_upload_transaction(
+        &self,
+        state: &AppState,
+        uuid: &Option<Uuid>,
+        params: &LinkParams,
+        link_password: Option<&str>,
+        file_id: &Self::FileId,
+        file_size: i64,
+    ) -> impl Future<Output = Result<Self::Success, AppError>>;
+
+    #[allow(async_fn_in_trait)]
+    async fn retry_upload_transaction(
+        &self,
+        state: &AppState,
+        uuid: &Option<Uuid>,
+        params: &LinkParams,
+        link_password: Option<&str>,
+        file_id: Self::FileId,
+        file_size: i64,
+    ) -> Result<Self::Success, AppError> {
+        // Implement retry mechanism for the entire transaction
+        const MAX_RETRIES: usize = 5;
+        const BASE_RETRY_DELAY_MS: u64 = 50;
+
+        let mut retries = 0;
+        let output;
+
+        loop {
+            // Begin a new transaction for each attempt
+            match self
+                .process_upload_transaction(state, uuid, params, link_password, &file_id, file_size)
+                .await
+            {
+                Ok(k) => {
+                    output = k;
+                    break;
+                }
+                Err(e) => {
+                    // Check if it's an SQLITE_BUSY error because if it is
+                    // then we need to retry. 517 is SQLITE_BUSY_SNAPSHOT
+                    // Reference: https://www.sqlite.org/rescode.html#busy_snapshot
+                    if let AppError::SqlxError(db_err) = &e {
+                        if let Some(code) = db_err.as_database_error().and_then(|e| e.code()) {
+                            if (code == "5" || code == "517") && retries < MAX_RETRIES {
+                                retries += 1;
+                                // Exponential backoff with jitter
+                                let jitter = fastrand::u64(1..=50);
+                                let delay = BASE_RETRY_DELAY_MS * (1 << retries) + jitter;
+                                tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
+                                continue;
+                            }
+                        }
+                    }
+                    return Err(e);
+                }
+            }
+        }
+        Ok(output)
+    }
+}
+
+impl Processable for UploadMetadata {
+    type FileId = Uuid;
+    type Success = Option<ShareResponse>;
+
+    async fn process_upload_transaction(
+        &self,
+        state: &AppState,
+        uuid: &Option<Uuid>,
+        params: &LinkParams,
+        link_password: Option<&str>,
+        file_id: &Self::FileId,
+        file_size: i64,
+    ) -> Result<Self::Success, AppError> {
+        // Begin a transaction to prevent a race condition across threads
+        // that could allow a user to upload more than they are allowed to
+        let mut tx = state.pool.begin().await?;
+
+        let owner_id =
+            get_owner_from_parent(self, uuid, link_password, params.link_id.as_ref(), &mut *tx)
+                .await?;
+
+        // Check if the owner has enough space to upload the file
+        if let Some(owner_id) = owner_id {
+            check_space(self, &owner_id, file_size, &mut *tx).await?;
+        }
+
+        match sqlx::query!(
+            r#"
+        INSERT INTO file (id, owner_id, uploader_id, parent_id,
+        encrypted_key, encrypted_name, mime, file_nonce,
+        key_nonce, mime_type_nonce, name_nonce, is_directory, size)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        "#,
+            file_id,
+            owner_id,
+            uuid,
+            self.parent_id,
+            self.encrypted_key,
+            self.encrypted_file_name,
+            self.encrypted_mime_type,
+            self.file_nonce,
+            self.key_nonce,
+            self.mime_type_nonce,
+            self.name_nonce,
+            self.is_directory,
+            file_size,
+        )
+        .execute(&mut *tx)
+        .await
+        {
+            // If a FOREIGN KEY constraint is violated, it likely means that the parent id is invalid
+            // this is a user error and not a server error, so report it as such.
+            Err(e)
+                if e.as_database_error()
+                    .and_then(|e| e.code())
+                    .is_some_and(|code| code == "787") =>
+            {
+                return Err(AppError::UserError((
+                    StatusCode::BAD_REQUEST,
+                    "Invalid parent id".into(),
+                )))
+            }
+            Err(e) => return Err(e.into()),
+            _ => {}
+        }
+
+        // If the owner is None, then that means the owner is anonymous
+        // in this case we should generate a share link instead of checking
+        // for space.
+        let link: Option<ShareResponse> = if owner_id.is_none() && self.parent_id.is_none() {
+            // Create a share link without edit permissions so we don't have to deal with
+            // anonymous users filling up a bunch of space.
+            // Might add ability to password protect in the future, keeping things simple for now.
+            // Will probably prevent abuse in the future using some kind of captcha or cloudflare
+            Some(
+                share_with_link(state, &mut *tx, *file_id, *uuid, 60 * 60 * 24, None, false)
+                    .await?,
+            )
+        } else {
+            None
+        };
+
+        // Everything went well, commit the transaction
+        tx.commit().await?;
+
+        Ok(link)
+    }
+}
+
+impl Processable for TransactionRequest {
+    type FileId = ();
+    type Success = TransactionResponse;
+
+    async fn process_upload_transaction(
+        &self,
+        state: &AppState,
+        uuid: &Option<Uuid>,
+        params: &LinkParams,
+        link_password: Option<&str>,
+        #[allow(unused)] file_id: &Self::FileId,
+        #[allow(unused)] file_size: i64,
+    ) -> Result<Self::Success, AppError> {
+        let mut tx = state.pool.begin().await?;
+
+        let owner_id = get_owner_from_parent(
+            &self.upload,
+            uuid,
+            link_password,
+            params.link_id.as_ref(),
+            &mut *tx,
+        )
+        .await?;
+
+        // Check if the owner has enough space to upload the file
+        if let Some(owner_id) = owner_id {
+            check_space(&self.upload, &owner_id, self.file_size, &mut *tx).await?;
+        }
+        let file_id = Uuid::new_v4();
+
+        match sqlx::query!(
+            r#"
+        INSERT INTO upload_transaction (id, owner_id, uploader_id, parent_id,
+        encrypted_key, encrypted_name, mime, key_nonce, mime_type_nonce,
+        name_nonce, expected_size, chunk_size, total_chunks)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        "#,
+            file_id,
+            owner_id,
+            uuid,
+            self.upload.parent_id,
+            self.upload.encrypted_key,
+            self.upload.encrypted_file_name,
+            self.upload.encrypted_mime_type,
+            self.upload.key_nonce,
+            self.upload.mime_type_nonce,
+            self.upload.name_nonce,
+            self.file_size,
+            self.chunk_size,
+            self.total_chunks,
+        )
+        .execute(&mut *tx)
+        .await
+        {
+            // If a FOREIGN KEY constraint is violated, it likely means that the parent id is invalid
+            // this is a user error and not a server error, so report it as such.
+            Err(e)
+                if e.as_database_error()
+                    .and_then(|e| e.code())
+                    .is_some_and(|code| code == "787") =>
+            {
+                return Err(AppError::UserError((
+                    StatusCode::BAD_REQUEST,
+                    "Invalid parent id".into(),
+                )))
+            }
+            Err(e) => return Err(e.into()),
+            _ => {}
+        }
+        Ok(TransactionResponse { id: file_id })
+    }
 }

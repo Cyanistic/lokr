@@ -1,0 +1,110 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT * FROM upload_transaction WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "owner_id",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "uploader_id",
+        "ordinal": 2,
+        "type_info": "Blob"
+      },
+      {
+        "name": "parent_id",
+        "ordinal": 3,
+        "type_info": "Blob"
+      },
+      {
+        "name": "encrypted_key",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "key_nonce",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "name_nonce",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "mime_type_nonce",
+        "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "encrypted_name",
+        "ordinal": 8,
+        "type_info": "Text"
+      },
+      {
+        "name": "mime",
+        "ordinal": 9,
+        "type_info": "Text"
+      },
+      {
+        "name": "expected_size",
+        "ordinal": 10,
+        "type_info": "Integer"
+      },
+      {
+        "name": "total_chunks",
+        "ordinal": 11,
+        "type_info": "Integer"
+      },
+      {
+        "name": "current_chunks",
+        "ordinal": 12,
+        "type_info": "Integer"
+      },
+      {
+        "name": "chunk_size",
+        "ordinal": 13,
+        "type_info": "Integer"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 14,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "modified_at",
+        "ordinal": 15,
+        "type_info": "Datetime"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      true,
+      false,
+      true,
+      false,
+      true,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "654c05cb168ec0734bf157c9931373c29fdabee7c533d950a2d354d27bb83d01"
+}

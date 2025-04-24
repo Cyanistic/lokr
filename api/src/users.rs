@@ -1276,7 +1276,7 @@ pub struct AvatarResponse {
 
 #[derive(ToSchema)]
 #[schema(value_type = String, format = Binary, content_media_type = "application/octet-stream")]
-struct BinaryFile(PhantomData<Vec<u8>>);
+pub struct BinaryFile(PhantomData<Vec<u8>>);
 
 #[utoipa::path(
     put,

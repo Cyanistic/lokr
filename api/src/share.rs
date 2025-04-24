@@ -20,10 +20,11 @@ use uuid::Uuid;
 
 use crate::{
     auth::SessionAuth,
+    download::{is_owner, FileMetadata, FileQuery, FileResponse},
     error::{AppError, ErrorResponse},
     state::AppState,
     success,
-    upload::{is_owner, FileMetadata, FileQuery, FileResponse, UploadMetadata},
+    upload::UploadMetadata,
     users::PublicUser,
     utils::{get_file_users, Normalize},
     SuccessResponse,

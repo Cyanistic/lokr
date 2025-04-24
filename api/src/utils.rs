@@ -4,7 +4,7 @@ use anyhow::Result;
 use sqlx::{QueryBuilder, Sqlite, SqlitePool};
 use uuid::Uuid;
 
-use crate::{upload::FileMetadata, users::PublicUser, UPLOAD_DIR};
+use crate::{download::FileMetadata, users::PublicUser, UPLOAD_DIR};
 pub const NONCE_LENGTH: usize = 12;
 
 macro_rules! log_err {

@@ -23,5 +23,8 @@
   - (x) Add user upload and directory size limits
   -- (x) Dynamically update used storage upon upload and deletion
   - (x) Generate share link if file owner is NULL (so users can access anonymous files)
-  - ( ) Automatically remove anonymous files that don't have any active share links
+  - (x) Automatically remove anonymous files that don't have any active share links
   - ( ) Find a way to rate limit/prevent abuse of uploads
+  - ( ) File Chunking support
+  -- ( ) Support for chunked uploads using tranactions
+  -- ( ) Support for chunked downloads
