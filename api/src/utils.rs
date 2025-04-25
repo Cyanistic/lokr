@@ -1,10 +1,13 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    future::Future,
+};
 
 use anyhow::Result;
 use sqlx::{QueryBuilder, Sqlite, SqlitePool};
 use uuid::Uuid;
 
-use crate::{download::FileMetadata, users::PublicUser, UPLOAD_DIR};
+use crate::{download::FileMetadata, error::AppError, users::PublicUser, UPLOAD_DIR};
 pub const NONCE_LENGTH: usize = 12;
 
 macro_rules! log_err {
@@ -199,4 +202,46 @@ pub async fn get_file_users(
             acc.insert(cur.id, cur);
             acc
         }))
+}
+
+/// Common retry function for database operations
+pub async fn retry_transaction_fn<T, R>(mut f: impl FnMut() -> R) -> Result<T, AppError>
+where
+    R: Future<Output = Result<T, AppError>>,
+{
+    // Implement retry mechanism for the entire transaction
+    const MAX_RETRIES: usize = 5;
+    const BASE_RETRY_DELAY_MS: u64 = 50;
+
+    let mut retries = 0;
+    let output;
+
+    loop {
+        // Begin a new transaction for each attempt
+        match f().await {
+            Ok(k) => {
+                output = k;
+                break;
+            }
+            Err(e) => {
+                // Check if it's an SQLITE_BUSY error because if it is
+                // then we need to retry. 517 is SQLITE_BUSY_SNAPSHOT
+                // Reference: https://www.sqlite.org/rescode.html#busy_snapshot
+                if let AppError::SqlxError(db_err) = &e {
+                    if let Some(code) = db_err.as_database_error().and_then(|e| e.code()) {
+                        if (code == "5" || code == "517") && retries < MAX_RETRIES {
+                            retries += 1;
+                            // Exponential backoff with jitter
+                            let jitter = fastrand::u64(1..=50);
+                            let delay = BASE_RETRY_DELAY_MS * (1 << retries) + jitter;
+                            tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
+                            continue;
+                        }
+                    }
+                }
+                return Err(e);
+            }
+        }
+    }
+    Ok(output)
 }

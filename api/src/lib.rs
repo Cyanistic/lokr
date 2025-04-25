@@ -132,6 +132,8 @@ pub static TRANSACTION_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
 pub static HOST: LazyLock<String> =
     LazyLock::new(|| std::env::var("LOKR_HOST").unwrap_or("lokr.cyanistic.com".to_string()));
 
+pub const MAX_FILE_SIZE: u64 = 1_000_000_000;
+
 #[derive(OpenApi)]
 #[openapi(
         modifiers(&SecurityAddon),
@@ -151,6 +153,9 @@ pub static HOST: LazyLock<String> =
             upload::upload_file,
             upload::delete_file,
             upload::update_file,
+            upload::start_chunked_upload,
+            upload::upload_chunk,
+            upload::finalize_chunked_upload,
             download::get_file,
             download::get_file_metadata,
             share::share_file,
@@ -304,7 +309,7 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
     // for easy docs generation.
     let (api_router, open_api): (Router, _) = OpenApiRouter::with_openapi(ApiDoc::openapi())
         .routes(routes!(upload::upload_file))
-        .route_layer(DefaultBodyLimit::max(1_000_000_000))
+        .route_layer(DefaultBodyLimit::max(MAX_FILE_SIZE as usize))
         .routes(routes!(users::search_users))
         .routes(routes!(download::get_file_metadata))
         .routes(routes!(share::get_user_shared_file))
@@ -312,6 +317,9 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
         .routes(routes!(users::upload_avatar))
         .routes(routes!(upload::delete_file))
         .routes(routes!(upload::update_file))
+        .routes(routes!(upload::start_chunked_upload))
+        .routes(routes!(upload::upload_chunk))
+        .routes(routes!(upload::finalize_chunked_upload))
         .route_layer(GovernorLayer {
             config: ip_governor_config,
         })

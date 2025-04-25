@@ -1,0 +1,74 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                DELETE FROM upload_transaction WHERE id = ?\n                RETURNING owner_id, uploader_id, parent_id AS \"parent_id: Uuid\",\n                encrypted_key, encrypted_name, mime, key_nonce, mime_type_nonce,\n                name_nonce, expected_size\n                ",
+  "describe": {
+    "columns": [
+      {
+        "name": "owner_id",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "uploader_id",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "parent_id: Uuid",
+        "ordinal": 2,
+        "type_info": "Blob"
+      },
+      {
+        "name": "encrypted_key",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "encrypted_name",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "mime",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "key_nonce",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "mime_type_nonce",
+        "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "name_nonce",
+        "ordinal": 8,
+        "type_info": "Text"
+      },
+      {
+        "name": "expected_size",
+        "ordinal": 9,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      true,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "6f7af40f498e107294affce15b4251f8a18a3fc6c8d7e842819b24a5719e31ec"
+}

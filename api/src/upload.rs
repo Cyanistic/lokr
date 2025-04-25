@@ -13,8 +13,8 @@ use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use sqlx::{Executor, Sqlite};
 use tokio::{
-    fs::{create_dir_all, remove_file, File},
-    io::{AsyncWriteExt, BufWriter},
+    fs::{create_dir_all, remove_dir_all, remove_file, File},
+    io::{copy, AsyncWriteExt, BufReader, BufWriter},
 };
 use tracing::{error, instrument};
 use utoipa::{IntoParams, ToSchema};
@@ -28,7 +28,8 @@ use crate::{
     state::AppState,
     success,
     users::BinaryFile,
-    SuccessResponse, TRANSACTION_DIR, UPLOAD_DIR,
+    utils::retry_transaction_fn,
+    SuccessResponse, MAX_FILE_SIZE, TRANSACTION_DIR, UPLOAD_DIR,
 };
 
 const ROOT_FILE_ENCRYPTED_KEY_LENGTH: usize = 512;
@@ -238,7 +239,8 @@ pub async fn upload_file(
 }
 
 async fn get_owner_from_parent<'a, E>(
-    metadata: &UploadMetadata,
+    parent_id: Option<&Uuid>,
+    key_nonce: Option<&str>,
     uuid: &Option<Uuid>,
     link_password: Option<&str>,
     link_id: Option<&Uuid>,
@@ -249,7 +251,7 @@ where
 {
     // Get the owner id of the file so we can reuse it, as the file owner for children should
     // be the same as the the owner id of the parent
-    let owner_id = match metadata.parent_id {
+    let owner_id = match parent_id {
         // Check if the user has permission to upload the file to the parent directory
         Some(parent_id) => {
             match sqlx::query!(
@@ -294,7 +296,7 @@ where
                             "Parent file is not a directory".into(),
                         )));
                     }
-                    if metadata.key_nonce.is_none() {
+                    if key_nonce.is_none() {
                         return Err(AppError::UserError((
                             StatusCode::BAD_REQUEST,
                             "A key nonce is required for files with a parent directory!".into(),
@@ -356,7 +358,7 @@ where
     Ok(())
 }
 
-#[derive(Debug, Deserialize, IntoParams)]
+#[derive(Debug, Deserialize, IntoParams, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct LinkParams {
     pub link_id: Option<Uuid>,
@@ -898,7 +900,7 @@ pub async fn start_chunked_upload(
     if !metadata
         .file_size
         .try_into()
-        .is_ok_and(|s: u64| s >= MIN_CHUNK_SIZE)
+        .is_ok_and(|s: u64| s >= MIN_CHUNK_SIZE && s <= MAX_FILE_SIZE)
     {
         return Err(AppError::UserError((
             StatusCode::FORBIDDEN,
@@ -925,6 +927,16 @@ pub async fn start_chunked_upload(
         return Err(AppError::UserError((
             StatusCode::FORBIDDEN,
             "Uploading directories in chunks is not supported".into(),
+        )));
+    }
+    // If the size of all of the chunks added up is smaller or larger than the
+    // expected file size, then we return an error
+    if metadata.file_size <= metadata.chunk_size * (metadata.total_chunks - 1)
+        || metadata.file_size > metadata.chunk_size * metadata.total_chunks
+    {
+        return Err(AppError::UserError((
+            StatusCode::FORBIDDEN,
+            "File size does not match provided chunk constraints".into(),
         )));
     }
     if metadata.upload.file_nonce.is_some() {
@@ -956,25 +968,46 @@ pub async fn start_chunked_upload(
     Ok((StatusCode::CREATED, Json(response)).into_response())
 }
 
+#[derive(Deserialize, IntoParams)]
+#[serde(rename_all = "camelCase")]
+pub struct UploadParams {
+    #[serde(flatten)]
+    link: LinkParams,
+    /// Whether to automatically finalize the upload transaction after the last chunk is uploaded
+    #[serde(default)]
+    auto_finalize: bool,
+}
+
 #[utoipa::path(
     post,
     path = "/api/upload/{transaction_id}/chunk/{chunk_id}",
     description = "Upload a file chunk to an active transaction that is being uploaded in chunks.",
     request_body(content = BinaryFile, description = "The file chunk to process"),
     params(
-            LinkParams,
+            UploadParams,
+            ("transactionId" = Uuid, Path, description = "The id of the transaction to upload the chunk to"),
+            ("chunkId" = i64, Path, description = "The id of the uploading chunk.
+                This id should be between 0 and total_chunks - 1 and should
+                correspond to the chunk's position in the final file."),
         ),
     responses(
-        (status = CREATED, description = "Successfully added chunk to transaction", body = TransactionResponse),
+        (status = NO_CONTENT, description = "Successfully added chunk to transaction.
+            If auto_finalize was set but this was returned for the last chunk,
+            then the transaction was not finalized, likely due to an error in the chunk size or file size"),
+        (status = CREATED, description = "Successfully added chunk to transaction and finalized transaction"),
         (status = BAD_REQUEST, description = "Invalid chunk size", body = ErrorResponse),
     ),
     security(
-        ("lokr_session_cookie" = [])
+        (),
+        ("lokr_session_cookie" = []),
     )
 )]
 pub async fn upload_chunk(
     State(state): State<AppState>,
+    user: Option<SessionAuth>,
+    TypedHeader(cookies): TypedHeader<Cookie>,
     Path((transaction_id, chunk_id)): Path<(Uuid, i64)>,
+    Query(params): Query<UploadParams>,
     body: Body,
 ) -> Result<Response, AppError> {
     let transaction_path = TRANSACTION_DIR.join(transaction_id.to_string());
@@ -984,8 +1017,11 @@ pub async fn upload_chunk(
             "The provided tranction id is not valid".into(),
         )));
     }
+    let mut tx = state.pool.begin().await?;
     let Some(metadata) = sqlx::query!(
-        "SELECT * FROM upload_transaction WHERE id = ?",
+        r#"SELECT chunk_size, expected_size,
+        total_chunks, parent_id AS "parent_id: Uuid",
+        key_nonce FROM upload_transaction WHERE id = ?"#,
         transaction_id
     )
     .fetch_optional(&state.pool)
@@ -996,6 +1032,24 @@ pub async fn upload_chunk(
             "The provided tranction id is not valid".into(),
         )));
     };
+    let link_password = params
+        .link
+        .link_id
+        .and_then(|l_id| cookies.get(&l_id.to_string()))
+        .and_then(|password_hash| urlencoding::decode(password_hash).ok());
+    let uuid = user.as_ref().map(|u| u.0.id);
+
+    // Check if the user still has permissions to the file
+    get_owner_from_parent(
+        metadata.parent_id.as_ref(),
+        metadata.key_nonce.as_deref(),
+        &uuid,
+        link_password.as_deref(),
+        params.link.link_id.as_ref(),
+        &mut *tx,
+    )
+    .await?;
+
     if chunk_id < 0 || chunk_id >= metadata.total_chunks {
         return Err(AppError::UserError((
             StatusCode::BAD_REQUEST,
@@ -1017,7 +1071,7 @@ pub async fn upload_chunk(
     let mut writer = BufWriter::new(file);
     let mut chunk_size = 0;
     let expected_chunk_size = metadata.chunk_size as usize;
-    let result: Result<_, AppError> = async {
+    let result: Result<_, AppError> = async move {
         while let Some(frame) = stream.next().await {
             let frame = frame?;
             chunk_size += frame.len();
@@ -1029,30 +1083,220 @@ pub async fn upload_chunk(
             }
             writer.write_all(&frame).await?;
         }
+        writer.flush().await?;
         // Only the last chunk is allowed to be smaller than the chunk size
-        if chunk_size != expected_chunk_size && chunk_id != metadata.total_chunks - 1 {
+        // This is the case where the last chunk is smaller than the chunk size
+        if chunk_id == metadata.total_chunks - 1 {
+            if (metadata.total_chunks - 1) * metadata.chunk_size + chunk_size as i64
+            != metadata.expected_size
+            {
+                return Err(AppError::UserError((
+                    StatusCode::BAD_REQUEST,
+                    "The total size of the uploaded chunks does not match the expected file size"
+                        .into(),
+                )));
+            }
+        } else if chunk_size != expected_chunk_size {
             return Err(AppError::UserError((
                 StatusCode::BAD_REQUEST,
                 "Only the last chunk of a transaction is allowed to be smaller than the chunk size"
                     .into(),
             )));
         }
-        sqlx::query!(
-            "UPDATE upload_transaction SET current_chunks = current_chunks + 1 WHERE id = ?",
+
+        let current_chunks = sqlx::query_scalar!(
+            "UPDATE upload_transaction SET current_chunks = current_chunks + 1 WHERE id = ? RETURNING current_chunks",
             transaction_id
         )
-        .execute(&state.pool)
+            .fetch_one(&state.pool)
         .await?;
-        Ok(())
+
+        if current_chunks != metadata.total_chunks - 1 || !params.auto_finalize {
+            return Ok((StatusCode::NO_CONTENT).into_response());
+        }
+        // This is the last chunk for the file and the user wants
+        // auto finalizing of uploads, so handle finalizing the upload
+        match finalize_chunked_upload(State(state), user, TypedHeader(cookies),Path(transaction_id), Query(params.link)).await {
+            // This is the case where the transaction was not finalized successfully
+            // but the chunk was uploaded successfully
+            Err(_) => Ok((StatusCode::NO_CONTENT).into_response()),
+            // For every other case the transaction was finalized successfully
+            k => k,
+        }
+    }.await;
+
+    match result {
+        Err(e) => {
+            cleanup(Some(&file_path)).await;
+            return Err(e);
+        }
+        o => o,
+    }
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/upload/finalize/{transaction_id}",
+    description = "Finalize a chunked upload transaction for a file.",
+    params(
+            ("transactionId" = Uuid, Path, description = "The id of the transaction to finalize"),
+        ),
+    responses(
+        (status = CREATED, description = "Transaction successfully finalized", body = UploadResponse),
+        (status = FORBIDDEN, description = "File metadata is not able to be processed as a chunked upload", body = ErrorResponse),
+        (status = BAD_REQUEST, description = "Provided file metadata is not valid", body = ErrorResponse),
+    ),
+    security(
+        ("lokr_session_cookie" = [])
+    )
+)]
+pub async fn finalize_chunked_upload(
+    State(state): State<AppState>,
+    user: Option<SessionAuth>,
+    TypedHeader(cookies): TypedHeader<Cookie>,
+    Path(transaction_id): Path<Uuid>,
+    Query(params): Query<LinkParams>,
+) -> Result<Response, AppError> {
+    let uuid = user.as_ref().map(|u| u.0.id);
+    let link_password = params
+        .link_id
+        .and_then(|l_id| cookies.get(&l_id.to_string()))
+        .and_then(|password_hash| urlencoding::decode(password_hash).ok());
+    // TODO: Check that the user has permission to actually finalize the upload and that all of
+    // the necessary chunks are done uploading
+    let file_id = Uuid::now_v7();
+    let transaction_path = TRANSACTION_DIR.join(transaction_id.to_string());
+    let file_path = UPLOAD_DIR.join(file_id.to_string());
+    let file = File::create_new(&file_path).await?;
+    let mut writer = BufWriter::with_capacity(64 * 1024, file);
+    let Some(metadata) = sqlx::query!(
+        r#"SELECT chunk_size, expected_size,
+        total_chunks, current_chunks, parent_id AS "parent_id: Uuid",
+        key_nonce FROM upload_transaction WHERE id = ?"#,
+        transaction_id
+    )
+    .fetch_optional(&state.pool)
+    .await?
+    else {
+        return Err(AppError::UserError((
+            StatusCode::BAD_REQUEST,
+            "The provided tranction id is not valid".into(),
+        )));
+    };
+    if metadata.total_chunks != metadata.current_chunks {
+        return Err(AppError::UserError((
+            StatusCode::BAD_REQUEST,
+            "The upload transaction is missing chunks".into(),
+        )));
+    }
+    let result: Result<_, AppError> = async {
+        let response = retry_transaction_fn(|| async {
+            let mut tx = state.pool.begin().await?;
+            let Some(metadata) = sqlx::query!(
+                r#"
+                DELETE FROM upload_transaction WHERE id = ?
+                RETURNING owner_id, uploader_id, parent_id AS "parent_id: Uuid",
+                encrypted_key, encrypted_name, mime, key_nonce, mime_type_nonce,
+                name_nonce, expected_size
+                "#,
+                transaction_id
+            )
+            .fetch_optional(&mut *tx)
+            .await?
+            else {
+                return Err(AppError::UserError((
+                    StatusCode::BAD_REQUEST,
+                    "The provided tranction id is not valid".into(),
+                )));
+            };
+            // Check that the user has permission to finalize the upload
+            get_owner_from_parent(
+                metadata.parent_id.as_ref(),
+                metadata.key_nonce.as_deref(),
+                &uuid,
+                link_password.as_deref(),
+                params.link_id.as_ref(),
+                &mut *tx,
+            )
+            .await?;
+            sqlx::query!(
+                r#"
+                INSERT INTO file (id, owner_id, uploader_id, parent_id,
+                encrypted_key, encrypted_name, mime,
+                key_nonce, mime_type_nonce, name_nonce, size)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                "#,
+                file_id,
+                metadata.owner_id,
+                uuid,
+                metadata.parent_id,
+                metadata.encrypted_key,
+                metadata.encrypted_name,
+                metadata.mime,
+                metadata.key_nonce,
+                metadata.mime_type_nonce,
+                metadata.name_nonce,
+                metadata.expected_size,
+            )
+            .execute(&mut *tx)
+            .await?;
+
+            let link: Option<ShareResponse> =
+                if metadata.owner_id.is_none() && metadata.parent_id.is_none() {
+                    // Create a share link without edit permissions so we don't have to deal with
+                    // anonymous users filling up a bunch of space.
+                    // Might add ability to password protect in the future, keeping things simple for now.
+                    // Will probably prevent abuse in the future using some kind of captcha or cloudflare
+                    Some(
+                        share_with_link(&state, &mut *tx, file_id, uuid, 60 * 60 * 24, None, false)
+                            .await?,
+                    )
+                } else {
+                    None
+                };
+
+            // Everything went well, commit the transaction
+            tx.commit().await?;
+
+            Ok((
+                StatusCode::OK,
+                Json(UploadResponse {
+                    id: file_id,
+                    size: metadata.expected_size,
+                    is_directory: false,
+                    link,
+                }),
+            )
+                .into_response())
+        })
+        .await?;
+
+        // Handle assembling the chunked file
+        for chunk in 0..metadata.total_chunks {
+            let path = transaction_path.join(chunk.to_string());
+            // Reading the file should not fail because it is guaranteed
+            // to exist due to us checking that all of the corresponding chunks
+            // have been uploaded and not allowing the upload up duplicate chunks
+            let chunk_file = File::open(&path).await?;
+            let mut reader = BufReader::with_capacity(64 * 1024, chunk_file);
+            copy(&mut reader, &mut writer).await?;
+        }
+        Ok(response)
     }
     .await;
-
-    if let Err(e) = result {
-        cleanup(Some(&file_path)).await;
-        return Err(e);
+    match result {
+        Ok(k) => {
+            // Delete the transaction directory upon success
+            let _ = remove_dir_all(&transaction_path).await;
+            Ok(k)
+        }
+        Err(e) => {
+            // Remove the file if it was created but finalizing
+            // the transaction failed
+            cleanup(Some(&file_path)).await;
+            Err(e)
+        }
     }
-
-    Ok((StatusCode::CREATED).into_response())
 }
 
 pub trait Processable {
@@ -1079,44 +1323,10 @@ pub trait Processable {
         file_id: Self::FileId,
         file_size: i64,
     ) -> Result<Self::Success, AppError> {
-        // Implement retry mechanism for the entire transaction
-        const MAX_RETRIES: usize = 5;
-        const BASE_RETRY_DELAY_MS: u64 = 50;
-
-        let mut retries = 0;
-        let output;
-
-        loop {
-            // Begin a new transaction for each attempt
-            match self
-                .process_upload_transaction(state, uuid, params, link_password, &file_id, file_size)
-                .await
-            {
-                Ok(k) => {
-                    output = k;
-                    break;
-                }
-                Err(e) => {
-                    // Check if it's an SQLITE_BUSY error because if it is
-                    // then we need to retry. 517 is SQLITE_BUSY_SNAPSHOT
-                    // Reference: https://www.sqlite.org/rescode.html#busy_snapshot
-                    if let AppError::SqlxError(db_err) = &e {
-                        if let Some(code) = db_err.as_database_error().and_then(|e| e.code()) {
-                            if (code == "5" || code == "517") && retries < MAX_RETRIES {
-                                retries += 1;
-                                // Exponential backoff with jitter
-                                let jitter = fastrand::u64(1..=50);
-                                let delay = BASE_RETRY_DELAY_MS * (1 << retries) + jitter;
-                                tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
-                                continue;
-                            }
-                        }
-                    }
-                    return Err(e);
-                }
-            }
-        }
-        Ok(output)
+        retry_transaction_fn(|| {
+            self.process_upload_transaction(state, uuid, params, link_password, &file_id, file_size)
+        })
+        .await
     }
 }
 
@@ -1137,9 +1347,15 @@ impl Processable for UploadMetadata {
         // that could allow a user to upload more than they are allowed to
         let mut tx = state.pool.begin().await?;
 
-        let owner_id =
-            get_owner_from_parent(self, uuid, link_password, params.link_id.as_ref(), &mut *tx)
-                .await?;
+        let owner_id = get_owner_from_parent(
+            self.parent_id.as_ref(),
+            self.key_nonce.as_deref(),
+            uuid,
+            link_password,
+            params.link_id.as_ref(),
+            &mut *tx,
+        )
+        .await?;
 
         // Check if the owner has enough space to upload the file
         if let Some(owner_id) = owner_id {
@@ -1225,7 +1441,8 @@ impl Processable for TransactionRequest {
         let mut tx = state.pool.begin().await?;
 
         let owner_id = get_owner_from_parent(
-            &self.upload,
+            self.upload.parent_id.as_ref(),
+            self.upload.key_nonce.as_deref(),
             uuid,
             link_password,
             params.link_id.as_ref(),
@@ -1237,7 +1454,7 @@ impl Processable for TransactionRequest {
         if let Some(owner_id) = owner_id {
             check_space(&self.upload, &owner_id, self.file_size, &mut *tx).await?;
         }
-        let file_id = Uuid::new_v4();
+        let transaction_id = Uuid::new_v4();
 
         match sqlx::query!(
             r#"
@@ -1246,7 +1463,7 @@ impl Processable for TransactionRequest {
         name_nonce, expected_size, chunk_size, total_chunks)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         "#,
-            file_id,
+            transaction_id,
             owner_id,
             uuid,
             self.upload.parent_id,
@@ -1278,6 +1495,6 @@ impl Processable for TransactionRequest {
             Err(e) => return Err(e.into()),
             _ => {}
         }
-        Ok(TransactionResponse { id: file_id })
+        Ok(TransactionResponse { id: transaction_id })
     }
 }

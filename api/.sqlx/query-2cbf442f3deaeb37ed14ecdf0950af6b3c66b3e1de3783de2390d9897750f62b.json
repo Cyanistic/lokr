@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT chunk_size, expected_size,\n        total_chunks, current_chunks, parent_id AS \"parent_id: Uuid\",\n        key_nonce FROM upload_transaction WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "chunk_size",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "expected_size",
+        "ordinal": 1,
+        "type_info": "Integer"
+      },
+      {
+        "name": "total_chunks",
+        "ordinal": 2,
+        "type_info": "Integer"
+      },
+      {
+        "name": "current_chunks",
+        "ordinal": 3,
+        "type_info": "Integer"
+      },
+      {
+        "name": "parent_id: Uuid",
+        "ordinal": 4,
+        "type_info": "Blob"
+      },
+      {
+        "name": "key_nonce",
+        "ordinal": 5,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "2cbf442f3deaeb37ed14ecdf0950af6b3c66b3e1de3783de2390d9897750f62b"
+}

@@ -1,3 +1,17 @@
+-- Add chunk_size column to file table
+ALTER TABLE file ADD COLUMN chunk_size INTEGER DEFAULT NULL;
+
+-- Update the used space of existing users to account for the additional 1 byte per file
+-- This only applies to files that were uploaded before this migration
+
+-- Add 1 byte to used_space for each file a user owns
+UPDATE user
+SET used_space = used_space + (
+    SELECT COUNT(*)  -- Count 1 byte per file
+    FROM file
+    WHERE file.owner_id = user.id
+);
+
 CREATE TABLE upload_transaction (
     id BLOB PRIMARY KEY NOT NULL,         -- UUIDv7
     owner_id BLOB,   	 -- User ID of the file owner could be NULL for anonymous files
@@ -202,4 +216,95 @@ BEGIN
     UPDATE upload_transaction
     SET modified_at = CURRENT_TIMESTAMP
     WHERE id = NEW.id;
+END;
+
+-- Drop and recreate file triggers to account for the new chunk_size column
+DROP TRIGGER IF EXISTS update_user_used_space_insert;
+DROP TRIGGER IF EXISTS update_user_used_space_delete;
+DROP TRIGGER IF EXISTS update_user_used_space_update;
+
+-- New insert trigger for file table that includes chunk_size
+CREATE TRIGGER update_user_used_space_insert AFTER INSERT ON file
+BEGIN
+    UPDATE user
+    SET used_space = used_space +
+    NEW.size + 
+    -- NULL values consume a single byte
+    COALESCE(LENGTH(NEW.encrypted_key), 1) +
+    COALESCE(LENGTH(NEW.file_nonce), 1) +
+    COALESCE(LENGTH(NEW.key_nonce), 1) +
+    COALESCE(LENGTH(NEW.name_nonce), 1) +
+    COALESCE(LENGTH(NEW.mime_type_nonce), 1) +
+    COALESCE(LENGTH(NEW.encrypted_name), 1) +
+    COALESCE(LENGTH(NEW.mime), 1) +
+    -- Account for chunk_size (8 bytes if not NULL, 1 byte if NULL)
+    IIF(NEW.chunk_size IS NULL, 1, 8) +
+    IIF(NEW.parent_id IS NULL, 1, 16) +
+    IIF(NEW.uploader_id IS NULL, 1, 16) +
+    64 -- Size of constant fields
+    WHERE id = NEW.owner_id;
+END;
+
+-- New delete trigger for file table that includes chunk_size
+CREATE TRIGGER update_user_used_space_delete AFTER DELETE ON file
+BEGIN
+    UPDATE user
+    SET used_space = used_space - (
+	OLD.size + 
+	-- NULL values consume a single byte
+	COALESCE(LENGTH(OLD.encrypted_key), 1) +
+	COALESCE(LENGTH(OLD.file_nonce), 1) +
+	COALESCE(LENGTH(OLD.key_nonce), 1) +
+	COALESCE(LENGTH(OLD.name_nonce), 1) +
+	COALESCE(LENGTH(OLD.mime_type_nonce), 1) +
+	COALESCE(LENGTH(OLD.encrypted_name), 1) +
+	COALESCE(LENGTH(OLD.mime), 1) +
+    -- Account for chunk_size (8 bytes if not NULL, 1 byte if NULL)
+    IIF(OLD.chunk_size IS NULL, 1, 8) +
+	IIF(OLD.parent_id IS NULL, 1, 16) +
+	IIF(OLD.uploader_id IS NULL, 1, 16) +
+	64 -- Size of constant fields
+    )
+    WHERE id = OLD.owner_id;
+END;
+
+-- New update trigger for file table that includes chunk_size and fixes the duplicated encrypted_name
+CREATE TRIGGER update_user_used_space_update AFTER UPDATE ON file
+BEGIN
+    UPDATE user
+    SET used_space = used_space - (
+	OLD.size + 
+	-- NULL values consume a single byte
+	COALESCE(LENGTH(OLD.encrypted_key), 1) +
+	COALESCE(LENGTH(OLD.file_nonce), 1) +
+	COALESCE(LENGTH(OLD.key_nonce), 1) +
+	COALESCE(LENGTH(OLD.name_nonce), 1) +
+	COALESCE(LENGTH(OLD.mime_type_nonce), 1) +
+	COALESCE(LENGTH(OLD.encrypted_name), 1) +
+	COALESCE(LENGTH(OLD.mime), 1) +
+    -- Account for chunk_size (8 bytes if not NULL, 1 byte if NULL)
+    IIF(OLD.chunk_size IS NULL, 1, 8) +
+	IIF(OLD.parent_id IS NULL, 1, 16) +
+	IIF(OLD.uploader_id IS NULL, 1, 16) +
+	64 -- Size of constant fields
+    )
+    WHERE id = OLD.owner_id;
+    
+    UPDATE user
+    SET used_space = used_space +
+    NEW.size + 
+    -- NULL values consume a single byte
+    COALESCE(LENGTH(NEW.encrypted_key), 1) +
+    COALESCE(LENGTH(NEW.file_nonce), 1) +
+    COALESCE(LENGTH(NEW.key_nonce), 1) +
+    COALESCE(LENGTH(NEW.name_nonce), 1) +
+    COALESCE(LENGTH(NEW.mime_type_nonce), 1) +
+    COALESCE(LENGTH(NEW.encrypted_name), 1) +
+    COALESCE(LENGTH(NEW.mime), 1) +
+    -- Account for chunk_size (8 bytes if not NULL, 1 byte if NULL)
+    IIF(NEW.chunk_size IS NULL, 1, 8) +
+    IIF(NEW.parent_id IS NULL, 1, 16) +
+    IIF(NEW.uploader_id IS NULL, 1, 16) +
+    64 -- Size of constant fields
+    WHERE id = NEW.owner_id;
 END;

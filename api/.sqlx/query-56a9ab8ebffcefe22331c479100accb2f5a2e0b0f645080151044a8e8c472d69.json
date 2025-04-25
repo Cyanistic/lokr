@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE upload_transaction SET current_chunks = current_chunks + 1 WHERE id = ? RETURNING current_chunks",
+  "describe": {
+    "columns": [
+      {
+        "name": "current_chunks",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "56a9ab8ebffcefe22331c479100accb2f5a2e0b0f645080151044a8e8c472d69"
+}
