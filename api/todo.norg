@@ -25,6 +25,6 @@
   - (x) Generate share link if file owner is NULL (so users can access anonymous files)
   - (x) Automatically remove anonymous files that don't have any active share links
   - ( ) Find a way to rate limit/prevent abuse of uploads
-  - ( ) File Chunking support
-  -- ( ) Support for chunked uploads using tranactions
-  -- ( ) Support for chunked downloads
+  - (x) File Chunking support
+  -- (x) Support for chunked uploads using tranactions
+  -- (x) Support for chunked downloads (chunked downloads work out of the box with tower_http::ServeDir)

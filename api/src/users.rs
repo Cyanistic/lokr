@@ -1282,7 +1282,7 @@ pub struct BinaryFile(PhantomData<Vec<u8>>);
     put,
     path = "/api/profile/upload",
     description = "Upload a profile image",
-    request_body(content = BinaryFile, description = "The image to upload", content_type = "application/octet-stream"),
+    request_body(content(("image/*"))),
     responses(
         (status = OK, description = "Image uploaded successfully", body = AvatarResponse),
         (status = BAD_REQUEST, description = "Invalid image", body = ErrorResponse)

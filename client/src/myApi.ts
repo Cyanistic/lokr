@@ -23,8 +23,13 @@ export interface AvatarResponse {
   extension: string;
 }
 
-/** @format binary */
-export type BinaryFile = File;
+export interface ChunkedUploadBody {
+  /**
+   * The encrypted file data as bytes
+   * @format binary
+   */
+  chunk: File;
+}
 
 /** A struct representing a new user to be created */
 export interface CreateUser {
@@ -87,6 +92,11 @@ export type FileMetadata = UploadMetadata & {
    * Only present if the file is a directory.
    */
   children?: string[];
+  /**
+   * Only present if the file was uploaded in chunks.
+   * @format int64
+   */
+  chunkSize?: number | null;
   /** @format date-time */
   createdAt: string;
   /**
@@ -379,6 +389,31 @@ export interface TOTPResponse {
 
 export type Theme = "system" | "dark" | "light";
 
+export type TransactionRequest = UploadMetadata & {
+  /**
+   * The size of each chunk in bytes, excluding
+   * the last chunk which may be smaller
+   * @format int64
+   */
+  chunkSize: number;
+  /**
+   * The final expected size of the file after
+   * all encryption on all chunks is performed.
+   * This is likely calculated using
+   * (NONCE_LENGTH + 16) * TOTAL_CHUNKS + FILE_SIZE
+   * the 16 comes from AES-GCM authentication tag
+   * @format int64
+   */
+  fileSize: number;
+  /** @format int64 */
+  totalChunks: number;
+};
+
+export interface TransactionResponse {
+  /** @format uuid */
+  id: string;
+}
+
 /** Move the file to a new parent */
 export type UpdateFile =
   | {
@@ -466,8 +501,6 @@ export interface UploadRequest {
    * @format binary
    */
   file?: File;
-  /** @example "" */
-  linkId?: string | null;
   /**
    * All data for the uploaded file.
    * All encrypted fields are expected to be encrypted
@@ -792,7 +825,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
     /**
      * @description Get the metadata of a file or directory. Also returns the children of a directory.
      *
-     * @tags upload
+     * @tags download
      * @name GetFileMetadata
      * @request GET:/api/file
      * @secure
@@ -848,7 +881,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
     /**
      * @description Get the raw contents of a file. Requires the password hash of a link in the cookies of the request if the link is password protected.
      *
-     * @tags upload
+     * @tags download
      * @name GetFile
      * @request GET:/api/file/data/{id}
      */
@@ -1016,7 +1049,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
      * @request PUT:/api/profile/upload
      * @secure
      */
-    uploadAvatar: (data: BinaryFile, params: RequestParams = {}) =>
+    uploadAvatar: (data: any, params: RequestParams = {}) =>
       this.request<AvatarResponse, ErrorResponse>({
         path: `/api/profile/upload`,
         method: "PUT",
@@ -1319,7 +1352,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
       }),
 
     /**
-     * No description
+     * @description Upload a file to the backend. This endpoint is also used to create folders
      *
      * @tags upload
      * @name UploadFile
@@ -1342,6 +1375,79 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
         secure: true,
         type: ContentType.FormData,
         format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description Start a chunked upload transaction for a file.
+     *
+     * @tags upload
+     * @name StartChunkedUpload
+     * @request POST:/api/upload/chunked
+     * @secure
+     */
+    startChunkedUpload: (
+      data: TransactionRequest,
+      query?: {
+        /** @format uuid */
+        linkId?: string | null;
+      },
+      params: RequestParams = {},
+    ) =>
+      this.request<TransactionResponse, ErrorResponse>({
+        path: `/api/upload/chunked`,
+        method: "POST",
+        query: query,
+        body: data,
+        secure: true,
+        type: ContentType.Json,
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description Finalize a chunked upload transaction for a file.
+     *
+     * @tags upload
+     * @name FinalizeChunkedUpload
+     * @request POST:/api/upload/finalize/{transactionId}
+     * @secure
+     */
+    finalizeChunkedUpload: (transactionId: string, params: RequestParams = {}) =>
+      this.request<UploadResponse, ErrorResponse>({
+        path: `/api/upload/finalize/${transactionId}`,
+        method: "POST",
+        secure: true,
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description Upload a file chunk to an active transaction that is being uploaded in chunks.
+     *
+     * @tags upload
+     * @name UploadChunk
+     * @request POST:/api/upload/{transactionId}/chunk/{chunkId}
+     * @secure
+     */
+    uploadChunk: (
+      transactionId: string,
+      chunkId: number,
+      query: {
+        link: any;
+        /** Whether to automatically finalize the upload transaction after the last chunk is uploaded */
+        autoFinalize?: boolean;
+      },
+      data: ChunkedUploadBody,
+      params: RequestParams = {},
+    ) =>
+      this.request<void, ErrorResponse>({
+        path: `/api/upload/${transactionId}/chunk/${chunkId}`,
+        method: "POST",
+        query: query,
+        body: data,
+        secure: true,
+        type: ContentType.FormData,
         ...params,
       }),
 

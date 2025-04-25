@@ -7,6 +7,7 @@ import { PublicUser as ApiPublicUser } from "./myApi";
 // In dev this should always be the backend URL, so that `npm run dev` works properly
 // but in production this should be a relative URL so that redirects work properly
 export const BASE_URL = import.meta.env.DEV ? "http://localhost:6969" : "";
+export const NONCE_LENGTH = 12;
 
 export const API = new Api({
   baseUrl: BASE_URL,

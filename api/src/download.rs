@@ -64,6 +64,9 @@ pub struct FileMetadata {
     /// Only present if the file is a directory.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub children: Vec<Uuid>,
+    /// Only present if the file was uploaded in chunks.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chunk_size: Option<i64>,
 }
 
 #[derive(Deserialize, IntoParams, Debug)]
@@ -119,6 +122,7 @@ impl FileMetadata {
             owner_id: Some(user_id),
             uploader_id: Some(user_id),
             children: vec![child_uuid],
+            chunk_size: None,
         };
         let child = FileMetadata {
             id: child_uuid,
@@ -140,6 +144,7 @@ impl FileMetadata {
             uploader_id: Some(user_id),
             children: vec![],
             edit_permission: None,
+            chunk_size: None,
         };
         HashMap::from([(parent_uuid, first), (child_uuid, child)])
     }
@@ -200,6 +205,7 @@ pub async fn get_file_metadata(
                     is_directory, 
                     mime,
                     size,
+                    chunk_size,
                     created_at,
                     modified_at
                 FROM file
@@ -224,6 +230,7 @@ pub async fn get_file_metadata(
                     f.is_directory, 
                     f.mime,
                     f.size,
+                    f.chunk_size,
                     f.created_at,
                     f.modified_at
                 FROM file f
@@ -246,6 +253,7 @@ pub async fn get_file_metadata(
                 name_nonce, 
                 mime_type_nonce AS "mime_type_nonce?", 
                 is_directory AS "is_directory!",
+                chunk_size,
                 mime,
                 IIF(size - 16 < 0, 0, size - 16) AS "size!: i64",
                 created_at,
@@ -359,6 +367,7 @@ pub async fn get_file_metadata(
             size: row.size,
             children: Vec::new(),
             edit_permission: None,
+            chunk_size: None,
         });
         (query, Some(ancestors))
     } else {
@@ -388,6 +397,7 @@ pub async fn get_file_metadata(
             size: row.size,
             children: Vec::new(),
             edit_permission: None,
+            chunk_size: row.chunk_size,
         }))
         .normalize();
     if params.id.is_some() && files.is_empty() {

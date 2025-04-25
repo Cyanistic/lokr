@@ -348,6 +348,7 @@ pub async fn get_user_shared_file(
                     is_directory,
                     mime,
                     size,
+                    chunk_size,
                     file.created_at,
                     file.modified_at,
                     edit_permission
@@ -381,6 +382,7 @@ pub async fn get_user_shared_file(
                     f.is_directory,
                     f.mime,
                     f.size,
+                    f.chunk_size,
                     f.created_at,
                     f.modified_at,
                     NULL as "edit_permission"
@@ -405,6 +407,7 @@ pub async fn get_user_shared_file(
                 uploader_id AS "uploader_id: Uuid",
                 is_directory,
                 mime,
+                chunk_size,
                 edit_permission AS "edit_permission?",
                 IIF(size - 16 < 0, 0, size - 16) AS "size!: i64",
                 created_at,
@@ -535,6 +538,7 @@ pub async fn get_user_shared_file(
             size: row.size,
             children: Vec::new(),
             edit_permission: row.edit_permission,
+            chunk_size: None,
         });
         (query, Some(ancestors))
     } else {
@@ -565,6 +569,7 @@ pub async fn get_user_shared_file(
             size: row.size,
             children: Vec::new(),
             edit_permission: row.edit_permission,
+            chunk_size: row.chunk_size,
         }))
         .normalize();
     if params.id.is_some() && files.is_empty() {
@@ -718,6 +723,7 @@ pub async fn get_link_shared_file(
                     uploader_id,
                     is_directory,
                     mime,
+                    chunk_size,
                     size,
                     file.created_at,
                     file.modified_at,
@@ -750,6 +756,7 @@ pub async fn get_link_shared_file(
                     f.uploader_id,
                     f.is_directory,
                     f.mime,
+                    f.chunk_size,
                     f.size,
                     f.created_at,
                     f.modified_at,
@@ -775,6 +782,7 @@ pub async fn get_link_shared_file(
                 uploader_id AS "uploader_id: Uuid",
                 is_directory,
                 mime,
+                chunk_size,
                 edit_permission AS "edit_permission?",
                 IIF(size - 16 < 0, 0, size - 16) AS "size!: i64",
                 created_at,
@@ -903,6 +911,7 @@ pub async fn get_link_shared_file(
             size: row.size,
             children: Vec::new(),
             edit_permission: row.edit_permission,
+            chunk_size: None,
         });
         (query, Some(ancestors))
     } else {
@@ -933,6 +942,7 @@ pub async fn get_link_shared_file(
             size: row.size,
             children: Vec::new(),
             edit_permission: row.edit_permission,
+            chunk_size: row.chunk_size,
         }))
         .normalize();
 

@@ -1,5 +1,11 @@
-import { API } from "../utils";
-import { ErrorResponse, ShareResponse, UploadMetadata } from "../myApi";
+import { API, BASE_URL, NONCE_LENGTH } from "../utils";
+import {
+  ErrorResponse,
+  HttpResponse,
+  ShareResponse,
+  UploadMetadata,
+  UploadResponse,
+} from "../myApi";
 import {
   encryptAESKeyWithParentKey,
   encryptText,
@@ -22,7 +28,10 @@ interface Props {
   isOverlay?: boolean;
   onClose?: () => void;
   linkId?: string | null;
-  onUpload?: (fileName: string | FileMetadata, result: ShareResponse | ErrorResponse) => Promise<void>;
+  onUpload?: (
+    fileName: string | FileMetadata,
+    result: ShareResponse | ErrorResponse,
+  ) => Promise<void>;
 }
 
 export default function Upload({
@@ -55,11 +64,191 @@ export default function Upload({
   const { profile, loading, refreshProfile } = useProfile();
 
   // Function to encrypt the file content using AES and return the encrypted file
+  // Uses chunked encryption for large files to avoid memory issues on mobile devices
+  // Constants for chunk handling
+  const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks
+  const UPLOAD_THRESHOLD_SIZE = 10 * 1024 * 1024; // 10MB threshold for chunked upload
+  const BATCH_SIZE = 8; // Process 4 chunks at a time
+
+  // Encrypt and upload a file in chunks
+  const encryptAndUploadChunked = async (
+    aesKey: CryptoKey,
+    file: File,
+    inMetadata: Partial<UploadMetadata>,
+    filename: string,
+  ): Promise<HttpResponse<UploadResponse, ErrorResponse>> => {
+    // Calculate total chunks needed
+    const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+    // The expected final response of the entire operation
+    let prev: Response | undefined;
+
+    setFileStatuses((prev) => ({
+      ...prev,
+      [filename]: {
+        status: "pending",
+        message: `Preparing chunked upload with ${totalChunks} chunks...`,
+      },
+    }));
+
+    // Calculate the encrypted size for the transaction
+    // Each chunk will have: 4 bytes (chunk nonce) + chunk size + 16 bytes (AES-GCM auth tag)
+    const encryptedSize = file.size + totalChunks * (NONCE_LENGTH + 16);
+    const metadata = { ...inMetadata };
+    metadata.fileNonce = undefined;
+
+    // Start a chunked upload transaction
+    const transactionResponse = await API.api.startChunkedUpload(
+      {
+        ...(metadata as UploadMetadata),
+        chunkSize: CHUNK_SIZE + NONCE_LENGTH + 16,
+        fileSize: encryptedSize,
+        totalChunks: totalChunks,
+      },
+      { linkId: linkId ?? undefined },
+    );
+
+    if (!transactionResponse.ok) {
+      throw new Error(
+        `Failed to start chunked upload: ${JSON.stringify(transactionResponse.error)}`,
+      );
+    }
+
+    const transactionId = transactionResponse.data.id;
+
+    // Upload chunks in batches to balance performance and memory
+    let processedChunks = 0;
+    const failedChunks = 0;
+
+    while (processedChunks < totalChunks) {
+      const batch = [];
+      const batchEnd = Math.min(processedChunks + BATCH_SIZE, totalChunks);
+
+      setFileStatuses((prev) => ({
+        ...prev,
+        [filename]: {
+          status: "pending",
+          message: `Processing and uploading chunks ${processedChunks + 1}-${batchEnd} of ${totalChunks}...`,
+        },
+      }));
+
+      // Create encryption and upload promises for each chunk in the current batch
+      const query = new URLSearchParams({
+        autoFinalize: String(true),
+      });
+      if (linkId) {
+        query.append("linkId", linkId);
+      }
+      for (
+        let chunkIndex = processedChunks;
+        chunkIndex < batchEnd;
+        chunkIndex++
+      ) {
+        const start = chunkIndex * CHUNK_SIZE;
+        const end = Math.min(file.size, start + CHUNK_SIZE);
+
+        batch.push(
+          (async (index) => {
+            try {
+              // Slice the file to get the chunk
+              const chunk = file.slice(start, end);
+              const chunkArrayBuffer = await chunk.arrayBuffer();
+
+              // Generate a unique nonce for this chunk
+              const chunkNonce = new Uint8Array(NONCE_LENGTH);
+
+              // Encrypt the chunk
+              const encryptedChunk = await window.crypto.subtle.encrypt(
+                {
+                  name: "AES-GCM",
+                  iv: chunkNonce,
+                },
+                aesKey,
+                chunkArrayBuffer,
+              );
+
+              const encryptedChunkWithNonce = new Uint8Array(
+                NONCE_LENGTH + encryptedChunk.byteLength,
+              );
+              encryptedChunkWithNonce.set(chunkNonce, 0);
+              encryptedChunkWithNonce.set(
+                new Uint8Array(encryptedChunk),
+                chunkNonce.length,
+              );
+
+              // Create a blob from the encrypted chunk
+              const chunkBlob = new Blob([encryptedChunkWithNonce]);
+
+              // Upload the chunk
+              const uploadResponse = await fetch(
+                `${BASE_URL}/api/upload/${transactionId}/chunk/${index}?${query}`,
+                { method: "POST", credentials: import.meta.env.DEV ? "include" : "same-origin", body: chunkBlob },
+              );
+
+              if (!uploadResponse.ok) {
+                return { ...uploadResponse, error: uploadResponse.json() };
+              }
+
+              prev = uploadResponse;
+              return { success: true, index };
+            } catch (e) {
+              console.error(`Error processing chunk ${index}:`, e);
+              return {
+                success: false,
+                index,
+                error: e instanceof Error ? e.message : "Unknown error",
+              };
+            }
+          })(chunkIndex),
+        );
+      }
+
+      // Process the current batch in parallel
+      await Promise.all(batch);
+
+      // Update the processed count
+      processedChunks = batchEnd;
+
+      // If any chunks failed, abort the process
+      if (failedChunks > 0) {
+        throw new Error(`Failed to upload ${failedChunks} chunks`);
+      }
+    }
+
+    // A status code of 201 means that the transaction was finalized automatically
+    if (prev && prev.status === 201) {
+      return {
+        ...prev,
+        data: await prev.json(),
+        error: null as unknown as ErrorResponse,
+        ok: true,
+        status: prev.status,
+      };
+    }
+
+    // If auto-finalize wasn't used, manually finalize the upload
+    setFileStatuses((prev) => ({
+      ...prev,
+      [filename]: { status: "pending", message: "Finalizing upload..." },
+    }));
+
+    const finalizeResponse = await API.api.finalizeChunkedUpload(transactionId);
+
+    if (!finalizeResponse.ok) {
+      throw new Error(
+        `Failed to finalize upload: ${JSON.stringify(finalizeResponse.error)}`,
+      );
+    }
+
+    return finalizeResponse;
+  };
+
+  // Encrypt a file using AES - for small files or testing
   const encryptFileWithAES = async (
     aesKey: CryptoKey,
     file: File,
     nonce: Uint8Array,
   ): Promise<Blob> => {
+    // For small files, use the simple approach
     const fileArrayBuffer = await file.arrayBuffer();
 
     const encryptedFile = await window.crypto.subtle.encrypt(
@@ -71,7 +260,7 @@ export default function Upload({
       fileArrayBuffer,
     );
 
-    // Combine the encrypted content with the nonce
+    // Return the encrypted content
     const encryptedArray = new Uint8Array(encryptedFile);
     return new Blob([encryptedArray]);
   };
@@ -160,13 +349,6 @@ export default function Upload({
           const nameNonce = generateNonce();
           const mimeTypeNonce = generateNonce();
 
-          // Encrypt the file content using AES
-          const encryptedFile = await encryptFileWithAES(
-            aesKey,
-            file,
-            fileNonce,
-          );
-
           // Encrypt the file metadata (name and mime type) using AES
           const encryptedFileName = await encryptText(
             aesKey,
@@ -208,20 +390,72 @@ export default function Upload({
             parentId,
           };
 
-          // Update status to show we're uploading
-          setFileStatuses((prev) => ({
-            ...prev,
-            [file.name]: { status: "pending", message: "Uploading..." },
-          }));
+          let response;
 
-          const response = await API.api.uploadFile(
-            {
-              metadata: metadata as UploadMetadata,
-              //@ts-expect-error swagger api is dumb
-              file: encryptedFile,
-            },
-            { linkId: linkId ?? undefined },
-          );
+          // Decide whether to use chunked upload or single upload based on file size
+          if (
+            !fileMeta[index].isDirectory &&
+            file.size > UPLOAD_THRESHOLD_SIZE
+          ) {
+            // Use chunked upload for large files
+            try {
+              response = await encryptAndUploadChunked(
+                aesKey,
+                file,
+                metadata,
+                file.name,
+              );
+            } catch (error) {
+              console.error("Chunked upload failed:", error);
+              setFileStatuses((prev) => ({
+                ...prev,
+                [file.name]: {
+                  status: "pending",
+                  message: "Falling back to regular upload...",
+                },
+              }));
+
+              // Fall back to regular upload if chunked upload fails
+              const encryptedFile = await encryptFileWithAES(
+                aesKey,
+                file,
+                fileNonce,
+              );
+
+              setFileStatuses((prev) => ({
+                ...prev,
+                [file.name]: { status: "pending", message: "Uploading..." },
+              }));
+
+              response = await API.api.uploadFile(
+                {
+                  metadata: metadata as UploadMetadata,
+                  //@ts-expect-error swagger api is dumb
+                  file: encryptedFile,
+                },
+                { linkId: linkId ?? undefined },
+              );
+            }
+          } else {
+            // Use standard upload for small files or directories
+            const encryptedFile = fileMeta[index].isDirectory
+              ? undefined
+              : await encryptFileWithAES(aesKey, file, fileNonce);
+
+            setFileStatuses((prev) => ({
+              ...prev,
+              [file.name]: { status: "pending", message: "Uploading..." },
+            }));
+
+            response = await API.api.uploadFile(
+              {
+                metadata: metadata as UploadMetadata,
+                //@ts-expect-error swagger api is dumb
+                file: encryptedFile,
+              },
+              { linkId: linkId ?? undefined },
+            );
+          }
 
           if (response.status === 402) {
             setFileStatuses((prev) => ({
@@ -246,7 +480,7 @@ export default function Upload({
             errorCount++;
             return;
           } else if (!response.ok) {
-            await onUpload?.(file.name, response.error );
+            await onUpload?.(file.name, response.error);
             throw response.error;
           }
 
@@ -257,6 +491,7 @@ export default function Upload({
           }));
           const createdAtDate = new Date();
           const modifiedAtDate = new Date();
+          console.log(response.data.link);
           await onUpload?.(
             {
               ...metadata,
@@ -268,9 +503,10 @@ export default function Upload({
               key: aesKey,
               name: file.name,
               mimeType: file.type,
-              size: response.data.size
-            }, 
-              response.data.link!)
+              size: response.data.size,
+            },
+            response.data.link!,
+          );
           successCount++;
         } catch (error) {
           setFileStatuses((prev) => ({

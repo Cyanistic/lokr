@@ -173,27 +173,27 @@ export function FileSidebar({
           borderRadius: collapsed ? "0" : "0 24px 24px 0",
         }}
       >
-          <Box
-            sx={{
-              display: "flex",
-              height: "64px",
-              alignItems: "center",
-              justifyContent: collapsed ? "flex-end" : "space-between",
-              transition: "all 0.3s ease",
-              borderBottom: "1px solid",
-              borderColor: "divider",
-              px: 2,
-              position: "relative",
-            }}
-          >
+        <Box
+          sx={{
+            display: "flex",
+            height: "64px",
+            alignItems: "center",
+            justifyContent: collapsed ? "flex-end" : "space-between",
+            transition: "all 0.3s ease",
+            borderBottom: "1px solid",
+            borderColor: "divider",
+            px: 2,
+            position: "relative",
+          }}
+        >
           {!collapsed && (
             <>
-              <Box 
+              <Box
                 sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  width: '100%'
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: "100%",
                 }}
               >
                 <Lock sx={{ mr: 1 }} />
@@ -318,7 +318,6 @@ export function FileSidebar({
                       </ListItemIcon>
                       {!collapsed && (
                         <ListItemText
-                          primary={item.label}
                           sx={{
                             m: 0,
                             "& .MuiTypography-root": {
@@ -327,7 +326,9 @@ export function FileSidebar({
                                 : 400,
                             },
                           }}
-                        />
+                        >
+                          {item.label}
+                        </ListItemText>
                       )}
                     </ListItemButton>
                   </ListItem>

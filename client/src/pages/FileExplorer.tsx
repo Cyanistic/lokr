@@ -1159,11 +1159,13 @@ export default function FileExplorer(
           {/* Sort controls have been moved to slide out next to the view toggle button */}
           <Box sx={{ mb: 2 }} />
 
-          <Box sx={{ 
-            display: 'flex', 
-            alignItems: 'center',
-            justifyContent: 'space-between'
-          }}>
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
             <BreadcrumbsNavigation
               path={dirStack.map((f) => f.name ?? "Encrypted directory")}
               onNavigate={(index) => {
@@ -1173,7 +1175,7 @@ export default function FileExplorer(
               loading={loading}
             />
             <Tooltip title="Refresh">
-              <IconButton 
+              <IconButton
                 onClick={() => fetchFiles()}
                 disabled={loading}
                 size="small"

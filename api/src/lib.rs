@@ -318,12 +318,12 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
         .routes(routes!(upload::delete_file))
         .routes(routes!(upload::update_file))
         .routes(routes!(upload::start_chunked_upload))
-        .routes(routes!(upload::upload_chunk))
         .routes(routes!(upload::finalize_chunked_upload))
         .route_layer(GovernorLayer {
             config: ip_governor_config,
         })
         // Routes above this line are rate limited by the `GovernorLayer`
+        .routes(routes!(upload::upload_chunk))
         .routes(routes!(users::create_user))
         .routes(routes!(users::authenticate_user))
         .routes(routes!(users::logout))

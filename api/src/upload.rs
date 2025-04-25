@@ -27,7 +27,6 @@ use crate::{
     share::{share_with_link, ShareResponse},
     state::AppState,
     success,
-    users::BinaryFile,
     utils::retry_transaction_fn,
     SuccessResponse, MAX_FILE_SIZE, TRANSACTION_DIR, UPLOAD_DIR,
 };
@@ -137,7 +136,7 @@ async fn cleanup(path: Option<&PathBuf>) {
         ("lokr_session_cookie" = [])
     )
 )]
-#[instrument(err, skip(state))]
+#[instrument(err, skip(state, data, cookies))]
 pub async fn upload_file(
     State(state): State<AppState>,
     user: Option<SessionAuth>,
@@ -200,6 +199,13 @@ pub async fn upload_file(
         };
 
         check_upload_metadata(&metadata, uuid.is_some())?;
+
+        if metadata.is_directory == metadata.file_nonce.is_some() {
+            return Err(AppError::UserError((
+                StatusCode::BAD_REQUEST,
+                "Include a file nonce only if the file is not a directory".into(),
+            )));
+        }
 
         let link = metadata
             .retry_upload_transaction(
@@ -861,13 +867,6 @@ fn check_upload_metadata(metadata: &UploadMetadata, authenticated: bool) -> Resu
             "Only include mime type nonce if there is a mime type to encrypt".into(),
         )));
     }
-
-    if metadata.is_directory == metadata.file_nonce.is_some() {
-        return Err(AppError::UserError((
-            StatusCode::BAD_REQUEST,
-            "Include a file nonce only if the file is not a directory".into(),
-        )));
-    }
     Ok(())
 }
 
@@ -890,6 +889,7 @@ pub const MIN_CHUNK_SIZE: u64 = 2u64.pow(19);
         ("lokr_session_cookie" = [])
     )
 )]
+#[instrument(err, skip(state, cookies))]
 pub async fn start_chunked_upload(
     State(state): State<AppState>,
     user: Option<SessionAuth>,
@@ -968,7 +968,7 @@ pub async fn start_chunked_upload(
     Ok((StatusCode::CREATED, Json(response)).into_response())
 }
 
-#[derive(Deserialize, IntoParams)]
+#[derive(Deserialize, IntoParams, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct UploadParams {
     #[serde(flatten)]
@@ -980,9 +980,9 @@ pub struct UploadParams {
 
 #[utoipa::path(
     post,
-    path = "/api/upload/{transaction_id}/chunk/{chunk_id}",
+    path = "/api/upload/{transactionId}/chunk/{chunkId}",
     description = "Upload a file chunk to an active transaction that is being uploaded in chunks.",
-    request_body(content = BinaryFile, description = "The file chunk to process"),
+    request_body = Vec<u8>,
     params(
             UploadParams,
             ("transactionId" = Uuid, Path, description = "The id of the transaction to upload the chunk to"),
@@ -1002,6 +1002,7 @@ pub struct UploadParams {
         ("lokr_session_cookie" = []),
     )
 )]
+#[instrument(err, skip(state, body, cookies))]
 pub async fn upload_chunk(
     State(state): State<AppState>,
     user: Option<SessionAuth>,
@@ -1017,7 +1018,6 @@ pub async fn upload_chunk(
             "The provided tranction id is not valid".into(),
         )));
     }
-    let mut tx = state.pool.begin().await?;
     let Some(metadata) = sqlx::query!(
         r#"SELECT chunk_size, expected_size,
         total_chunks, parent_id AS "parent_id: Uuid",
@@ -1046,7 +1046,7 @@ pub async fn upload_chunk(
         &uuid,
         link_password.as_deref(),
         params.link.link_id.as_ref(),
-        &mut *tx,
+        &state.pool,
     )
     .await?;
 
@@ -1111,7 +1111,7 @@ pub async fn upload_chunk(
             .fetch_one(&state.pool)
         .await?;
 
-        if current_chunks != metadata.total_chunks - 1 || !params.auto_finalize {
+        if current_chunks != metadata.total_chunks || !params.auto_finalize {
             return Ok((StatusCode::NO_CONTENT).into_response());
         }
         // This is the last chunk for the file and the user wants
@@ -1136,7 +1136,7 @@ pub async fn upload_chunk(
 
 #[utoipa::path(
     post,
-    path = "/api/upload/finalize/{transaction_id}",
+    path = "/api/upload/finalize/{transactionId}",
     description = "Finalize a chunked upload transaction for a file.",
     params(
             ("transactionId" = Uuid, Path, description = "The id of the transaction to finalize"),
@@ -1150,6 +1150,7 @@ pub async fn upload_chunk(
         ("lokr_session_cookie" = [])
     )
 )]
+#[instrument(err, skip(state, cookies))]
 pub async fn finalize_chunked_upload(
     State(state): State<AppState>,
     user: Option<SessionAuth>,
@@ -1162,8 +1163,6 @@ pub async fn finalize_chunked_upload(
         .link_id
         .and_then(|l_id| cookies.get(&l_id.to_string()))
         .and_then(|password_hash| urlencoding::decode(password_hash).ok());
-    // TODO: Check that the user has permission to actually finalize the upload and that all of
-    // the necessary chunks are done uploading
     let file_id = Uuid::now_v7();
     let transaction_path = TRANSACTION_DIR.join(transaction_id.to_string());
     let file_path = UPLOAD_DIR.join(file_id.to_string());
@@ -1222,13 +1221,13 @@ pub async fn finalize_chunked_upload(
             sqlx::query!(
                 r#"
                 INSERT INTO file (id, owner_id, uploader_id, parent_id,
-                encrypted_key, encrypted_name, mime,
-                key_nonce, mime_type_nonce, name_nonce, size)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                encrypted_key, encrypted_name, mime, key_nonce,
+                mime_type_nonce, name_nonce, size, file_nonce)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '')
                 "#,
                 file_id,
                 metadata.owner_id,
-                uuid,
+                metadata.uploader_id,
                 metadata.parent_id,
                 metadata.encrypted_key,
                 metadata.encrypted_name,
@@ -1259,7 +1258,7 @@ pub async fn finalize_chunked_upload(
             tx.commit().await?;
 
             Ok((
-                StatusCode::OK,
+                StatusCode::CREATED,
                 Json(UploadResponse {
                     id: file_id,
                     size: metadata.expected_size,
@@ -1495,6 +1494,10 @@ impl Processable for TransactionRequest {
             Err(e) => return Err(e.into()),
             _ => {}
         }
+
+        // Everything went well so commit the transaction
+        tx.commit().await?;
+
         Ok(TransactionResponse { id: transaction_id })
     }
 }

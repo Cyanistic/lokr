@@ -1,3 +1,5 @@
+import { FileMetadata as ApiFileMetadata } from "./myApi";
+
 export interface LoginUser {
   username: string | null | undefined;
   email: string | null | undefined;
@@ -33,28 +35,12 @@ export interface UserUpdate {
   encryptedPrivateKey?: string | null | undefined;
 }
 
-export interface FileMetadata {
-  id: string;
-  encryptedFileName: string;
-  encryptedMimeType?: string;
+export type FileMetadata = Omit<ApiFileMetadata, "editPermission"> & {
   mimeType?: string;
-  encryptedKey: string;
-  isDirectory: boolean;
-  fileNonce?: string | null;
-  keyNonce?: string | null;
-  mimeTypeNonce?: string | null;
-  nameNonce: string;
-  parentId?: string | null;
   key?: CryptoKey;
   name?: string;
-  ownerId?: string;
-  uploaderId?: string;
-  children?: string[];
-  createdAt: string;
-  modifiedAt: string;
   createdAtDate?: Date;
   modifiedAtDate?: Date;
-  size: number;
   editPermission?: boolean | "children";
   blobUrl?: string;
 }
