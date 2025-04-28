@@ -30,13 +30,13 @@ import FullscreenIcon from "@mui/icons-material/Fullscreen";
 
 import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/esm/Page/AnnotationLayer.css";
-import mammoth from "mammoth";
+import { renderAsync } from "docx-preview";
 import { getFileIcon } from "../pages/FileExplorer";
 import { FileMetadata } from "../types";
 import { API, getExtension } from "../utils";
 import { useToast } from "./ToastProvider";
 import { base64ToArrayBuffer } from "../cryptoFunctions";
-import DOMPurify from "dompurify";
+
 
 pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.js";
 
@@ -135,8 +135,9 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
   const [fallback, setFallback] = useState(false);
   const [pageNumber, setPageNumber] = useState(1);
   const [textContent, setTextContent] = useState("");
-  const [wordDocContent, setWordDocContent] = useState("");
+
   const containerRef = useRef<HTMLDivElement>(null);
+  const wordContainerRef = useRef<HTMLDivElement>(null);
   const observer = useRef<IntersectionObserver | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -325,10 +326,11 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
         try {
           const res = await fetch(file.blobUrl);
           const blob = await res.blob();
-          const arrayBuffer = await blob.arrayBuffer();
-
-          const result = await mammoth.convertToHtml({ arrayBuffer });
-          setWordDocContent(result.value);
+    
+          if (wordContainerRef.current) {
+            await renderAsync(blob, wordContainerRef.current);
+          }
+    
           setLoading(false);
         } catch (err) {
           showError("Failed to load Word document.", err);
@@ -336,6 +338,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
         }
       }
     };
+    
 
     loadWordDoc();
   }, [open, file, fileType]);
@@ -1877,9 +1880,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
             }}
           >
             <div
-              dangerouslySetInnerHTML={{
-                __html: DOMPurify.sanitize(wordDocContent),
-              }}
+              ref={wordContainerRef}
               style={{
                 fontFamily: "Arial, sans-serif",
                 lineHeight: "1.5",
@@ -1887,9 +1888,10 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
                 boxSizing: "border-box",
               }}
               onClick={(e) => {
-                e.stopPropagation(); // Prevent closing when clicking on the document content
+                e.stopPropagation();
               }}
             />
+            
           </Box>
         </Box>
 
