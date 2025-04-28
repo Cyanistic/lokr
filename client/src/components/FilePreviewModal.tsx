@@ -37,7 +37,6 @@ import { API, getExtension } from "../utils";
 import { useToast } from "./ToastProvider";
 import { base64ToArrayBuffer } from "../cryptoFunctions";
 
-
 pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.js";
 
 // Define file types as a union type for better type safety
@@ -326,11 +325,18 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
         try {
           const res = await fetch(file.blobUrl);
           const blob = await res.blob();
-    
           if (wordContainerRef.current) {
-            await renderAsync(blob, wordContainerRef.current);
+            // Enhanced rendering options for better appearance
+            await renderAsync(blob, wordContainerRef.current, undefined, {
+              inWrapper: false,
+              ignoreWidth: false,
+              ignoreHeight: false,
+              ignoreFonts: false,
+              renderHeaders: true,
+              renderFooters: true,
+              renderFootnotes: true,
+            });
           }
-    
           setLoading(false);
         } catch (err) {
           showError("Failed to load Word document.", err);
@@ -338,7 +344,6 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
         }
       }
     };
-    
 
     loadWordDoc();
   }, [open, file, fileType]);
@@ -1849,49 +1854,102 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
   };
 
   const renderWordDoc = () => {
+    const handleWordUserActivity = (
+      e:
+        | React.MouseEvent<HTMLElement, MouseEvent>
+        | React.TouchEvent<HTMLElement>,
+    ) => {
+      if ((e?.target as HTMLElement)?.id !== "_docx-preview-container_") {
+        handleUserActivity();
+      }
+    };
+
     return (
       <Box
         sx={{
           width: "100%",
           height: "100%",
           position: "relative",
-          overflow: "hidden",
+          overflow: "auto",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
         }}
-        onClick={(e) => {
-          handleUserActivity();
-          handleContentBackgroundClick(e); // Close modal when clicking outside document
-        }}
+        onClick={onClose}
       >
-        {/* Word document content container */}
+        {/* Word document content container - centered with proper styling */}
         <Box
           sx={{
             width: "100%",
             height: "100%",
             overflow: "auto",
-            backgroundColor: "white",
-            "& *": { color: "#000 !important" },
+            display: "flex",
+            justifyContent: "center",
+            backgroundColor: "transparent",
+            "& .docx-wrapper": {
+              backgroundColor: "transparent !important",
+              border: "none !important",
+              boxShadow: "none !important",
+            },
+            // Remove default docx-preview background and other unwanted styling
+            "& .docx": {
+              backgroundColor: "white",
+              borderRadius: "4px",
+              boxShadow: "0 4px 20px rgba(0,0,0,0.2)",
+              margin: "0 auto",
+              maxWidth: "850px",
+              width: "100%",
+            },
+            // Reset any unwanted inherited styles
+            "& .docx *": {
+              color: "#000 !important",
+            },
+            // Hide scrollbars when not needed
+            "&::-webkit-scrollbar": {
+              width: "8px",
+              height: "8px",
+            },
+            "&::-webkit-scrollbar-thumb": {
+              backgroundColor: "rgba(0,0,0,0.2)",
+              borderRadius: "4px",
+            },
+            "&::-webkit-scrollbar-track": {
+              backgroundColor: "transparent",
+            },
+          }}
+          // Add click handler to this container too, for when clicked in empty areas
+          onClick={(e) => {
+            // handleUserActivity();
+            // Only close if clicking directly on the container (not on document elements)
+            handleBackdropClick(e);
           }}
         >
           <Box
             sx={{
               transform: `scale(${scale})`,
-              transformOrigin: "top left",
+              transformOrigin: "center top",
               width: `calc(100% / ${scale})`,
+              padding: "20px 0",
+              transition: "transform 0.2s ease",
             }}
           >
             <div
               ref={wordContainerRef}
+              id="_docx-preview-container_"
               style={{
-                fontFamily: "Arial, sans-serif",
-                lineHeight: "1.5",
-                padding: "16px",
                 boxSizing: "border-box",
+                minHeight: "100%",
               }}
               onClick={(e) => {
-                e.stopPropagation();
+                const target = e.target as HTMLElement;
+                handleWordUserActivity(e);
+                if (target && target.id !== "_docx-preview-container_") {
+                  e.stopPropagation();
+                }
               }}
+              onMouseMove={handleWordUserActivity}
+              onTouchStart={handleWordUserActivity}
             />
-            
           </Box>
         </Box>
 
@@ -1918,10 +1976,18 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
             transition: "opacity 0.3s ease-in-out",
             pointerEvents: showControlsBar ? "auto" : "none",
           }}
+          onClick={(e) => e.stopPropagation()}
         >
+          <Typography variant="caption" sx={{ color: "#fff", mx: 1 }}>
+            {Math.round(scale * 100)}%
+          </Typography>
+
           <Tooltip title="Zoom out">
             <IconButton
-              onClick={handleZoomOut}
+              onClick={() => {
+                handleZoomOut();
+                handleUserActivity();
+              }}
               size="small"
               sx={{ color: "#fff" }}
             >
@@ -1930,7 +1996,10 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
           </Tooltip>
           <Tooltip title="Zoom in">
             <IconButton
-              onClick={handleZoomIn}
+              onClick={() => {
+                handleZoomIn();
+                handleUserActivity();
+              }}
               size="small"
               sx={{ color: "#fff" }}
             >
@@ -1939,13 +2008,23 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
           </Tooltip>
           <Tooltip title="Reset zoom">
             <IconButton
-              onClick={handleResetZoom}
+              onClick={() => {
+                handleResetZoom();
+                handleUserActivity();
+              }}
               size="small"
               sx={{ color: "#fff" }}
             >
               <RestartAltIcon fontSize="small" />
             </IconButton>
           </Tooltip>
+
+          <Typography
+            variant="caption"
+            sx={{ color: "#fff", mx: 1, opacity: 0.7 }}
+          >
+            Scroll to zoom
+          </Typography>
         </Box>
       </Box>
     );
