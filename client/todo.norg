@@ -57,7 +57,7 @@
   -- (x) Dark/Light theme customization
   -- (x) Grid/List view by default
   - ( ) File chunking support
-  -- ( ) Chunked uploading
+  -- (x) Chunked uploading
   -- ( ) Chunked file downloading
   - ( ) Hide unused file previews
   - ( ) Minimize memory usage for mobile

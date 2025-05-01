@@ -1037,18 +1037,17 @@ export default function FileExplorer(
                   </Button>
                 </span>
               </Tooltip>
-              {showUpload && (
-                <Upload
-                  isOverlay={true}
-                  parentId={parentId}
-                  parentKey={parentId ? files[parentId]?.key : null}
-                  linkId={linkId}
-                  onFinish={async () => {
-                    await fetchFiles();
-                  }}
-                  onClose={() => setShowUpload(false)}
-                />
-              )}
+              <Upload
+                isOverlay={true}
+                parentId={parentId}
+                parentKey={parentId ? files[parentId]?.key : null}
+                linkId={linkId}
+                open={showUpload}
+                onFinish={async () => {
+                  await fetchFiles();
+                }}
+                onClose={() => setShowUpload(false)}
+              />
 
               <Box
                 sx={{
