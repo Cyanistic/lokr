@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Box, CircularProgress } from "@mui/material";
-import { API } from "../utils";
-import { base64ToArrayBuffer } from "../cryptoFunctions";
+import { decryptFile } from "../cryptoFunctions";
 import type { FileMetadata } from "../types";
 import { getFileIcon } from "../pages/FileExplorer";
 import { useSearchParams } from "react-router-dom";
@@ -50,7 +49,7 @@ export default function FileGridPreviewAttachment({
   // Fetch and decrypt file when component mounts or file changes
   useEffect(() => {
     // Make sure we have all required properties before proceeding
-    if (!file.id || !file.key || !file.fileNonce || !isPreviewable) {
+    if (!file.id || !isPreviewable) {
       return;
     }
 
@@ -67,37 +66,8 @@ export default function FileGridPreviewAttachment({
       setError(false);
 
       try {
-        // Fetch the encrypted file
-        const response = await API.api.getFile(file.id, {
-          linkId: linkId ?? undefined,
-        });
-        if (!response.ok) throw response.error;
-
-        // Convert response to ArrayBuffer
-        const dataBuffer = await response.arrayBuffer();
-
-        // Ensure we have the key and nonce before decrypting
-        if (!file.key) {
-          throw new Error("File encryption key not found");
-        }
-
-        if (!file.fileNonce) {
-          throw new Error("File nonce not found");
-        }
-
-        // TypeScript needs this additional check even though we checked above
-        const key = file.key as CryptoKey;
-        const fileNonceBuffer = base64ToArrayBuffer(file.fileNonce);
-
-        const fileData = await crypto.subtle.decrypt(
-          { name: "AES-GCM", iv: fileNonceBuffer },
-          key,
-          dataBuffer,
-        );
-
-        // Create a blob URL for the decrypted data
-        const blob = new Blob([fileData], { type: file.mimeType });
-        const url = URL.createObjectURL(blob);
+        const blob = await decryptFile(file);
+        const url = URL.createObjectURL(blob!);
 
         setPreviewUrl(url);
 

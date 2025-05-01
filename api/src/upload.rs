@@ -1196,7 +1196,7 @@ pub async fn finalize_chunked_upload(
                 DELETE FROM upload_transaction WHERE id = ?
                 RETURNING owner_id, uploader_id, parent_id AS "parent_id: Uuid",
                 encrypted_key, encrypted_name, mime, key_nonce, mime_type_nonce,
-                name_nonce, expected_size
+                name_nonce, expected_size, chunk_size
                 "#,
                 transaction_id
             )
@@ -1222,8 +1222,8 @@ pub async fn finalize_chunked_upload(
                 r#"
                 INSERT INTO file (id, owner_id, uploader_id, parent_id,
                 encrypted_key, encrypted_name, mime, key_nonce,
-                mime_type_nonce, name_nonce, size, file_nonce)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '')
+                mime_type_nonce, name_nonce, size, chunk_size, file_nonce)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '')
                 "#,
                 file_id,
                 metadata.owner_id,
@@ -1236,6 +1236,7 @@ pub async fn finalize_chunked_upload(
                 metadata.mime_type_nonce,
                 metadata.name_nonce,
                 metadata.expected_size,
+                metadata.chunk_size,
             )
             .execute(&mut *tx)
             .await?;

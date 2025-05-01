@@ -28,6 +28,7 @@ import {
   bufferToBase64,
   base64ToArrayBuffer,
   generateNonce,
+  decryptFile,
 } from "../cryptoFunctions";
 import {
   NavigateOptions,
@@ -498,29 +499,9 @@ export default function FileExplorer(
     // Return cached URL if available - this ensures we never overwrite an existing blob URL
     if (file.blobUrl) return file.blobUrl;
 
-    if (!file.key || !file.fileNonce) {
-      return null;
-    }
-
     try {
-      const response = await API.api.getFile(file.id, {
-        linkId: linkId ?? undefined,
-      });
-      if (!response.ok) throw response.error;
-
-      const dataBuffer = await response.arrayBuffer();
-
-      // Decrypt the file
-      const fileNonceBuffer = base64ToArrayBuffer(file.fileNonce);
-      const fileData = await crypto.subtle.decrypt(
-        { name: "AES-GCM", iv: fileNonceBuffer },
-        file.key,
-        dataBuffer,
-      );
-
-      const blob = new Blob([fileData], { type: file.mimeType });
-      const url = URL.createObjectURL(blob);
-
+      const fileBlob = await decryptFile(file);
+      const url = URL.createObjectURL(fileBlob!);
       // Update file metadata with blob URL
       setFiles((prevFiles) => ({
         ...prevFiles,

@@ -33,9 +33,9 @@ import "react-pdf/dist/esm/Page/AnnotationLayer.css";
 import { renderAsync } from "docx-preview";
 import { getFileIcon } from "../pages/FileExplorer";
 import { FileMetadata } from "../types";
-import { API, getExtension } from "../utils";
+import { getExtension } from "../utils";
 import { useToast } from "./ToastProvider";
-import { base64ToArrayBuffer } from "../cryptoFunctions";
+import { decryptFile } from "../cryptoFunctions";
 
 pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.js";
 
@@ -175,7 +175,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
   // Fetch and decrypt file when component mounts or file changes
   useEffect(() => {
     // Make sure we have all required properties before proceeding
-    if (!file || !file.id || !file.key || !file.fileNonce) {
+    if (!file || !file.id || !file.key) {
       return;
     }
 
@@ -190,37 +190,8 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
       setLoading(true);
 
       try {
-        // Fetch the encrypted file
-        const response = await API.api.getFile(file.id, {
-          linkId: linkId ?? undefined,
-        });
-        if (!response.ok) throw response.error;
-
-        // Convert response to ArrayBuffer
-        const dataBuffer = await response.arrayBuffer();
-
-        // Ensure we have the key and nonce before decrypting
-        if (!file.key) {
-          throw new Error("File encryption key not found");
-        }
-
-        if (!file.fileNonce) {
-          throw new Error("File nonce not found");
-        }
-
-        // TypeScript needs this additional check even though we checked above
-        const key = file.key as CryptoKey;
-        const fileNonceBuffer = base64ToArrayBuffer(file.fileNonce);
-
-        const fileData = await crypto.subtle.decrypt(
-          { name: "AES-GCM", iv: fileNonceBuffer },
-          key,
-          dataBuffer,
-        );
-
-        // Create a blob URL for the decrypted data
-        const blob = new Blob([fileData], { type: file.mimeType });
-        const url = URL.createObjectURL(blob);
+        const blob = await decryptFile(file);
+        const url = URL.createObjectURL(blob!);
 
         // Store the blob URL in the file metadata (handled at parent level)
         if (onLoad) {

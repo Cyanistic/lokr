@@ -1,5 +1,7 @@
 import { argon2id } from "hash-wasm";
 import localforage from "localforage";
+import { FileMetadata } from "./types";
+import { API, NONCE_LENGTH } from "./utils";
 
 //  Convert Base64 String to Uint8Array
 function fromBase64(base64: string): Uint8Array {
@@ -314,4 +316,92 @@ export async function generateKey(): Promise<CryptoKey> {
     true,
     ["encrypt", "decrypt", "wrapKey", "unwrapKey"],
   );
+}
+
+// Decrypts an entire file and returns a blob
+export async function decryptFile(
+  file: FileMetadata,
+  linkId?: string,
+): Promise<Blob | null> {
+  if (file.isDirectory || (!file.fileNonce && !file.chunkSize) || !file.key)
+    return null;
+
+  const response = await API.api.getFile(file.id, {
+    linkId: linkId,
+  });
+  if (!response.ok) throw response.error;
+
+  const dataBuffer = await response.arrayBuffer();
+
+  let fileData: ArrayBuffer;
+  // Decrypt the file
+  if (file.fileNonce) {
+    // Single file decryption with file nonce
+    const fileNonceBuffer = base64ToArrayBuffer(file.fileNonce);
+    fileData = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: fileNonceBuffer },
+      file.key,
+      dataBuffer,
+    );
+  } else {
+    // Chunked file handling
+    const totalChunks = Math.ceil(dataBuffer.byteLength / file.chunkSize!);
+
+    // Create an array to store each chunk's decryption promise
+    const decryptionPromises = new Array(totalChunks)
+      .fill(null)
+      .map(async (_, index) => await decryptChunk(file, dataBuffer, index));
+
+    // Decrypt all chunks in parallel
+    const decryptedChunks = await Promise.all(decryptionPromises);
+
+    // Combine all chunks into a single ArrayBuffer
+    let totalLength = 0;
+    decryptedChunks.forEach((chunk) => {
+      totalLength += chunk!.byteLength;
+    });
+
+    const combinedBuffer = new Uint8Array(totalLength);
+    let offset = 0;
+    decryptedChunks.forEach((chunk) => {
+      combinedBuffer.set(new Uint8Array(chunk!), offset);
+      offset += chunk!.byteLength;
+    });
+
+    fileData = combinedBuffer.buffer;
+  }
+
+  const blob = new Blob([fileData], { type: file.mimeType });
+
+  // Update file metadata with blob URL
+  return blob;
+}
+
+export async function decryptChunk(
+  file: FileMetadata,
+  data: ArrayBufferLike,
+  index: number,
+): Promise<ArrayBuffer | null> {
+  // Calculate chunk boundaries
+  if (!file.chunkSize) return null;
+  const start = index * file.chunkSize;
+  const end = Math.min(start + file.chunkSize, data.byteLength);
+
+  // Extract this specific chunk
+  const chunkData = data.slice(start, end);
+
+  // Extract the nonce from the beginning of this chunk (first NONCE_LENGTH bytes)
+  const chunkNonce = chunkData.slice(0, NONCE_LENGTH);
+
+  // The actual encrypted content is after the nonce
+  const encryptedContent = chunkData.slice(NONCE_LENGTH);
+
+  // Decrypt this chunk
+  const decryptedChunk = await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv: chunkNonce },
+    file.key!,
+    encryptedContent,
+  );
+
+  return decryptedChunk;
 }

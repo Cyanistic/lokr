@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "\n                DELETE FROM upload_transaction WHERE id = ?\n                RETURNING owner_id, uploader_id, parent_id AS \"parent_id: Uuid\",\n                encrypted_key, encrypted_name, mime, key_nonce, mime_type_nonce,\n                name_nonce, expected_size\n                ",
+  "query": "\n                DELETE FROM upload_transaction WHERE id = ?\n                RETURNING owner_id, uploader_id, parent_id AS \"parent_id: Uuid\",\n                encrypted_key, encrypted_name, mime, key_nonce, mime_type_nonce,\n                name_nonce, expected_size, chunk_size\n                ",
   "describe": {
     "columns": [
       {
@@ -52,6 +52,11 @@
         "name": "expected_size",
         "ordinal": 9,
         "type_info": "Integer"
+      },
+      {
+        "name": "chunk_size",
+        "ordinal": 10,
+        "type_info": "Integer"
       }
     ],
     "parameters": {
@@ -67,8 +72,9 @@
       true,
       true,
       false,
+      false,
       false
     ]
   },
-  "hash": "6f7af40f498e107294affce15b4251f8a18a3fc6c8d7e842819b24a5719e31ec"
+  "hash": "d43037d1d921fdb09acc05f82ff8e57021feae859941ca4d239a284acdd3d27c"
 }
