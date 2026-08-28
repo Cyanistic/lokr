@@ -3,13 +3,15 @@ FROM node:22-bookworm-slim AS client-builder
 WORKDIR /app/client
 
 ARG LOKR_COMMIT_HASH=unknown
+ARG PNPM_VERSION=11.22.0
 ENV LOKR_COMMIT_HASH=${LOKR_COMMIT_HASH}
 
-COPY client/package.json client/package-lock.json ./
-RUN npm ci
+RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
+COPY client/package.json client/pnpm-lock.yaml client/pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile
 
 COPY client/ ./
-RUN npm run build
+RUN pnpm run build
 
 FROM rust:1.98-bookworm AS api-builder
 

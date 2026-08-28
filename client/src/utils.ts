@@ -4,7 +4,7 @@ import { Api, FileSortOrder } from "./myApi";
 import { PublicUser as ApiPublicUser } from "./myApi";
 
 // A base URL that changes based on whether the app is in development or production
-// In dev this should always be the backend URL, so that `npm run dev` works properly
+// In dev this should always be the backend URL, so that `pnpm run dev` works properly
 // but in production this should be a relative URL so that redirects work properly
 export const BASE_URL = import.meta.env.DEV ? "http://localhost:6969" : "";
 
