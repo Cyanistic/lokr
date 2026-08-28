@@ -79,7 +79,7 @@ This instance is fully functional and allows you to:
 If you prefer to host your own private instance of Lokr, continue to the [Installation](#installation) section for setup instructions.
   
 ## Installation
-To build project you must have [cargo](https://www.rust-lang.org/tools/install) and [node](https://nodejs.org/en) installed on your system.
+To build the project you must have [cargo](https://www.rust-lang.org/tools/install), [node](https://nodejs.org/en), and [pnpm](https://pnpm.io/installation) installed on your system.
 1. Clone the repo locally
 ```sh
 git clone https://github.com/Cyanistic/lokr.git
@@ -90,11 +90,11 @@ cd lokr
 cd api
 cargo b -r
 ```
-3. Build the frontend with vite/npm
+3. Build the frontend with Vite and pnpm
 ```sh
 cd ../client
-npm i
-npm run build
+pnpm install
+pnpm run build
 ```
 4. Start up the backend server
 ```sh
