@@ -82,7 +82,7 @@ Pangolin already owns ports 80 and 443. Lokr must not claim those ports.
 3. It calls Komodo's `DeployStack` API for the `lokr` stack.
 4. Komodo pulls the image and runs the Compose stack on `production`.
 
-The workflow should start with `workflow_dispatch`, so Cyan chooses when a deployment happens. A push trigger can be added later if it is useful.
+The workflow uses `workflow_dispatch`, so Cyan chooses when a deployment happens. It has a `deploy` input. Run it with deployment disabled to publish the first image, then deploy that image manually through Komodo. Enable the input only after the manual deployment works. A push trigger can be added later if it is useful.
 
 The workflow should use a Komodo service user with only the permissions needed for this stack. Store the Komodo URL, API key, and API secret in GitHub Actions secrets. Do not use SSH deployment keys.
 
@@ -114,7 +114,7 @@ The initial image strategy is confirmed as:
 
 An immutable commit-SHA tag is safer for rollback, but it requires a second mechanism to tell the Compose stack which SHA to deploy. Do not add that complexity unless rollback requirements justify it.
 
-The VPS architecture must be confirmed if the workflow builds a single-platform image. A multi-platform image can avoid that dependency.
+The workflow builds both `linux/amd64` and `linux/arm64` images, so the VPS architecture does not need to be selected in advance.
 
 ## Data and storage
 
@@ -171,19 +171,19 @@ The confirmed public domain is `lokr.cyanistic.com`. Do not change DNS without C
 
 ## Manual-first rollout
 
-1. Build the Docker image locally or in the first workflow run.
+1. Build the Docker image locally.
 2. Add the Compose stack and Komodo resource on the development branch.
 3. Review the generated Compose configuration.
 4. Merge or otherwise make the reviewed infrastructure configuration available to Komodo.
-5. Deploy the `lokr` Stack manually through Komodo.
-6. Confirm the container starts on `production`.
-7. Apply the Pangolin blueprint change.
-8. Confirm the public URL loads through Pangolin.
-9. Test registration, login, upload, download, sharing, and anonymous upload.
-10. Restart the stack and confirm data remains.
-11. Configure and test the off-box backup.
-12. Enable the GitHub Actions deployment trigger.
-13. Run one deployment from GitHub Actions and confirm the Komodo deployment result.
+5. Run GitHub Actions with `deploy` set to `false` to publish the first image.
+6. Deploy the `lokr` Stack manually through Komodo.
+7. Confirm the container starts on `production`.
+8. Apply the Pangolin blueprint change.
+9. Confirm the public URL loads through Pangolin.
+10. Test registration, login, upload, download, sharing, and anonymous upload.
+11. Restart the stack and confirm data remains.
+12. Configure and test the off-box backup.
+13. Run GitHub Actions with `deploy` set to `true` and confirm the Komodo deployment result.
 
 ## Success criteria
 
@@ -196,14 +196,15 @@ The confirmed public domain is `lokr.cyanistic.com`. Do not change DNS without C
 - An off-box backup contains the complete application data.
 - The backup can be read back or restored using the documented procedure.
 - A GitHub Actions run can trigger a Komodo deployment without SSH access.
+- The dependency audit is reviewed and important browser-runtime vulnerabilities are addressed before public use.
 - The deployment and public URL are rechecked before updating the profile claim.
 
 ## Open questions
 
 - Is the Komodo Server `production` online and attached to the intended VPS?
 - Is host port `6969` available?
-- Should image builds target one platform or multiple platforms?
 - Should the GHCR image be public or private?
+- Which dependency audit findings must be fixed before public use?
 - What backup destination, schedule, retention, and encryption should be used?
 - Who will apply the Pangolin blueprint and DNS change?
 

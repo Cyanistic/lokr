@@ -3,7 +3,15 @@ import react from "@vitejs/plugin-react";
 import wasm from "vite-plugin-wasm";
 import * as child from "child_process";
 
-const commitHash = child.execSync("git rev-parse HEAD").toString();
+const commitHash =
+  process.env.LOKR_COMMIT_HASH ||
+  (() => {
+    try {
+      return child.execSync("git rev-parse HEAD").toString().trim();
+    } catch {
+      return "unknown";
+    }
+  })();
 const ReactCompilerConfig = {
   target: "19",
 };
