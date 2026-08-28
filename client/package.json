@@ -49,7 +49,7 @@
     "@types/react-dom": "^19.1.1",
     "@types/react-transition-group": "4.4.12",
     "@types/react-window": "^1.8.8",
-    "@vitejs/plugin-react": "^4.3.4",
+    "@vitejs/plugin-react": "^5.2.0",
     "eslint": "^9.39.5",
     "eslint-plugin-react-compiler": "^19.0.0-beta-e993439-20250405",
     "eslint-plugin-react-hooks": "^5.0.0",
