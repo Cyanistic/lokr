@@ -1,70 +1,62 @@
-name: Deploy Application
+name: Build and deploy
 
 on:
   workflow_dispatch:
+    inputs:
+      deploy:
+        description: Deploy the published image through Komodo
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  packages: write
 
 jobs:
-  backend:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: Set up Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          toolchain: stable
-
-      - name: Build Rust backend
-        working-directory: ./api
-        run: |
-          cargo b -r
-          mkdir api
-          mv ./target/release/lokr-api ./api
-      - name: Transfer Backend
-        uses: RowenTey/cloudflared-scp-action@6704878e1b42c1d31e876f75c29d344d291168b5
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USERNAME }}
-          private_key: ${{ secrets.PRIVATE_KEY }}
-          from: ./api/api
-          to: /home/${{ secrets.SSH_USERNAME }}/lokr
-
-  frontend:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: "latest"
-
-      - name: Build Frontend
-        working-directory: ./client
-        run: |
-          npm install
-          npm run build
-
-      - name: Transfer Frontend
-        uses: RowenTey/cloudflared-scp-action@6704878e1b42c1d31e876f75c29d344d291168b5
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USERNAME }}
-          private_key: ${{ secrets.PRIVATE_KEY }}
-          from: ./client/dist
-          to: /home/${{ secrets.SSH_USERNAME }}/lokr/client
-
   deploy:
     runs-on: ubuntu-latest
-    needs: [backend, frontend]
     steps:
-      - name: Restart lokr service
-        uses: and-fm/cloudflared-ssh-action@e6addaa62d2fe55c6928948e6b86e1d7d35f71aa
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
         with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USERNAME }}
-          private_key_filename: key.pem
-          private_key_value: ${{ secrets.SSH_PRIVATE_KEY_VALUE }}
-          commands: sudo systemctl restart lokr
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            LOKR_COMMIT_HASH=${{ github.sha }}
+          tags: |
+            ghcr.io/cyanistic/lokr:main
+            ghcr.io/cyanistic/lokr:${{ github.sha }}
+
+      - name: Deploy Lokr through Komodo
+        if: ${{ inputs.deploy }}
+        env:
+          KOMODO_URL: ${{ secrets.KOMODO_URL }}
+          KOMODO_API_KEY: ${{ secrets.KOMODO_API_KEY }}
+          KOMODO_API_SECRET: ${{ secrets.KOMODO_API_SECRET }}
+        run: |
+          set -eu
+          curl --fail-with-body --silent --show-error \
+            --request POST \
+            --url "${KOMODO_URL%/}/execute/DeployStack" \
+            --header "Content-Type: application/json" \
+            --header "X-Api-Key: ${KOMODO_API_KEY}" \
+            --header "X-Api-Secret: ${KOMODO_API_SECRET}" \
+            --data '{"stack":"lokr"}'

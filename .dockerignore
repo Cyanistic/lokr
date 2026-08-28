@@ -1,0 +1,9 @@
+.git
+.iris
+api/target
+client/node_modules
+client/dist
+**/.env
+**/*.db
+**/*.shm
+**/*.wal
