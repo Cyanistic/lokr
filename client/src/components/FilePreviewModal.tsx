@@ -29,7 +29,6 @@ import Forward10Icon from "@mui/icons-material/Forward10";
 import FullscreenIcon from "@mui/icons-material/Fullscreen";
 
 import { Document, Page, pdfjs } from "react-pdf";
-import "react-pdf/dist/esm/Page/AnnotationLayer.css";
 import mammoth from "mammoth";
 import { getFileIcon } from "../pages/FileExplorer";
 import { FileMetadata } from "../types";
@@ -38,7 +37,10 @@ import { useToast } from "./ToastProvider";
 import { base64ToArrayBuffer } from "../cryptoFunctions";
 import DOMPurify from "dompurify";
 
-pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.js";
+pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+  "pdfjs-dist/legacy/build/pdf.worker.min.mjs",
+  import.meta.url,
+).toString();
 
 // Define file types as a union type for better type safety
 type FileType =
