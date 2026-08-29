@@ -88,7 +88,7 @@ export default function FileMoveModal({
     try {
       const targetFolder = targetFolderId ? files[targetFolderId] : null;
       let parentKey;
-      let algorithm;
+      let algorithm: AesGcmParams | RsaOaepParams;
       let keyNonce;
       if (targetFolder) {
         keyNonce = generateNonce();

@@ -1,8 +1,10 @@
 import { argon2id } from "hash-wasm";
 import localforage from "localforage";
 
+type ByteArray = Uint8Array<ArrayBuffer>;
+
 //  Convert Base64 String to Uint8Array
-function fromBase64(base64: string): Uint8Array {
+function fromBase64(base64: string): ByteArray {
   return new Uint8Array(
     atob(base64)
       .split("")
@@ -28,7 +30,7 @@ export async function generateAESKey(): Promise<CryptoKey> {
 export async function encryptData(
   key: CryptoKey,
   data: string,
-): Promise<{ iv: Uint8Array; encrypted: ArrayBuffer }> {
+): Promise<{ iv: ByteArray; encrypted: ArrayBuffer }> {
   const iv = crypto.getRandomValues(new Uint8Array(12)); // 12-byte IV for AES-GCM
   const encodedData = new TextEncoder().encode(data);
 
@@ -45,8 +47,8 @@ export async function encryptData(
 export async function encryptPrivateKey(
   privateKey: CryptoKey,
   masterKey: CryptoKey,
-  iv: Uint8Array | string | null = null,
-): Promise<{ iv: Uint8Array; encrypted: ArrayBuffer }> {
+  iv: ByteArray | string | null = null,
+): Promise<{ iv: ByteArray; encrypted: ArrayBuffer }> {
   iv = typeof iv === "string" ? fromBase64(iv) : iv;
   if (!iv) {
     iv = crypto.getRandomValues(new Uint8Array(12));
@@ -65,7 +67,7 @@ export async function encryptPrivateKey(
 // Derive AES Key from Password using PBKDF2
 export async function deriveKeyFromPassword(
   password: string,
-  salt: Uint8Array | string,
+  salt: ByteArray | string,
 ): Promise<CryptoKey> {
   const saltBuffer = typeof salt === "string" ? fromBase64(salt) : salt;
 
@@ -111,7 +113,7 @@ export async function generateRSAKeyPair(): Promise<CryptoKeyPair> {
 export async function unwrapPrivateKey(
   encryptedPrivateKey: ArrayBuffer | string,
   masterKey: CryptoKey,
-  iv: Uint8Array | string,
+  iv: ByteArray | string,
 ) {
   try {
     const ivBuffer = typeof iv === "string" ? fromBase64(iv) : iv;
@@ -178,8 +180,11 @@ export async function loadKeys(password: string) {
 }
 
 // Helper function to safely Base64-encode an `ArrayBuffer`
-export function bufferToBase64(buffer: ArrayBuffer): string {
-  return btoa(String.fromCharCode(...new Uint8Array(buffer)));
+export function bufferToBase64(
+  buffer: ArrayBuffer | Uint8Array<ArrayBufferLike>,
+): string {
+  const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+  return btoa(String.fromCharCode(...bytes));
 }
 
 // Helper function to hash a password for the backend
@@ -194,8 +199,9 @@ export async function hashPassword(
   }
   // Alias for generating a salt
   if (generated) {
-    salt = new Uint8Array(16);
-    crypto.getRandomValues(salt);
+    const generatedSalt = new Uint8Array(16);
+    crypto.getRandomValues(generatedSalt);
+    salt = generatedSalt;
   }
   // Attempt to use wasm argon2id
   try {
@@ -274,8 +280,8 @@ export async function decryptText(
 export async function encryptText(
   key: CryptoKey,
   text: string,
-  nonce: Uint8Array,
-): Promise<Uint8Array> {
+  nonce: ByteArray,
+): Promise<ByteArray> {
   const encoder = new TextEncoder();
   const data = encoder.encode(text);
   const encrypted = await window.crypto.subtle.encrypt(
@@ -290,7 +296,7 @@ export async function encryptAESKeyWithParentKey(
   parentKey: CryptoKey,
   aesKey: CryptoKey,
   algorithm: AesGcmParams | RsaOaepParams = { name: "RSA-OAEP" },
-): Promise<Uint8Array> {
+): Promise<ByteArray> {
   const encryptedKey = await window.crypto.subtle.wrapKey(
     "raw",
     aesKey,
@@ -300,7 +306,7 @@ export async function encryptAESKeyWithParentKey(
   return new Uint8Array(encryptedKey);
 }
 
-export function generateNonce(): Uint8Array {
+export function generateNonce(): ByteArray {
   return window.crypto.getRandomValues(new Uint8Array(12));
 }
 

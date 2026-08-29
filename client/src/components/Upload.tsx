@@ -58,7 +58,7 @@ export default function Upload({
   const encryptFileWithAES = async (
     aesKey: CryptoKey,
     file: File,
-    nonce: Uint8Array,
+    nonce: Uint8Array<ArrayBuffer>,
   ): Promise<Blob> => {
     const fileArrayBuffer = await file.arrayBuffer();
 
