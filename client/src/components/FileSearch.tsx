@@ -29,7 +29,7 @@ export default function FileSearch({
   onOpen,
   onFileSelected,
 }: FileSearchProps) {
-  const fuse = useRef<Fuse<FileMetadata>>(new Fuse([]));
+  const fuse = useRef<Fuse<FileMetadata>>(new Fuse<FileMetadata>([]));
   const [filteredFiles, setFilteredFiles] = useState<FileMetadata[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [open, setOpen] = useState(false);
