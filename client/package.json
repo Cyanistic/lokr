@@ -24,7 +24,7 @@
     "jszip": "^3.10.1",
     "localforage": "^1.10.0",
     "mammoth": "^1.12.2",
-    "pdfjs-dist": "5.4.296",
+    "pdfjs-dist": "6.2.108",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-dropzone": "^20.1.1",
