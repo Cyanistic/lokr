@@ -74,7 +74,10 @@ export default function PreferencesSection({
       </Typography>
       <Grid container spacing={{ xs: 2, md: 4 }}>
         {/* Left column: username, email, theme, view mode, sort order */}
-        <Grid item xs={12} md={7} order={{ xs: 2, md: 1 }}>
+        <Grid
+          size={{ xs: 12, md: 7 }}
+          sx={{ order: { xs: 2, md: 1 } }}
+        >
           <Paper elevation={1} sx={{ p: { xs: 2, sm: 3 }, borderRadius: 2 }}>
             <Stack spacing={{ xs: 1.5, sm: 2 }}>
               <Box
@@ -215,7 +218,10 @@ export default function PreferencesSection({
         </Grid>
 
         {/* Right column: avatar - Move to top on mobile */}
-        <Grid item xs={12} md={5} order={{ xs: 1, md: 2 }}>
+        <Grid
+          size={{ xs: 12, md: 5 }}
+          sx={{ order: { xs: 1, md: 2 } }}
+        >
           <Paper
             elevation={1}
             sx={{ p: { xs: 2, sm: 3 }, borderRadius: 2, textAlign: "center" }}

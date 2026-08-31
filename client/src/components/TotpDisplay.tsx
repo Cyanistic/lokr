@@ -407,15 +407,17 @@ export default function TwoFactorAuth({
           <Stack
             direction={{ xs: "column", sm: "row" }}
             spacing={1.25}
-            alignItems="center"
-            justifyContent="center"
-            sx={{ mb: 1.875 }}
+            sx={{
+              mb: 1.875,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
           >
             <TextField
               placeholder="Enter 6-digit code"
               value={totpInputCode}
               onChange={(e) => setTOTPInputCode(e.target.value)}
-              inputProps={{ maxLength: 6 }}
+              slotProps={{ htmlInput: { maxLength: 6 } }}
               sx={{
                 width: { xs: "100%", sm: 150 },
                 "& .MuiInputBase-input": {

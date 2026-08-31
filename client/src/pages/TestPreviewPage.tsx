@@ -1,19 +1,29 @@
 import React, { useState, useRef } from "react";
 import { Box, Button, Typography, Container } from "@mui/material";
 import FilePreviewModal from "../components/FilePreviewModal";
+import type { FileMetadata } from "../types";
 
 const TestPreviewPage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<any>(null);
+  const [selectedFile, setSelectedFile] = useState<FileMetadata | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      const fileObj = {
+      const blobUrl = URL.createObjectURL(file);
+      const fileObj: FileMetadata = {
+        id: file.name,
+        encryptedFileName: file.name,
+        encryptedKey: "",
+        isDirectory: false,
+        nameNonce: "",
+        createdAt: new Date().toISOString(),
+        modifiedAt: new Date().toISOString(),
+        size: file.size,
+        mimeType: file.type,
         name: file.name,
-        type: file.type,
-        url: URL.createObjectURL(file),
+        blobUrl,
       };
       setSelectedFile(fileObj);
       setIsModalOpen(true);
@@ -26,8 +36,8 @@ const TestPreviewPage: React.FC = () => {
 
   const closeModal = () => {
     setIsModalOpen(false);
-    if (selectedFile?.url?.startsWith("blob:")) {
-      URL.revokeObjectURL(selectedFile.url);
+    if (selectedFile?.blobUrl?.startsWith("blob:")) {
+      URL.revokeObjectURL(selectedFile.blobUrl);
     }
   };
 
@@ -42,7 +52,7 @@ const TestPreviewPage: React.FC = () => {
       }}
     >
       <Container maxWidth="sm">
-        <Typography variant="h3" fontWeight="bold" gutterBottom>
+        <Typography variant="h3" sx={{ fontWeight: "bold" }} gutterBottom>
           File Preview Test Page
         </Typography>
 
@@ -76,7 +86,7 @@ const TestPreviewPage: React.FC = () => {
       <FilePreviewModal
         open={isModalOpen}
         onClose={closeModal}
-        file={selectedFile}
+        file={selectedFile ?? undefined}
       />
     </Box>
   );

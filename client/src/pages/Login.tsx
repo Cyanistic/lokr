@@ -191,10 +191,12 @@ const Login: React.FC = () => {
 
   return (
     <Box
-      display="flex"
-      justifyContent="center"
-      alignItems="center"
-      minHeight="80vh"
+      sx={{
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        minHeight: "80vh",
+      }}
     >
       <Card
         elevation={3}
@@ -202,14 +204,16 @@ const Login: React.FC = () => {
       >
         <CardContent>
           <Box
-            display="flex"
-            flexDirection="column"
-            alignItems="center"
-            justifyContent="center"
-            mb={0.5}
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              mb: 0.5,
+            }}
           >
             <Lock sx={{ fontSize: 50, mb: 1 }} />
-            <Typography variant="h5" fontWeight="bold">
+            <Typography variant="h5" sx={{ fontWeight: "bold" }}>
               Sign In
             </Typography>
           </Box>
@@ -251,14 +255,16 @@ const Login: React.FC = () => {
                     setUser({ ...user, password: e.target.value })
                   }
                   required
-                  InputProps={{
-                    endAdornment: (
+                  slotProps={{
+                    input: {
+                      endAdornment: (
                       <IconButton
                         onClick={() => setShowPassword(!showPassword)}
                       >
                         {showPassword ? <VisibilityOff /> : <Visibility />}
                       </IconButton>
-                    ),
+                      ),
+                    },
                   }}
                 />
               </>
@@ -266,7 +272,7 @@ const Login: React.FC = () => {
 
             {loginStep === "totp" && (
               <>
-                <Typography variant="body2" fontWeight="bold">
+                <Typography variant="body2" sx={{ fontWeight: "bold" }}>
                   Enter the TOTP code from your authenticator app
                 </Typography>
                 <TextField
@@ -305,7 +311,7 @@ const Login: React.FC = () => {
             )}
           </form>
 
-          <Typography variant="body2" mt={2}>
+          <Typography variant="body2" sx={{ mt: 2 }}>
             Don't have an account? <Link to="/register">Create an account</Link>
           </Typography>
         </CardContent>

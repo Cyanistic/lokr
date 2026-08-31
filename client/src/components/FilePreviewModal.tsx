@@ -1370,11 +1370,13 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
                         WebkitTapHighlightColor: "transparent", // Prevent blue highlight on tap
                       }}
                       MenuProps={{
-                        PaperProps: {
-                          sx: {
-                            backgroundColor: "#333",
-                            color: "white",
-                            zIndex: 9999, // Ensure it appears above other elements in fullscreen
+                        slotProps: {
+                          paper: {
+                            sx: {
+                              backgroundColor: "#333",
+                              color: "white",
+                              zIndex: 9999, // Ensure it appears above other elements in fullscreen
+                            },
                           },
                         },
                         // Position the dropdown above the selector
@@ -1534,15 +1536,10 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
       // Calculate new scale
       const zoomFactor = 0.1;
       const oldScale = scale;
-      let newScale = oldScale;
-
-      if (e.deltaY < 0) {
-        // Zoom in
-        newScale = Math.min(oldScale + zoomFactor, 5);
-      } else {
-        // Zoom out
-        newScale = Math.max(oldScale - zoomFactor, 0.2);
-      }
+      const newScale =
+        e.deltaY < 0
+          ? Math.min(oldScale + zoomFactor, 5)
+          : Math.max(oldScale - zoomFactor, 0.2);
 
       // Calculate how much the position needs to be adjusted to zoom at cursor
       const adjustX = vectorX * (newScale / oldScale - 1);
@@ -2101,12 +2098,12 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
             },
           },
         },
-      }}
-      BackdropProps={{
-        sx: {
-          backgroundColor: "rgba(0, 0, 0, 0.5)",
+        backdrop: {
+          sx: {
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+          },
+          onClick: handleBackdropClick,
         },
-        onClick: handleBackdropClick,
       }}
     >
       <Fragment key={`${file?.id}-preview`}>
@@ -2428,7 +2425,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
                 <ArrowBackIosNewIcon fontSize="small" />
               </IconButton>
 
-              <Typography variant="body2" mx={1}>
+              <Typography variant="body2" sx={{ mx: 1 }}>
                 Page
               </Typography>
 
@@ -2522,7 +2519,7 @@ const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
               }}
             >
               <CircularProgress />
-              <Typography mt={2}>Loading preview...</Typography>
+              <Typography sx={{ mt: 2 }}>Loading preview...</Typography>
             </Box>
           )}
         </DialogContent>

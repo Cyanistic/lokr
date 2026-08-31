@@ -82,9 +82,8 @@ const ShareModal: React.FC<ShareModalProps> = ({
   const [permission, setPermission] = useState<"viewer" | "editor">("viewer");
   const [password, setPassword] = useState("");
   const [showMainPassword, setShowMainPassword] = useState<boolean>(false);
-  const availableDurationUnits = ["never", "hours", "days", "weeks"] as const;
-  const [durationUnits, setExpiration] =
-    useState<(typeof availableDurationUnits)[number]>("hours");
+  type DurationUnit = "never" | "hours" | "days" | "weeks";
+  const [durationUnits, setExpiration] = useState<DurationUnit>("hours");
   const [tab, setTab] = useState<number>(0);
   const [users, setUsers] = useState<Record<string, ApiPublicUser>>({});
   const [fields, setFields] = useState<{
@@ -361,7 +360,9 @@ const ShareModal: React.FC<ShareModalProps> = ({
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-      <Box display="flex" alignItems="center" justifyContent="center" p={2}>
+      <Box
+        sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 2 }}
+      >
         <DialogTitle
           title={file?.name || ""}
           sx={{ padding: 0, overflow: "hidden", maxWidth: "calc(100% - 48px)" }}
@@ -383,11 +384,13 @@ const ShareModal: React.FC<ShareModalProps> = ({
         {tab == 0 && (
           <>
             <Box
-              mt={3}
-              display="flex"
-              flexWrap="wrap"
-              alignItems="center"
-              gap={2}
+              sx={{
+                mt: 3,
+                display: "flex",
+                flexWrap: "wrap",
+                alignItems: "center",
+                gap: 2,
+              }}
             >
               <Autocomplete
                 freeSolo
@@ -446,7 +449,7 @@ const ShareModal: React.FC<ShareModalProps> = ({
                     onChange={(e) => handleUsernameChange(e, e.target.value)}
                     slotProps={{
                       htmlInput: {
-                        ...params.inputProps,
+                        ...params.slotProps.htmlInput,
                         autoComplete: "new-password",
                       },
                     }}
@@ -471,15 +474,19 @@ const ShareModal: React.FC<ShareModalProps> = ({
               </FormControl>
             </Box>
             {/* People with Access Section above General Access */}
-            <Box mt={3} p={2} border="1px solid" borderRadius="8px">
+            <Box
+              sx={{ mt: 3, p: 2, border: "1px solid", borderRadius: "8px" }}
+            >
               <Typography variant="subtitle1">People with access</Typography>
               <Box
-                display="flex"
-                justifyContent="space-between"
-                alignItems="center"
+                sx={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
               >
                 {/* Left Column: List of Names */}
-                <Box mt={1} sx={{ width: "100%" }}>
+                <Box sx={{ mt: 1, width: "100%" }}>
                   <Stack
                     spacing={2}
                     sx={{ width: "100%", maxHeight: 200, overflow: "auto" }}
@@ -575,14 +582,18 @@ const ShareModal: React.FC<ShareModalProps> = ({
         {tab == 1 && (
           <>
             {/* General Access Section */}
-            <Box mt={3} p={2} border="1px solid" borderRadius="8px">
+            <Box
+              sx={{ mt: 3, p: 2, border: "1px solid", borderRadius: "8px" }}
+            >
               <Typography variant="subtitle1">General access</Typography>
               <Box
-                display="flex"
-                flexWrap="wrap"
-                alignItems="center"
-                gap={2}
-                mt={2}
+                sx={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  alignItems: "center",
+                  gap: 2,
+                  mt: 2,
+                }}
               >
                 <TextField
                   label="Password (optional)"
@@ -590,21 +601,23 @@ const ShareModal: React.FC<ShareModalProps> = ({
                   sx={{ flexGrow: 1 }}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  InputProps={{
-                    endAdornment: (
-                      <InputAdornment position="end" sx={{ paddingRight: 1 }}>
-                        <IconButton
-                          onClick={() => setShowMainPassword(!showMainPassword)}
-                          edge="end"
-                        >
-                          {showMainPassword ? (
-                            <VisibilityOff />
-                          ) : (
-                            <Visibility />
-                          )}
-                        </IconButton>
-                      </InputAdornment>
-                    ),
+                  slotProps={{
+                    input: {
+                      endAdornment: (
+                        <InputAdornment position="end" sx={{ paddingRight: 1 }}>
+                          <IconButton
+                            onClick={() => setShowMainPassword(!showMainPassword)}
+                            edge="end"
+                          >
+                            {showMainPassword ? (
+                              <VisibilityOff />
+                            ) : (
+                              <Visibility />
+                            )}
+                          </IconButton>
+                        </InputAdornment>
+                      ),
+                    },
                   }}
                 />
                 <FormControl variant="outlined" sx={{ minWidth: 100 }}>
@@ -626,11 +639,13 @@ const ShareModal: React.FC<ShareModalProps> = ({
                 Link Expiration
               </Typography>
               <Box
-                display="flex"
-                flexWrap="wrap"
-                alignItems="center"
-                gap={2}
-                mt={2}
+                sx={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  alignItems: "center",
+                  gap: 2,
+                  mt: 2,
+                }}
               >
                 <TextField
                   label="Amount"
@@ -649,7 +664,7 @@ const ShareModal: React.FC<ShareModalProps> = ({
                     onChange={(e) =>
                       setExpiration(
                         e.target
-                          .value as (typeof availableDurationUnits)[number],
+                          .value as DurationUnit,
                       )
                     }
                   >
@@ -669,15 +684,19 @@ const ShareModal: React.FC<ShareModalProps> = ({
               </Box>
             </Box>
 
-            <Box mt={3} p={2} border="1px solid" borderRadius="8px">
+            <Box
+              sx={{ mt: 3, p: 2, border: "1px solid", borderRadius: "8px" }}
+            >
               <Typography variant="subtitle1">Active Links</Typography>
               <Box
-                display="flex"
-                justifyContent="space-between"
-                alignItems="center"
+                sx={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
               >
                 {/* Left Column: List of Names */}
-                <Box mt={1} sx={{ width: "100%" }}>
+                <Box sx={{ mt: 1, width: "100%" }}>
                   <Stack
                     spacing={2}
                     sx={{ width: "100%", maxHeight: 200, overflow: "auto" }}
@@ -918,23 +937,25 @@ const ShareModal: React.FC<ShareModalProps> = ({
                                     }
                                     sx={{ flexGrow: 1 }}
                                     autoFocus
-                                    InputProps={{
-                                      endAdornment: (
-                                        <InputAdornment position="end">
-                                          <IconButton
-                                            onClick={() =>
-                                              togglePasswordVisibility(link.id)
-                                            }
-                                            edge="end"
-                                          >
-                                            {showPassword[link.id] ? (
-                                              <VisibilityOff />
-                                            ) : (
-                                              <Visibility />
-                                            )}
-                                          </IconButton>
-                                        </InputAdornment>
-                                      ),
+                                    slotProps={{
+                                      input: {
+                                        endAdornment: (
+                                          <InputAdornment position="end">
+                                            <IconButton
+                                              onClick={() =>
+                                                togglePasswordVisibility(link.id)
+                                              }
+                                              edge="end"
+                                            >
+                                              {showPassword[link.id] ? (
+                                                <VisibilityOff />
+                                              ) : (
+                                                <Visibility />
+                                              )}
+                                            </IconButton>
+                                          </InputAdornment>
+                                        ),
+                                      },
                                     }}
                                   />
                                   <Box sx={{ display: "flex", gap: 1 }}>

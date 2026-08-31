@@ -15,7 +15,7 @@ import { useTheme } from "@emotion/react";
 import { useMemo, useState, useRef, useCallback } from "react";
 import { PublicUser } from "../myApi";
 import FileGridPreviewAttachment from "./FileGridPreview";
-import { FixedSizeGrid } from "react-window";
+import { Grid as VirtualizedGrid, type CellComponentProps } from "react-window";
 
 interface FileGridViewProps {
   files: FileMetadata[];
@@ -26,6 +26,64 @@ interface FileGridViewProps {
   owner: boolean;
   onPreviewLoad?: (fileId: string, blobUrl?: string) => void; // Optional callback for preview load
 }
+
+interface FileGridCellProps {
+  files: FileMetadata[];
+  columnCount: number;
+  onNavigate: (fileId: string) => void;
+  onAction: (action: string, fileId: string) => void;
+  owner: boolean;
+  onContextMenu: (event: React.MouseEvent, file: FileMetadata) => void;
+  onPreviewLoad?: (fileId: string, blobUrl?: string) => void;
+}
+
+const FileGridCell = ({
+  ariaAttributes,
+  columnIndex,
+  rowIndex,
+  style,
+  files,
+  columnCount,
+  onNavigate,
+  onAction,
+  owner,
+  onContextMenu,
+  onPreviewLoad,
+}: CellComponentProps<FileGridCellProps>) => {
+  const index = rowIndex * columnCount + columnIndex;
+
+  if (index >= files.length) {
+    return null;
+  }
+
+  const file = files[index];
+
+  return (
+    <div
+      {...ariaAttributes}
+      style={{
+        ...style,
+        padding: 8,
+      }}
+    >
+      <Box
+        sx={{
+          height: "100%",
+        }}
+        onContextMenu={(event) => onContextMenu(event, file)}
+      >
+        <FileGridItem
+          file={file}
+          onNavigate={onNavigate}
+          onAction={onAction}
+          owner={owner}
+          onContextMenu={(event) => onContextMenu(event, file)}
+          onPreviewLoad={(blobUrl) => onPreviewLoad?.(file.id, blobUrl)}
+        />
+      </Box>
+    </div>
+  );
+};
 
 export function FileGridView({
   files,
@@ -124,7 +182,10 @@ export function FileGridView({
     return (
       <Grid container spacing={2}>
         {Array.from({ length: files.length }).map((_, index) => (
-          <Grid item xs={6} sm={4} md={3} lg={2} key={`skeleton-${index}`}>
+          <Grid
+            size={{ xs: 6, sm: 4, md: 3, lg: 2 }}
+            key={`skeleton-${index}`}
+          >
             <Paper
               elevation={1}
               sx={{
@@ -201,51 +262,6 @@ export function FileGridView({
       </Box>
     );
   }
-  // Cell renderer function for FixedSizeGrid
-  const Cell = ({
-    columnIndex,
-    rowIndex,
-    style,
-  }: {
-    columnIndex: number;
-    rowIndex: number;
-    style: React.CSSProperties;
-  }) => {
-    const index = rowIndex * columnCount + columnIndex;
-
-    // Return empty cell if index is out of bounds
-    if (index >= files.length) {
-      return null;
-    }
-
-    const file = files[index];
-
-    return (
-      <div
-        style={{
-          ...style,
-          padding: 8, // Add padding inside the cell
-        }}
-      >
-        <Box
-          sx={{
-            height: "100%",
-          }}
-          onContextMenu={(event) => handleContextMenu(event, file)}
-        >
-          <FileGridItem
-            file={file}
-            onNavigate={onNavigate}
-            onAction={onAction}
-            owner={owner}
-            onContextMenu={(event) => handleContextMenu(event, file)}
-            onPreviewLoad={(blobUrl) => onPreviewLoad?.(file.id, blobUrl)}
-          />
-        </Box>
-      </div>
-    );
-  };
-
   return (
     <Box
       ref={gridRefCallback}
@@ -258,18 +274,25 @@ export function FileGridView({
       }}
     >
       {gridDimensions.width > 0 && gridDimensions.height > 0 && (
-        <FixedSizeGrid
+        <VirtualizedGrid
+          cellComponent={FileGridCell}
+          cellProps={{
+            files,
+            columnCount,
+            onNavigate,
+            onAction,
+            owner,
+            onContextMenu: handleContextMenu,
+            onPreviewLoad,
+          }}
           columnCount={columnCount}
           columnWidth={cellWidth + 16} // Add padding for spacing
-          height={gridDimensions.height}
+          defaultHeight={gridDimensions.height}
+          defaultWidth={gridDimensions.width}
           rowCount={rowCount}
           rowHeight={cellHeight + 16} // Add padding for spacing
-          width={gridDimensions.width}
-          itemData={files}
-          overscanRowCount={5}
-        >
-          {Cell}
-        </FixedSizeGrid>
+          overscanCount={5}
+        />
       )}
 
       {/* Right-click context menu */}

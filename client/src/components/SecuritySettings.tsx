@@ -107,15 +107,17 @@ export default function SecuritySettingsSection({
                   }}
                   fullWidth
                   size="small"
-                  InputProps={{
-                    endAdornment: (
-                      <IconButton
-                        onClick={() => setShowPassword(!showPassword)}
-                        sx={{ mr: -1 }}
-                      >
-                        {showPassword ? <VisibilityOff /> : <Visibility />}
-                      </IconButton>
-                    ),
+                  slotProps={{
+                    input: {
+                      endAdornment: (
+                        <IconButton
+                          onClick={() => setShowPassword(!showPassword)}
+                          sx={{ mr: -1 }}
+                        >
+                          {showPassword ? <VisibilityOff /> : <Visibility />}
+                        </IconButton>
+                      ),
+                    },
                   }}
                 />
                 <Button
