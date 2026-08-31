@@ -52,7 +52,7 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.5",
     "globals": "^17.11.0",
-    "oxc-transform-react": "^0.145.0",
+    "oxc-transform-react": "^0.147.0",
     "swagger-typescript-api": "^13.12.6",
     "typescript": "npm:@typescript/typescript6@6.0.2",
     "typescript-eslint": "^8.68.0",
