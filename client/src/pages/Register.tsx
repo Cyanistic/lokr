@@ -258,19 +258,21 @@ export default function Register() {
 
   return (
     <Box
-      display="flex"
-      justifyContent="center"
-      alignItems="center"
-      height="80vh"
+      sx={{
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        height: "80vh",
+      }}
     >
       <Card
         elevation={3}
         sx={{ width: 400, p: 3, borderRadius: 3, boxShadow: 5 }}
       >
         <CardContent>
-          <Box textAlign="center" mb={3}>
+          <Box sx={{ textAlign: "center", mb: 3 }}>
             <LockIcon fontSize="large" color="primary" />
-            <Typography variant="h5" fontWeight="bold" mt={1}>
+            <Typography variant="h5" sx={{ fontWeight: "bold", mt: 1 }}>
               Create an account
             </Typography>
             <Typography variant="body2" color="textSecondary">
@@ -393,7 +395,10 @@ export default function Register() {
             )}
           </form>
 
-          <Box textAlign="center" mt={2} onClick={() => nagivate("/login")}>
+          <Box
+            sx={{ textAlign: "center", mt: 2 }}
+            onClick={() => nagivate("/login")}
+          >
             <Typography
               sx={{
                 color: "text.secondary",

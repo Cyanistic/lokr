@@ -12,16 +12,12 @@ const commitHash =
       return "unknown";
     }
   })();
-const ReactCompilerConfig = {
-  target: "19",
-};
+const ReactCompilerConfig = true;
 
 export default defineConfig({
   plugins: [
     react({
-      babel: {
-        plugins: [["babel-plugin-react-compiler", ReactCompilerConfig]],
-      },
+      compiler: ReactCompilerConfig,
     }),
     wasm(),
   ],

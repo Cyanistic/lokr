@@ -100,7 +100,7 @@ export default function FileSearch({
             variant="outlined"
             slotProps={{
               input: {
-                ...params.InputProps,
+                ...params.slotProps.input,
                 startAdornment: (
                   <InputAdornment position="start">
                     <SearchIcon />

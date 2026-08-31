@@ -20,7 +20,10 @@ export default tseslint.config(
       "react-compiler": reactCompiler,
     },
     rules: {
-      ...reactHooks.configs.recommended.rules,
+      // Keep the established lint contract. React Hooks 7's recommended preset
+      // enables additional compiler rules that require a separate refactor.
+      "react-hooks/rules-of-hooks": "error",
+      "react-hooks/exhaustive-deps": "warn",
       "react-refresh/only-export-components": [
         "warn",
         { allowConstantExport: true },

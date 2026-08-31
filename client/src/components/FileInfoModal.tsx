@@ -152,7 +152,7 @@ function FileInfoModal({
 
           <Grid container spacing={2}>
             {/* Type */}
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
                 <Box sx={{ color: "text.secondary" }}>
                   <InsertDriveFileIcon style={{ height: 16, width: 16 }} />
@@ -171,7 +171,7 @@ function FileInfoModal({
             </Grid>
 
             {/* Size */}
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
                 <Box sx={{ color: "text.secondary" }}>
                   <SdStorage style={{ height: 16, width: 16 }} />
@@ -188,7 +188,7 @@ function FileInfoModal({
             </Grid>
 
             {/* Created */}
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
                 <Box sx={{ color: "text.secondary" }}>
                   <CalendarMonth style={{ height: 16, width: 16 }} />
@@ -205,7 +205,7 @@ function FileInfoModal({
             </Grid>
 
             {/* Modified */}
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
                 <Box sx={{ color: "text.secondary" }}>
                   <CalendarMonth style={{ height: 16, width: 16 }} />
@@ -223,7 +223,7 @@ function FileInfoModal({
 
             {/* Location/Path */}
             {filePath && (
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
                   <Box sx={{ color: "text.secondary" }}>
                     <InsertDriveFileIcon style={{ height: 16, width: 16 }} />
@@ -250,7 +250,7 @@ function FileInfoModal({
 
           <Grid container spacing={3}>
             {/* Uploader */}
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
                 <Typography variant="caption" color="text.secondary">
                   Uploaded by
@@ -280,7 +280,7 @@ function FileInfoModal({
             </Grid>
 
             {/* Owner */}
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
                 <Typography variant="caption" color="text.secondary">
                   Owned by

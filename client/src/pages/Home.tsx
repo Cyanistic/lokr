@@ -116,9 +116,11 @@ export function Home() {
     <Box className="main">
       <Box
         className="main-home-box"
-        display="flex"
-        justifyContent="space-between"
-        alignItems="center"
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
       >
         <Box className="left-home-box">
           <Typography variant="h1" component="h1" gutterBottom>
@@ -129,7 +131,7 @@ export function Home() {
             Share files with confidence using encryption and advanced privacy
             features.
           </Typography>
-          <Box className="home-buttons" display="flex" gap={2}>
+          <Box className="home-buttons" sx={{ display: "flex", gap: 2 }}>
             <Button variant="contained" color="primary" href="/register">
               Start Sharing
             </Button>
@@ -193,19 +195,24 @@ export function Home() {
                 }}
               >
                 <Box
-                  display="flex"
-                  alignItems="center"
-                  mb={minimized ? 0 : 1}
-                  sx={{ transition: "all 0.3s ease" }}
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    mb: minimized ? 0 : 1,
+                    transition: "all 0.3s ease",
+                  }}
                 >
                   <Typography
                     variant={minimized ? "subtitle2" : "h6"}
-                    fontWeight="medium"
-                    sx={{ flexGrow: 1 }}
+                    sx={{ flexGrow: 1, fontWeight: "medium" }}
                   >
                     Upload Results
                   </Typography>
-                  <Typography variant="caption" color="text.secondary" mr={1}>
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{ mr: 1 }}
+                  >
                     {uploadResults.length} file(s)
                   </Typography>
                   <IconButton
@@ -282,13 +289,15 @@ export function Home() {
                             "&:hover": { bgcolor: "success.100" },
                           }}
                         >
-                          <Box display="flex" alignItems="center" mb={1}>
+                          <Box
+                            sx={{ display: "flex", alignItems: "center", mb: 1 }}
+                          >
                             <Tooltip title={displayName} placement="top">
                               <Typography
                                 variant="body1"
-                                fontWeight="bold"
                                 sx={{
                                   flexGrow: 1,
+                                  fontWeight: "bold",
                                   overflow: "hidden",
                                   textOverflow: "ellipsis",
                                   whiteSpace: "nowrap",
@@ -341,7 +350,9 @@ export function Home() {
                             </IconButton>
                           </Box>
 
-                          <Box display="flex" justifyContent="flex-end" mt={1}>
+                          <Box
+                            sx={{ display: "flex", justifyContent: "flex-end", mt: 1 }}
+                          >
                             <Tooltip title="Open Link" placement="left">
                               <IconButton
                                 size="small"
@@ -378,16 +389,18 @@ export function Home() {
                           variant="outlined"
                         >
                           <Box
-                            display="flex"
-                            alignItems="center"
-                            width="100%"
-                            mb={0.5}
+                            sx={{
+                              display: "flex",
+                              alignItems: "center",
+                              width: "100%",
+                              mb: 0.5,
+                            }}
                           >
                             <Typography
                               variant="body1"
-                              fontWeight="bold"
                               sx={{
                                 flexGrow: 1,
+                                fontWeight: "bold",
                                 overflow: "hidden",
                                 textOverflow: "ellipsis",
                                 whiteSpace: "nowrap",
@@ -418,7 +431,11 @@ export function Home() {
         </Box>
       </Box>
 
-      <Box component="section" className="security-section" mt={4}>
+      <Box
+        component="section"
+        className="security-section"
+        sx={{ mt: 4 }}
+      >
         <Typography variant="h2" className="security-title" gutterBottom>
           Advanced Security Features
         </Typography>
@@ -432,10 +449,12 @@ export function Home() {
 
         <Box
           className="security-cards"
-          display="flex"
-          flexWrap="wrap"
-          justifyContent="center"
-          gap={2}
+          sx={{
+            display: "flex",
+            flexWrap: "wrap",
+            justifyContent: "center",
+            gap: 2,
+          }}
         >
           {features.map((feature, index) => (
             <Box
@@ -448,11 +467,11 @@ export function Home() {
                 textAlign: "center",
               }}
             >
-              <Box className="icon-wrapper" mb={1}>
+              <Box className="icon-wrapper" sx={{ mb: 1 }}>
                 {feature.icon}
               </Box>
               <Typography variant="h6">{feature.title}</Typography>
-              <Typography variant="body2" paragraph>
+              <Typography variant="body2" component="p" sx={{ mb: 2 }}>
                 {feature.description}
               </Typography>
             </Box>
@@ -464,10 +483,10 @@ export function Home() {
         <Container maxWidth="lg">
           <Grid container spacing={4}>
             {/* About Project Section */}
-            <Grid item xs={12} md={4}>
+            <Grid size={{ xs: 12, md: 4 }}>
               <Typography
                 variant="subtitle1"
-                fontWeight="semibold"
+                sx={{ fontWeight: "semibold" }}
                 gutterBottom
               >
                 About Lokr
@@ -507,10 +526,10 @@ export function Home() {
             </Grid>
 
             {/* Built With Section */}
-            <Grid item xs={12} md={4}>
+            <Grid size={{ xs: 12, md: 4 }}>
               <Typography
                 variant="subtitle1"
-                fontWeight="semibold"
+                sx={{ fontWeight: "semibold" }}
                 gutterBottom
               >
                 Built With
@@ -551,10 +570,10 @@ export function Home() {
             </Grid>
 
             {/* Security Commitment Section */}
-            <Grid item xs={12} md={4}>
+            <Grid size={{ xs: 12, md: 4 }}>
               <Typography
                 variant="subtitle1"
-                fontWeight="semibold"
+                sx={{ fontWeight: "semibold" }}
                 gutterBottom
               >
                 Our Security Commitment
@@ -596,9 +615,11 @@ export function Home() {
 
           <Stack
             direction={{ xs: "column", sm: "row" }}
-            justifyContent="space-between"
-            alignItems={{ xs: "flex-start", sm: "center" }}
             spacing={2}
+            sx={{
+              justifyContent: "space-between",
+              alignItems: { xs: "flex-start", sm: "center" },
+            }}
           >
             <Box>
               <Typography variant="body2">

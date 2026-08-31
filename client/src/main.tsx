@@ -4,7 +4,7 @@ import "./index.css";
 import App from "./App.tsx";
 import { ToastProvider } from "./components/ToastProvider.tsx";
 import { ErrorBoundary } from "react-error-boundary";
-import Error from "./components/Error.tsx";
+import ErrorPage from "./components/Error.tsx";
 import MuiThemeProviderComponent from "./components/MuiThemeProvider.tsx";
 
 createRoot(document.getElementById("root")!).render(
@@ -13,7 +13,16 @@ createRoot(document.getElementById("root")!).render(
       <ToastProvider>
         <ErrorBoundary
           fallbackRender={({ error, ...props }) => {
-            return <Error error={error} reset={props.resetErrorBoundary} />;
+            const normalizedError =
+              error instanceof globalThis.Error
+                ? error
+                : new globalThis.Error(String(error));
+            return (
+              <ErrorPage
+                error={normalizedError}
+                reset={props.resetErrorBoundary}
+              />
+            );
           }}
         >
           <App />

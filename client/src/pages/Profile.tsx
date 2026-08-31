@@ -35,8 +35,7 @@ import { PasswordModal } from "../components/PasswordModal";
 
 // Valid profile sections
 const Sections = ["profile", "security", "notifications"] as const;
-const EditableFields = ["username", "email", "password"] as const;
-export type EditableField = (typeof EditableFields)[number];
+export type EditableField = "username" | "email" | "password";
 export type PasswordField = EditableField | "toggleTotp" | "regenerateTotp";
 export interface PasswordModalFields {
   open: boolean;
@@ -449,9 +448,7 @@ function Profile() {
           <Grid container sx={{ height: { xs: "auto", md: "100%" } }}>
             {/* Left Sidebar with buttons - Convert to horizontal tabs on mobile */}
             <Grid
-              item
-              xs={12}
-              md={3}
+              size={{ xs: 12, md: 3 }}
               sx={{
                 borderRight: { xs: 0, md: 1 },
                 borderBottom: { xs: 1, md: 0 },
@@ -522,9 +519,7 @@ function Profile() {
 
             {/* Right content area - Make this scrollable */}
             <Grid
-              item
-              xs={12}
-              md={9}
+              size={{ xs: 12, md: 9 }}
               sx={{
                 height: { xs: "auto", md: "100%" },
                 overflow: { xs: "visible", md: "hidden" },
